@@ -138,3 +138,43 @@ over verified HTTPS. Browser confirmed both new illustrations loaded, exact Aust
 footer text/destination, no horizontal overflow and no warning/error console logs.
 Local responsive testing covered 320/768/1024/1440px and pause/resume of all four
 images. No BOSS runtime or unrelated local history was published.
+
+## Autonomous office gallery — 2026-11-02
+
+Three additional original illustrations were generated with the built-in Imagegen
+tool for this request, with no external reference images or copied artwork.
+The generated PNG sources remain in the conversation's Imagegen output.
+Project-consumed WebP files are committed in site/assets, encoded with cwebp:
+full 1536×1024 at quality 80, small 768×512 at quality 78. Only encoding and
+resolution changed; the image content was not composited or retouched.
+
+- escalation-committee.webp and escalation-committee-small.webp: three robot
+  executives inspect a tiny bug while a human serves coffee.
+- human-in-the-loop.webp and human-in-the-loop-small.webp: an office worker
+  stamps paperwork inside a literal brass loop while a robot supervises.
+- quarterly-results.webp and quarterly-results-small.webp: the robot receives
+  the trophy while humans applaud and connect its charger.
+
+The additional gallery remains fictional satire. Product copy now distinguishes
+ordinary supervised integration from an explicitly started Autopilot, describes
+model escalation and preserved checks, and keeps release/provider limits honest.
+Published commit `5a6d15c9073fa615fd0d67788316f31ea8eec8e3` contains only
+site markup/styles, six new WebP files and this documentation relative to freshly
+fetched remote main. [Pages run 41579508007](https://github.com/mpakus/cuckoding.com/actions/runs/41579508007)
+passed check and deploy. All 19 public resources match committed bytes over
+verified HTTPS. Local browser checks covered 320/768/1024/1440 px, the new
+second-opinion step, loaded artwork and Pause motion. The live browser also
+confirmed the new gallery. The lower two images remain uncropped 3:2 stills;
+only the committee image shares the existing bounded parallax.
+
+### escalation-committee generation prompt
+
+Use case: ads-marketing. Create an ORIGINAL luxury editorial satirical photograph for the Cuckoding AI coding website. Landscape 1536x1024. Scene: three polished retro-futurist chrome humanoid robots in an absurdly elegant Mediterranean executive meeting room, seated around a round pale travertine conference table. One robot solemnly uses a large magnifying glass to inspect a tiny red toy bug on an open laptop, another gestures grandly at blank sheets, the third reclines with a tiny espresso. A quietly exhausted adult human office worker in an ivory shirt and loosened tie stands beside the table holding a silver coffee tray. The machines have escalated a tiny problem into an expensive management committee; the human serves coffee. Make the visual joke instantly legible and dry, not cartoonish. Warm cream and peach plaster architecture, sage green upholstery, sunlight, real chrome reflections and linen texture, subtle analog film grain, sophisticated magazine art direction. Balanced wide composition, people, robots, tiny bug and table inside central 80 percent for responsive crops. No text, no logos, no watermarks, no real people, no violence, no sexual elements. Match the visual world of a chrome robot vacationing at a Mediterranean resort while humans do the work.
+
+### human-in-the-loop generation prompt
+
+Use case: ads-marketing. Create an ORIGINAL satirical luxury editorial photograph for Cuckoding, about AI and humans. Landscape 1536x1024. In a beautiful minimal Mediterranean office with pale peach plaster, warm ivory floor and sage details, an adult human office worker in an ivory shirt and loosened tie sits at a small desk INSIDE a huge upright circular brass ring, like an elegant oversized free-standing hoop surrounding the worker and desk. The ring is a harmless decorative frame, not a restraint or cage. The worker dutifully stamps blank cream paperwork with an oversized dark green rubber stamp, looking politely resigned. Outside the ring a sleek chrome humanoid robot in a relaxed executive pose hands a tall neat stack of papers through one side and collects approved papers from the other side with its other hand. Visual pun: the human is literally in the loop, reduced to approval bureaucracy while the machine manages everything. The ring must be a clearly visible complete circle, the human's face and stamping hand easily legible, the robot unmistakably in control. Warm editorial sunlight, tactile paper and linen, believable chrome reflections, fine analog grain, elegant sophisticated absurdism. Wide composition with ring and both characters comfortably inside central 80 percent, no crops of heads. No written words, no logos, no watermark, no real public figures, no chains, no violence, no fetish or sexual content.
+
+### quarterly-results generation prompt
+
+Use case: ads-marketing. Create an ORIGINAL sarcastic luxury editorial photograph for Cuckoding, a website about humans serving AI. Landscape 1536x1024. Scene: an elegant small corporate award ceremony on a sunlit Mediterranean terrace, pale peach arches and cream stone with sage-green details. A beautifully polished chrome humanoid robot stands proudly on a low stage holding a lavish gold trophy shaped like an abstract computer chip. Beside it, an adult tired human software engineer in a slightly crumpled ivory shirt and loose tie is on one knee adjusting a clearly visible charging plug connected to the robot's ankle. Three other adult human office workers stand nearby offering dutiful unenthusiastic applause, one holding a large cardboard box full of power adapters. The robot gets all the credit; the humans supply all the work. Dry corporate irony, refined and funny, not threatening or cruel. Robot and charging human are primary and large in frame; the cable and trophy should make the contrast instantly readable. Beautiful photographic chrome, gold, linen and stone materials, warm late-afternoon shadows, subtle film grain, high-end editorial art direction consistent with a chrome-robot Mediterranean resort shoot. Keep all key characters inside central 80 percent for narrow responsive framing. No text, no logos, no watermark, no real public figures, no violence or sexual elements.

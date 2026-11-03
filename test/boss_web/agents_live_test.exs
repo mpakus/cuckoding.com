@@ -35,8 +35,11 @@ defmodule BossWeb.AgentsLiveTest do
     anonymous = %{build_conn() | host: "127.0.0.1", port: 4002}
     assert redirected_to(get(anonymous, "/agents")) == "/unlock"
     assert html_response(get(conn, "/agents"), 200) =~ "Detect agents"
-    {:ok, home, _} = live(conn, "/")
-    assert has_element?(home, "a[href='/agents']", "Agents")
+    home = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
+
+    assert home |> LazyHTML.query("nav a[href='/agents']") |> LazyHTML.text() |> String.trim() ==
+             "Agents"
+
     {:ok, view, _} = live(conn, "/agents")
     assert has_element?(view, "#agent-codex", "Not checked")
     assert has_element?(view, "#agent-claude", "Not checked")

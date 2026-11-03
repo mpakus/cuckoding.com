@@ -581,3 +581,12 @@ Keep terminal task receipts and skip only pre-integration Failed, Blocked and
 Needs input deliveries with verified cleanup. Run independent tasks in the saved
 batch, enforce Done for dependencies, retain the intake base until verified
 publication, and report partial completion once no runnable items remain.
+
+## Marketing and application visual alignment
+
+Refresh the public site's autonomy story and add three satirical office images.
+Carry its paper/ink/sage/peach palette, editorial typography and restrained motion
+into application navigation, project setup, agent discovery, board and task drawer.
+Preserve controls, native focus and evidence semantics; verify responsive layouts
+and connected LiveView behavior. Publish only the website path allowlist from the
+fresh remote baseline, independently of local application integration.

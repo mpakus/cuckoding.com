@@ -407,3 +407,8 @@
   explicit website/check/documentation path allowlist, and verify commit ancestry
   before pushing. Never push the local BOSS main for a site-only request. Verify
   the exact Pages run and live HTTPS bytes; retain publication SHA/run evidence.
+
+- Keep the application aligned with the marketing visual system in
+  `docs/UI_DESIGN.md`: semantic paper/ink/sage/peach tokens, compact task evidence,
+  native drawer/focus behavior and document-level motion controls. Verify narrow
+  layouts and keyboard/reduced-motion behavior without triggering real work.

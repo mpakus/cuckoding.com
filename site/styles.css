@@ -904,6 +904,89 @@ details a {
   margin:48px 0 0;
   padding-top:24px;
 }
+.office-life.section-shell {
+  padding-bottom:0;
+}
+.office-heading {
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:48px;
+  margin-bottom:48px;
+}
+.office-heading h2 {
+  margin:24px 0 0;
+}
+.office-heading>p {
+  color:var(--muted);
+  font-size:15px;
+  line-height:1.8;
+  margin:0 0 4px;
+}
+.office-gallery {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:64px 40px;
+  align-items:start;
+}
+.office-figure {
+  margin:0;
+  min-width:0;
+}
+.office-figure-lead {
+  grid-column:1/-1;
+  display:grid;
+  grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);
+  gap:40px;
+  align-items:center;
+}
+.office-figure:last-child {
+  margin-top:72px;
+}
+.office-art {
+  aspect-ratio:3/2;
+  background:var(--peach);
+}
+.office-still {
+  display:block;
+  width:100%;
+  height:auto;
+}
+.office-figure figcaption {
+  padding-top:24px;
+}
+.office-figure-lead figcaption {
+  padding-top:0;
+}
+.office-figure .eyebrow {
+  color:var(--muted);
+  font-size:8px;
+  letter-spacing:1.4px;
+  line-height:1.8;
+}
+.office-figure h3 {
+  font-size:clamp(25px,2.5vw,36px);
+  font-weight:500;
+  letter-spacing:-1px;
+  line-height:1.15;
+  margin:16px 0;
+}
+.office-figure figcaption>p:last-child {
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.8;
+  max-width:400px;
+  margin-bottom:0;
+}
+.office-postscript {
+  color:var(--muted);
+  font-size:8px;
+  letter-spacing:1.4px;
+  line-height:1.8;
+  border-bottom:1px solid var(--line);
+  margin:48px 0 0;
+  padding-bottom:24px;
+}
 .site-footer .made-in {
   display:inline-block;
   font-size:11px;
@@ -1050,6 +1133,38 @@ html:has(body[data-motion="paused"]) {
   }
 }
 @media(max-width:900px) {
+  .office-heading {
+    display:block;
+    margin-bottom:32px;
+  }
+  .office-heading h2 {
+    font-size:clamp(34px,6vw,48px);
+    letter-spacing:-1.8px;
+    margin:20px 0 24px;
+  }
+  .office-heading>p {
+    font-size:14px;
+  }
+  .office-gallery {
+    grid-template-columns:minmax(0,1fr);
+    gap:40px;
+  }
+  .office-figure-lead {
+    display:block;
+  }
+  .office-figure:last-child {
+    margin-top:0;
+  }
+  .office-figure figcaption {
+    padding-top:20px;
+  }
+  .office-figure h3 {
+    font-size:28px;
+  }
+  .office-postscript {
+    font-size:7px;
+    margin-top:32px;
+  }
   .devotion .section-shell {
     padding-top:56px;
     padding-bottom:32px;
@@ -1263,6 +1378,9 @@ html:has(body[data-motion="paused"]) {
     display:grid;
     grid-template-columns:1fr 1fr;
     gap:3px
+  }
+  .workflow-steps .step:last-child {
+    grid-column:1/-1
   }
   .step {
     padding:16px 10px;

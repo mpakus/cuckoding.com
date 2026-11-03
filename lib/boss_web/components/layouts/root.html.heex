@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-motion="off" data-input="keyboard">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,7 +9,36 @@
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
-  <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
-    <main class="mx-auto max-w-3xl px-6 py-16 has-[#task-board]:max-w-7xl">{@inner_content}</main>
+  <body class="app-shell">
+    <a class="app-skip-link" href="#main-content">Skip to content</a>
+    <header class="app-shell-header">
+      <div class="app-shell-bar">
+        <div class="app-brand-group">
+          <a class="app-brand" href={~p"/"} aria-label="BOSS projects">
+            <span class="app-brand-eye" aria-hidden="true"></span>
+            <span>BOSS<span class="text-forest">.</span></span>
+          </a>
+          <span class="app-eyebrow">Local workspace</span>
+        </div>
+        <nav class="app-nav" aria-label="Main navigation">
+          <a href={~p"/"} aria-current={navigation_current(assigns[:conn], :projects)}>Projects</a>
+          <a href={~p"/agents"} aria-current={navigation_current(assigns[:conn], :agents)}>Agents</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main-content" class="app-main" tabindex="-1">{@inner_content}</main>
+    <footer class="app-shell-footer">
+      <a class="app-footer-brand" href="https://cuckoding.com/" target="_blank" rel="noopener">
+        cuckoding.
+      </a>
+      <div class="app-footer-tools">
+        <span>Your brief. Their problem.</span>
+        <label id="app-motion-control" class="app-motion-label" hidden>
+          <input id="app-motion-toggle" type="checkbox" disabled />
+          <span>Pause motion</span>
+        </label>
+        <span id="app-motion-system" hidden>Reduced by system preference</span>
+      </div>
+    </footer>
   </body>
 </html>

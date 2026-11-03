@@ -134,128 +134,139 @@ defmodule BossWeb.HomeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex items-center justify-between gap-4">
-      <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
-      <.link
-        navigate={~p"/agents"}
-        class="text-sm text-emerald-400 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-      >Agents</.link>
-    </div>
-    <h1 class="mt-4 text-3xl font-semibold">Projects</h1>
-    <p class="mt-3 text-zinc-300">
-      Connect a local repository to plan tasks from documentation or import individual specs.
-    </p>
-    <p :if={@message} role="status" class="mt-6 text-sm text-emerald-300">{@message}</p>
-    <section aria-label="Registered projects" class="mt-8">
-      <p
-        :if={@projects == []}
-        class="rounded-md border border-dashed border-zinc-700 px-5 py-6 text-zinc-400"
-      >
-        No projects yet. Add your first repository below.
+    <header class="app-page-header">
+      <p class="app-eyebrow">Your workspace</p>
+      <h1 class="app-page-title">Projects</h1>
+      <p class="app-page-description">
+        Connect a local repository to plan tasks from documentation or import individual specs.
       </p>
-      <ul id="projects" class="divide-y divide-zinc-800">
-        <li :for={project <- @projects} id={"project-#{project.id}"} class="py-5 first:pt-0">
-          <h2 class="font-semibold">
-            <.link
-              navigate={~p"/projects/#{project.id}"}
-              class="text-emerald-300 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400"
-            >
-              {project.name}
-            </.link>
-          </h2>
-          <p class="mt-2 break-all font-mono text-sm text-zinc-300">{project.root_path}</p>
-          <dl class="mt-3 space-y-1 text-sm text-zinc-400">
-            <div class="flex gap-2">
-              <dt>Base branch</dt><dd class="break-all text-zinc-200">{project.base_branch}</dd>
-            </div>
-            <div>
-              <dt>Specs directory</dt><dd class="mt-1 break-all font-mono">{project.specs_path}</dd>
-            </div>
-          </dl>
-        </li>
-      </ul>
-    </section>
-    <section aria-labelledby="add-project-title" class="mt-8 border-t border-zinc-800 pt-8">
-      <h2 id="add-project-title" class="text-xl font-semibold">Add a local project</h2>
-      <p id="project-help" class="mt-2 text-sm text-zinc-400">
-        Choose a Git repository with at least one commit and a documentation or specs folder.
-      </p>
-      <.form
-        for={@form}
-        id="project-form"
-        phx-change="validate"
-        phx-submit="create"
-        aria-describedby="project-help"
-        class="mt-6 space-y-5"
-      >
-        <p :if={@duplicate?} role="alert" class="text-sm text-red-300">
-          This repository is already registered, including its linked worktrees.
-        </p>
-        <.folder
-          field={@form[:root_path]}
-          label="Repository folder"
-          kind="repository"
-          disabled={@picking != nil}
-        />
-        <div>
-          <input type="hidden" name={@form[:intake_mode].name} value="specs" />
-          <label for={@form[:intake_mode].id} class="flex items-center gap-2 text-sm">
-            <input
-              id={@form[:intake_mode].id}
-              name={@form[:intake_mode].name}
-              type="checkbox"
-              value="documentation"
-              checked={@form[:intake_mode].value == "documentation"}
-              aria-describedby="intake-mode-help"
-            /> Plan tasks from documentation
-          </label>
-          <p id="intake-mode-help" class="mt-1 text-xs text-zinc-400">
-            Start Autopilot will compare the committed documentation with the code and create a task plan.
-          </p>
+    </header>
+    <p :if={@message} role="status" class="mb-6 text-sm text-forest">{@message}</p>
+    <div class="grid min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10">
+      <section aria-label="Registered projects" class="min-w-0 border-t border-line pt-5">
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <h2 class="app-panel-heading">Repositories</h2>
+          <span class="app-badge tabular-nums">{length(@projects)}</span>
         </div>
-        <.folder
-          field={@form[:specs_path]}
-          label={
-            if @form[:intake_mode].value == "documentation",
-              do: "Documentation folder",
-              else: "Specs directory"
-          }
-          kind="specs"
-          disabled={@picking != nil or is_nil(@folders["root_path"])}
-        />
-        <p :if={@picking} role="status" class="text-sm text-zinc-300">
-          Choose a folder in the system dialog on this computer.
-        </p>
-        <.field
-          field={@form[:base_branch]}
-          label={
-            if @form[:intake_mode].value == "documentation",
-              do: "Integration target branch (optional)",
-              else: "Base branch (optional)"
-          }
-          placeholder={
-            if @form[:intake_mode].value == "documentation",
-              do: "Create a dedicated branch",
-              else: "Current branch"
-          }
-        />
-        <.field
-          field={@form[:name]}
-          label="Project name (optional)"
-          placeholder="Repository folder name"
-        />
-        <button
-          id="add-project"
-          type="submit"
-          disabled={@picking != nil or is_nil(@folders["root_path"])}
-          phx-disable-with="Adding…"
-          class="rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-40 phx-submit-loading:opacity-60"
+        <p
+          :if={@projects == []}
+          class="app-empty-state"
         >
-          Add project
-        </button>
-      </.form>
-    </section>
-    <p class="mt-8 border-t border-zinc-800 pt-6 text-sm text-zinc-400">
+          No projects yet. Add your first repository to get started.
+        </p>
+        <ul id="projects" class="divide-y divide-line">
+          <li :for={project <- @projects} id={"project-#{project.id}"} class="py-6 first:pt-0">
+            <h3 class="text-xl font-semibold">
+              <.link
+                navigate={~p"/projects/#{project.id}"}
+                class="flex min-w-0 items-baseline justify-between gap-4 break-words text-ink hover:text-forest focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-forest"
+              >
+                <span class="min-w-0">{project.name}</span><span
+                  aria-hidden="true"
+                  class="shrink-0 text-forest"
+                >↗</span>
+              </.link>
+            </h3>
+            <p class="mt-2 break-all font-mono text-sm text-body">{project.root_path}</p>
+            <dl class="mt-4 grid gap-3 text-xs text-muted">
+              <div class="flex flex-wrap gap-x-3 gap-y-1">
+                <dt>Base branch</dt><dd class="break-all font-mono text-ink">
+                  {project.base_branch}
+                </dd>
+              </div>
+              <div>
+                <dt>Specs directory</dt><dd class="mt-1 break-all font-mono">{project.specs_path}</dd>
+              </div>
+            </dl>
+          </li>
+        </ul>
+      </section>
+      <section
+        aria-labelledby="add-project-title"
+        class="min-w-0 rounded-sm border border-line bg-peach/40 p-5 sm:p-6"
+      >
+        <p class="app-eyebrow mb-3">Start with the source</p>
+        <h2 id="add-project-title" class="app-panel-heading">Add a local project</h2>
+        <p id="project-help" class="mt-2 text-sm text-muted">
+          Choose a Git repository with at least one commit and a documentation or specs folder.
+        </p>
+        <.form
+          for={@form}
+          id="project-form"
+          phx-change="validate"
+          phx-submit="create"
+          aria-describedby="project-help"
+          class="mt-6 space-y-5"
+        >
+          <p :if={@duplicate?} role="alert" class="text-sm text-danger">
+            This repository is already registered, including its linked worktrees.
+          </p>
+          <.folder
+            field={@form[:root_path]}
+            label="Repository folder"
+            kind="repository"
+            disabled={@picking != nil}
+          />
+          <div>
+            <input type="hidden" name={@form[:intake_mode].name} value="specs" />
+            <label for={@form[:intake_mode].id} class="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                id={@form[:intake_mode].id}
+                name={@form[:intake_mode].name}
+                type="checkbox"
+                value="documentation"
+                checked={@form[:intake_mode].value == "documentation"}
+                aria-describedby="intake-mode-help"
+              /> Plan tasks from documentation
+            </label>
+            <p id="intake-mode-help" class="mt-1 text-xs text-muted">
+              Start Autopilot will compare the committed documentation with the code and create a task plan.
+            </p>
+          </div>
+          <.folder
+            field={@form[:specs_path]}
+            label={
+              if @form[:intake_mode].value == "documentation",
+                do: "Documentation folder",
+                else: "Specs directory"
+            }
+            kind="specs"
+            disabled={@picking != nil or is_nil(@folders["root_path"])}
+          />
+          <p :if={@picking} role="status" class="text-sm text-body">
+            Choose a folder in the system dialog on this computer.
+          </p>
+          <.field
+            field={@form[:base_branch]}
+            label={
+              if @form[:intake_mode].value == "documentation",
+                do: "Integration target branch (optional)",
+                else: "Base branch (optional)"
+            }
+            placeholder={
+              if @form[:intake_mode].value == "documentation",
+                do: "Create a dedicated branch",
+                else: "Current branch"
+            }
+          />
+          <.field
+            field={@form[:name]}
+            label="Project name (optional)"
+            placeholder="Repository folder name"
+          />
+          <button
+            id="add-project"
+            type="submit"
+            disabled={@picking != nil or is_nil(@folders["root_path"])}
+            phx-disable-with="Adding…"
+            class="app-button-primary px-5 py-3 font-semibold disabled:opacity-40 phx-submit-loading:opacity-60"
+          >
+            Add project
+          </button>
+        </.form>
+      </section>
+    </div>
+    <p class="mt-8 border-t border-line pt-6 text-sm text-muted">
       Closing this tab keeps BOSS running. Stop the server in your terminal when finished.
     </p>
     """
@@ -270,7 +281,7 @@ defmodule BossWeb.HomeLive do
     ~H"""
     <div>
       <label for={@field.id} class="block text-sm font-medium">{@label}</label>
-      <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+      <div class="mt-2 flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
         <input
           id={@field.id}
           value={@field.value}
@@ -279,7 +290,7 @@ defmodule BossWeb.HomeLive do
           placeholder="No folder selected"
           aria-invalid={@field.errors != []}
           aria-describedby={if @field.errors != [], do: @field.id <> "-error"}
-          class="min-w-0 flex-1 rounded-md border border-zinc-600 bg-zinc-900 px-3 py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          class="app-field min-w-0 flex-1 px-3 py-3 text-sm"
         />
         <button
           id={"choose-#{@kind}"}
@@ -287,7 +298,7 @@ defmodule BossWeb.HomeLive do
           phx-click="choose_folder"
           phx-value-kind={@kind}
           disabled={@disabled}
-          class="shrink-0 rounded-md border border-zinc-600 px-4 py-3 text-sm font-medium hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-40"
+          class="app-button-secondary shrink-0 px-4 py-3 text-sm font-medium disabled:opacity-40"
         >
           {if @kind == "repository", do: "Choose repository…", else: "Choose specs folder…"}
         </button>
@@ -296,7 +307,7 @@ defmodule BossWeb.HomeLive do
         :if={@field.errors != []}
         id={@field.id <> "-error"}
         role="alert"
-        class="mt-2 text-sm text-red-300"
+        class="mt-2 text-sm text-danger"
       >
         <p :for={{message, _opts} <- @field.errors}>{message}</p>
       </div>
@@ -329,13 +340,13 @@ defmodule BossWeb.HomeLive do
         spellcheck="false"
         aria-invalid={@errors != []}
         aria-describedby={if @errors != [], do: @field.id <> "-error"}
-        class="mt-2 w-full rounded-md border border-zinc-600 bg-zinc-900 px-3 py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+        class="app-field mt-2 w-full px-3 py-3 text-sm"
       />
       <div
         :if={@errors != []}
         id={@field.id <> "-error"}
         role="alert"
-        class="mt-2 text-sm text-red-300"
+        class="mt-2 text-sm text-danger"
       >
         <p :for={{message, opts} <- @errors}>
           {Enum.reduce(opts, message, fn {key, value}, text ->
