@@ -23,6 +23,15 @@ defmodule Boss.Agents.Codex do
         output_path
       ])
 
+  def args(:intake, output_path),
+    do:
+      command_args("read-only", [
+        "--output-schema",
+        Application.app_dir(:boss, "priv/intake_schema.json"),
+        "--output-last-message",
+        output_path
+      ])
+
   defp command_args(sandbox, extra),
     do:
       [
