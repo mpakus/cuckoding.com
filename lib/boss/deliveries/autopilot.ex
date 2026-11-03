@@ -173,12 +173,20 @@ defmodule Boss.Deliveries.Autopilot do
                 task_ids: tasks,
                 check_config: config,
                 config_hash: hash,
-                reviewer: reviewer
+                reviewer: reviewer,
+                autonomy_version: intake_autonomy(intake)
               })
 
             Enum.with_index(tasks)
             |> Enum.each(fn {task, position} ->
-              case Queue.admit(project, task, Ecto.UUID.generate(), text, reviewer) do
+              case Queue.admit(
+                     project,
+                     task,
+                     Ecto.UUID.generate(),
+                     text,
+                     reviewer,
+                     batch.autonomy_version
+                   ) do
                 {:ok, request} ->
                   Repo.insert!(%AutopilotItem{
                     request_id: request.id,
@@ -203,6 +211,9 @@ defmodule Boss.Deliveries.Autopilot do
 
   @doc false
   def resume_saved(project, id, version), do: change(project, id, :resume, version)
+
+  defp intake_autonomy(nil), do: Boss.Deliveries.ModelPolicy.current()
+  defp intake_autonomy(id), do: Repo.get!(Boss.Projects.Intake.Request, id).autonomy_version
 
   defp change(project, id, action, version) do
     with true <- is_integer(project) and is_integer(version) and version >= 0,

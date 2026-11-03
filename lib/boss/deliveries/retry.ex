@@ -84,7 +84,15 @@ defmodule Boss.Deliveries.Retry do
          true <- source.review.id == child.retry_review_id,
          true <-
            Enum.all?(
-             [:project_id, :task_id, :spec_revision_id, :check_config, :config_hash, :reviewer],
+             [
+               :project_id,
+               :task_id,
+               :spec_revision_id,
+               :check_config,
+               :config_hash,
+               :reviewer,
+               :autonomy_version
+             ],
              &(Map.fetch!(child, &1) == Map.fetch!(parent, &1))
            ),
          true <- child.admitted_version == source.terminal.version do
