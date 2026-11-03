@@ -84,4 +84,47 @@ defmodule Boss.CodexTest do
     assert Boss.Runs.Worker.receipt(%{cancelled | reason: :consumer_stopped}, invalid)[:status] ==
              "failed"
   end
+
+  test "provider errors retain fixed categories without raw messages or invented model failures" do
+    for {error, expected} <- [
+          {%{"code" => "model_not_found"}, "model_unavailable"},
+          {%{
+             "message" =>
+               "The model gpt-6-astra is not supported for this account SECRET_SENTINEL"
+           }, "model_unavailable"},
+          {%{"code" => "invalid_api_key"}, "auth"},
+          {%{"status_code" => 429}, "rate_limit"},
+          {%{"code" => "invalid_json_schema"}, "schema"},
+          {%{"message" => "stream disconnected SECRET_SENTINEL"}, "transport"},
+          {%{"message" => "a command exited 1 SECRET_SENTINEL"}, "unknown"}
+        ] do
+      data = JSON.encode!(%{"type" => "turn.failed", "error" => error}) <> "\n"
+      state = Codex.feed(Codex.new(), {:stdout, data})
+      assert state.error == :agent_error
+      assert Codex.summary(state)["error_class"] == expected
+      refute inspect(state) =~ "SECRET_SENTINEL"
+      refute Codex.complete?(state)
+    end
+
+    assert Codex.summary(Codex.new())["error_class"] == nil
+    invalid = Codex.feed(Codex.new(), {:stdout, "invalid\n"})
+    assert Codex.summary(invalid)["error_class"] == "transport"
+  end
+
+  test "actual catalog profiles remain explicit sandboxed CLI arguments" do
+    for model <- ~w(gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna) do
+      args = Codex.args(:plan, "/tmp/report", %{"model" => model, "reasoning_effort" => "high"})
+      assert Enum.at(args, Enum.find_index(args, &(&1 == "--model")) + 1) == model
+      assert "read-only" in args and List.last(args) == "-"
+      refute Enum.any?(args, &String.contains?(&1, "bypass"))
+    end
+
+    assert_raise ArgumentError, fn ->
+      Codex.args(:plan, "/tmp/report", %{
+        "model" => "gpt-5.6-sol",
+        "reasoning_effort" => "high",
+        "extra" => true
+      })
+    end
+  end
 end
