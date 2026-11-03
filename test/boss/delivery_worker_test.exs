@@ -25,7 +25,8 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
-    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
   ]
 
   setup context do
@@ -92,11 +93,20 @@ defmodule Boss.DeliveryWorkerTest do
     File.chmod!(Path.join(bin, "codex"), 0o700)
     File.cp!(Path.expand("../fixtures/claude_review.py", __DIR__), Path.join(bin, "claude"))
     File.chmod!(Path.join(bin, "claude"), 0o700)
-    keys = ["PATH", "BOSS_DELIVERY_MODE", "BOSS_DELIVERY_FIXTURE", "BOSS_CLAUDE_MODE"]
+
+    keys = [
+      "PATH",
+      "BOSS_DELIVERY_MODE",
+      "BOSS_DELIVERY_FIXTURE",
+      "BOSS_CLAUDE_MODE",
+      "BOSS_MODEL_CATALOG"
+    ]
+
     previous = Map.take(System.get_env(), keys)
     System.put_env("PATH", bin <> ":" <> System.fetch_env!("PATH"))
     System.delete_env("BOSS_DELIVERY_MODE")
     System.delete_env("BOSS_CLAUDE_MODE")
+    System.delete_env("BOSS_MODEL_CATALOG")
     System.put_env("BOSS_DELIVERY_FIXTURE", root)
 
     on_exit(fn ->
@@ -114,8 +124,120 @@ defmodule Boss.DeliveryWorkerTest do
       project: project,
       task: record.task,
       source: source,
-      autonomy: context[:autonomy] == true
+      autonomy: context[:autonomy] == true,
+      routing: context[:routing] || 1
     }
+  end
+
+  @tag autonomy: true, routing: 2
+  test "catalog routing pins installed models and resolves a question through a distinct model",
+       ctx do
+    System.put_env("BOSS_MODEL_CATALOG", "installed")
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_plan")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "ready_to_merge", inspect({saved, Deliveries.steps(run.id)})
+    assert saved.routing_version == 2
+    assert saved.model_catalog["primary"]["model"] == "gpt-5.6-sol"
+    assert saved.model_catalog["resolver"]["model"] == "gpt-5.6-terra"
+
+    assert Enum.map(calls(ctx), & &1["model"]) ==
+             ~w(gpt-5.6-sol gpt-5.6-terra gpt-5.6-sol gpt-5.6-sol gpt-5.6-sol)
+
+    assert_no_raw(Deliveries.steps(run.id))
+  end
+
+  @tag autonomy: true, routing: 2
+  test "catalog routing sends a rejected candidate to a distinct implementing model and fresh checks",
+       ctx do
+    System.put_env("BOSS_MODEL_CATALOG", "installed")
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_review")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge" and saved.cycle == 2, inspect({saved, steps})
+    [first, second] = Enum.filter(steps, &(&1.kind == "implement"))
+    assert first.input["model_profile"]["model"] == "gpt-5.6-sol"
+    assert second.input["model_profile"]["model"] == "gpt-5.6-terra"
+    assert length(Enum.filter(steps, &(&1.kind == "check"))) == 2
+    assert List.last(steps).receipt["report"]["verdict"] == "approved"
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true, routing: 2
+  test "a shared authentication failure retains a typed cause without paying another model",
+       ctx do
+    System.put_env("BOSS_MODEL_CATALOG", "installed")
+    System.put_env("BOSS_DELIVERY_MODE", "routing_auth")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "failed" and saved.cleanup == "group_empty"
+    assert saved.failure_code == "provider_auth"
+    assert Enum.map(calls(ctx), & &1["kind"]) == ["plan"]
+    [step] = Deliveries.steps(run.id)
+    assert step.receipt["summary"]["error_class"] == "auth"
+    assert_no_raw([step])
+  end
+
+  @tag autonomy: true, routing: 2
+  test "a semantic implementation error with exit zero gets a fresh experiment rather than approval",
+       ctx do
+    System.put_env("BOSS_MODEL_CATALOG", "installed")
+    System.put_env("BOSS_DELIVERY_MODE", "routing_zero_error")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    [failed, replacement] = Enum.filter(steps, &(&1.kind == "implement"))
+    assert failed.status == "failed" and failed.receipt["exit_code"] == 0
+    assert failed.receipt["summary"]["error_class"] == "unknown"
+
+    assert File.read!(Path.join(failed.input["workspace"]["path"], "partial-only.txt")) =~
+             "retained"
+
+    assert replacement.status == "finished"
+    assert replacement.input["model_profile"]["model"] != failed.input["model_profile"]["model"]
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true, routing: 2
+  test "invalid catalog data fails before any model request and retains no raw metadata", ctx do
+    System.put_env("BOSS_MODEL_CATALOG", "invalid")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "failed" and saved.failure_code == "catalog_invalid"
+    assert saved.model_catalog == %{} and saved.intent == %{}
+    assert Deliveries.steps(run.id) == []
+    refute File.exists?(Path.join(ctx.root, "calls"))
+    refute inspect(saved) =~ "SECRET_SENTINEL"
+  end
+
+  @tag autonomy: true, routing: 2
+  test "Stop interrupts catalog discovery directly without creating a workspace or model stage",
+       ctx do
+    System.put_env("BOSS_MODEL_CATALOG", "wait")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    eventually(fn -> File.exists?(Path.join(ctx.root, "catalog-waiting")) end)
+    :sys.suspend(manager)
+
+    try do
+      assert :ok = Deliveries.stop(ctx.project.id, run.id, Boss.DeliveryTestsActive)
+      eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, run.id)) end)
+    after
+      :sys.resume(manager)
+    end
+
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "cancelled" and saved.cleanup == "group_empty"
+    assert saved.model_catalog == %{} and saved.intent == %{}
+    assert Deliveries.steps(run.id) == []
+    refute File.exists?(Path.join(ctx.root, "calls"))
   end
 
   @tag autonomy: true
@@ -878,9 +1000,16 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   defp start(ctx, manager, command \\ Ecto.UUID.generate()) do
-    if ctx.autonomy,
-      do: Deliveries.start(ctx.project.id, ctx.task.id, command, "python3 check.py", manager),
-      else: legacy_start(ctx, manager, command, "codex")
+    cond do
+      ctx.routing == 2 ->
+        Deliveries.start(ctx.project.id, ctx.task.id, command, "python3 check.py", manager)
+
+      ctx.autonomy ->
+        legacy_start(ctx, manager, command, "codex", 1)
+
+      true ->
+        legacy_start(ctx, manager, command, "codex")
+    end
   end
 
   defp rejected_delivery(ctx, manager) do
@@ -909,14 +1038,15 @@ defmodule Boss.DeliveryWorkerTest do
     do: legacy_start(ctx, manager, command, "claude")
 
   # Saved pre-upgrade requests exercise the legacy execution contract unchanged.
-  defp legacy_start(ctx, manager, command, reviewer) do
+  defp legacy_start(ctx, manager, command, reviewer, autonomy \\ 0) do
     case Boss.Deliveries.Queue.admit(
            ctx.project.id,
            ctx.task.id,
            command,
            "python3 check.py",
            reviewer,
-           0
+           autonomy,
+           1
          ) do
       {:ok, request} ->
         # Replaying the saved request through the public entrypoint wakes dispatch.

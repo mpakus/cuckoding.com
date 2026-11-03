@@ -10,6 +10,20 @@ import time
 
 signal.alarm(20)
 args = sys.argv[1:]
+if args == ["--config", 'model_provider="openai"', "debug", "models"]:
+    catalog_mode = os.environ.get("BOSS_MODEL_CATALOG", "requested")
+    if catalog_mode == "unavailable":
+        sys.exit(1)
+    if catalog_mode == "invalid":
+        print('{"models":"RAW_CATALOG_SECRET_SENTINEL"}')
+        sys.exit(0)
+    if catalog_mode == "wait":
+        Path(os.environ["BOSS_DELIVERY_FIXTURE"], "catalog-waiting").write_text(str(os.getpid()))
+        while True:
+            time.sleep(0.1)
+    models = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] if catalog_mode == "installed" else ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"]
+    print(json.dumps({"models": [{"slug": model, "visibility": "list", "supported_reasoning_levels": [{"effort": effort} for effort in ["medium", "high", "xhigh"]]} for model in models]}))
+    sys.exit(0)
 assert "--ephemeral" in args and "--ignore-user-config" in args
 assert args[args.index("--ask-for-approval") + 1] == "never"
 prompt = sys.stdin.read()
@@ -36,6 +50,15 @@ emit({"type": "turn.started"})
 emit({"type": "item.completed", "item": {"type": "agent_message", "text": "RAW_MODEL_SECRET_SENTINEL"}})
 print("RAW_AGENT_STDERR_SECRET_SENTINEL", file=sys.stderr, flush=True)
 
+if mode == "routing_auth":
+    emit({"type": "error", "code": "invalid_api_key", "message": "RAW_MODEL_SECRET_SENTINEL"})
+    sys.exit(1)
+
+if mode == "routing_zero_error" and kind == "implement" and cycle == 1:
+    Path("partial-only.txt").write_text("retained failed implementation\n")
+    emit({"type": "error", "message": "RAW_MODEL_SECRET_SENTINEL failed with zero exit"})
+    sys.exit(0)
+
 if mode == "autonomy_zero_error":
     emit({"type": "error", "message": "RAW_MODEL_SECRET_SENTINEL failed with zero exit"})
     sys.exit(0)
@@ -49,7 +72,7 @@ if (mode == "autonomy_persistent_sol" and model == "gpt-6.1-sol") or \
    (mode == "autonomy_model_unavailable" and kind == "plan" and not data.get("resolution")) or \
    (mode == "autonomy_resolver_unavailable" and kind == "resolve" and data["resolution_attempt"] == 1) or \
    (mode == "autonomy_review_unavailable" and kind == "review" and Path("result.txt").read_text() == "candidate-1\n"):
-    emit({"type": "error", "message": "RAW_MODEL_SECRET_SENTINEL unavailable model"})
+    emit({"type": "error", "code": "model_not_found", "message": "RAW_MODEL_SECRET_SENTINEL unavailable model"})
     sys.exit(7)
 
 if (mode == "wait" and kind == "implement") or (mode in ("autonomy_wait_resolve", "autonomy_partial_wait_resolve") and kind == "resolve"):
@@ -96,7 +119,7 @@ else:
     assert args[args.index("--sandbox") + 1] == "read-only"
     output = Path(args[args.index("--output-last-message") + 1])
     if kind == "resolve":
-        assert model in ("gpt-6-astra", "gpt-6.1-sol")
+        assert model in ("gpt-6-astra", "gpt-6.1-sol", "gpt-5.6-sol", "gpt-5.6-terra")
         feedback = data["previous_feedback"]
         if feedback["kind"] == "implementation":
             assert Path("result.txt").read_text() == "base"
