@@ -9,6 +9,7 @@ defmodule BossWeb.Autopilot do
      assign(socket,
        project: nil,
        entries: [],
+       eligible_task_ids: [],
        supported: false,
        open: false,
        batch: nil,
@@ -32,6 +33,7 @@ defmodule BossWeb.Autopilot do
 
   def update(assigns, socket) do
     first = is_nil(socket.assigns.project)
+    changed = Map.get(assigns, :entries, socket.assigns.entries) != socket.assigns.entries
     socket = assign(socket, Map.take(assigns, [:id, :project, :entries, :supported]))
 
     socket =
@@ -46,7 +48,7 @@ defmodule BossWeb.Autopilot do
         socket
       end
 
-    {:ok, if(first, do: load(socket), else: socket)}
+    {:ok, if(first or changed, do: load(socket), else: socket)}
   end
 
   @impl true
@@ -70,7 +72,7 @@ defmodule BossWeb.Autopilot do
       do: {:noreply, act(socket, request)}
 
   def handle_event("start", params, socket) do
-    tasks = Enum.filter(socket.assigns.entries, &eligible?/1) |> Enum.map(& &1.task_id)
+    tasks = choices(socket.assigns) |> Enum.map(& &1.task_id)
 
     planning? = plans_from_docs?(socket.assigns)
 
@@ -91,7 +93,7 @@ defmodule BossWeb.Autopilot do
       message =
         if planning?,
           do: "Wait for the current Autopilot action or inspect its saved status.",
-          else: "Autopilot requires 1–256 tasks in the current Backlog."
+          else: "Autopilot requires 1–256 eligible unfinished tasks for a new Start."
 
       {:noreply, assign(socket, error: message)}
     end
@@ -172,6 +174,21 @@ defmodule BossWeb.Autopilot do
   def handle_async({:load, generation}, result, %{assigns: %{generation: generation}} = socket) do
     socket =
       case result do
+        {:ok, {{:ok, batch}, intake, selection}} ->
+          socket = apply_load(socket, batch, intake)
+
+          case selection do
+            {:ok, ids} ->
+              assign(socket, eligible_task_ids: ids)
+
+            _ ->
+              assign(socket,
+                eligible_task_ids: [],
+                loaded: false,
+                error: "Could not load eligible tasks. Retry loading."
+              )
+          end
+
         {:ok, {:ok, batch}} ->
           apply_load(socket, batch, nil)
 
@@ -282,7 +299,8 @@ defmodule BossWeb.Autopilot do
     |> assign(loading: true, generation: generation, load_again: false)
     |> start_async({:load, generation}, fn ->
       batch = Engine.current(project)
-      if documentation?, do: {batch, Intake.latest(project)}, else: batch
+      intake = if documentation?, do: Intake.latest(project)
+      {batch, intake, Engine.selection(project)}
     end)
   end
 
@@ -293,8 +311,14 @@ defmodule BossWeb.Autopilot do
     end
   end
 
-  defp eligible?(entry),
-    do: !entry.missing and entry.state == "new"
+  defp choices(assigns) do
+    eligible = MapSet.new(Map.get(assigns, :eligible_task_ids, []))
+
+    Enum.filter(assigns.entries, fn entry ->
+      !entry.missing and entry.state in ~w(new failed blocked needs_input) and
+        MapSet.member?(eligible, entry.task_id)
+    end)
+  end
 
   defp documentation?(%{intake_mode: "documentation"}), do: true
   defp documentation?(_), do: false
@@ -304,7 +328,8 @@ defmodule BossWeb.Autopilot do
 
   defp ready?(assigns),
     do:
-      assigns.supported and assigns.loaded and !assigns.acting and is_nil(assigns.pending) and
+      assigns.supported and assigns.loaded and !assigns.loading and !assigns.acting and
+        is_nil(assigns.pending) and
         !match?(%{status: "planning"}, assigns.intake) and
         !match?(%{cleanup: "unknown"}, assigns.intake) and
         (is_nil(assigns.batch) or assigns.batch.status in ~w(blocked completed cancelled))
@@ -324,13 +349,13 @@ defmodule BossWeb.Autopilot do
   defp error(:target_unavailable), do: "The integration target could not be verified."
 
   defp error(:invalid_command),
-    do: "Choose a reviewer and enter a valid check command for the current Backlog."
+    do: "Choose a reviewer and enter a valid check command for the unfinished tasks."
 
   defp error(:stale_version),
     do: "Autopilot changed in another browser. Review its current status."
 
   defp error(:backlog_changed),
-    do: "Backlog changed before Start. Review the updated list and start again."
+    do: "Eligible unfinished tasks changed before Start. Review the updated list and start again."
 
   defp error(:idempotency_conflict),
     do: "This request was already saved with different inputs. Reload Autopilot."
@@ -345,7 +370,7 @@ defmodule BossWeb.Autopilot do
   def render(assigns) do
     assigns =
       assign(assigns,
-        choices: Enum.filter(assigns.entries, &eligible?/1),
+        choices: choices(assigns),
         ready: ready?(assigns),
         documentation: documentation?(assigns.project),
         plans_from_docs: plans_from_docs?(assigns)

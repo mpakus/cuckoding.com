@@ -9,6 +9,14 @@ import time
 
 signal.alarm(60)
 args = sys.argv[1:]
+if args[-2:] == ["debug", "models"]:
+    assert args == ["--config", 'model_provider="openai"', "debug", "models"]
+    print(json.dumps({"models": [
+        {"slug": name, "visibility": "list",
+         "supported_reasoning_levels": [{"effort": value} for value in ["medium", "high", "xhigh"]]}
+        for name in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+    ]}))
+    sys.exit(0)
 prompt = sys.stdin.read()
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
 if schema and schema.name == "intake_schema.json":
