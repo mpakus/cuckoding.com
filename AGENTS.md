@@ -245,7 +245,9 @@
   See docs/AUTOPILOT.md; ordinary Start/Queue never imply automatic integration.
   For an explicitly requested checked-out-target repair, inspect every worktree
   and preserve files/ref tips. A clean checkout can move to a new observer branch
-  at the same commit; keep it off the target while Autopilot integrates. A blocked
+  at the same commit; keep it off the target while Autopilot integrates.
+  Check the serving data root and saved base branch before repairing a recurrence.
+  A fresh registration defaults to the branch checked out at registration time. A blocked
   batch needs a fresh explicit Start, never an automatic paid retry.
   Reconcile an uncertain Start only with its exact committed batch and pinned
   inputs. Drain a refresh received during the action; stale or unrelated reads

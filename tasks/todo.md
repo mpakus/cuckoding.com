@@ -822,3 +822,6 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Record the final Blocked receipt after three cycles and 13 of 14 review criteria passed.
 - [ ] Establish production CNI and independent egress policy evidence, then verify Ready/Done.
 - [ ] Only after Done, admit remaining current Backlog and observe Autopilot progress.
+
+- [x] Repair the checked-out target in the separate source-launcher database
+  registration. Exact BOSS Git preflight passed after freeing the target.

@@ -123,3 +123,9 @@ excludes Req from the test environment, so passing fake-transport tests do not
 establish production-adapter coverage. No result was integrated and the remaining
 45 New tasks were not admitted to Autopilot. This is failure-path evidence,
 not full Task1-to-Done or full-Backlog acceptance.
+
+A fresh project registration defaults its base branch to the current checkout.
+Choose the intended integration target explicitly when registering from an
+observer branch. Keep the registered target free across all worktrees before
+starting Autopilot. A direct workflow that is already active holds admission
+until its execution settles.
