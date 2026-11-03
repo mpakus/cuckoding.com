@@ -63,6 +63,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     assert delivery.spec_revision_id == c.saved.task.spec_revision_id
     assert delivery.check_config["argv"] == ["mix", "test"]
     assert delivery.reviewer == "codex"
+    assert delivery.routing_version == 2
     assert has_element?(view, "#delivery-#{delivery.id}", "Preparing plan")
     assert has_element?(view, "#start-codex[disabled]")
     start(view, id)
@@ -784,6 +785,8 @@ defmodule BossWeb.TaskDeliveryLiveTest do
   end
 
   defp ready_delivery(project, delivery) do
+    {:ok, delivery} = Deliveries.set_model_catalog(delivery.id, model_catalog())
+
     intent = %{
       "project_id" => to_string(project.id),
       "run_id" => delivery.id,
@@ -861,6 +864,19 @@ defmodule BossWeb.TaskDeliveryLiveTest do
 
     {:ok, delivery} = Deliveries.complete(delivery.id, "ready_to_merge")
     delivery
+  end
+
+  defp model_catalog do
+    %{
+      "version" => 2,
+      "primary" => %{"model" => "gpt-5.6-sol", "reasoning_effort" => "high"},
+      "resolver" => %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"},
+      "small" => nil,
+      "fallbacks" => [
+        %{"model" => "gpt-5.6-sol", "reasoning_effort" => "xhigh"},
+        %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"}
+      ]
+    }
   end
 
   defp integrated(delivery) do
