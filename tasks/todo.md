@@ -818,5 +818,7 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   cancellation, standard migration and redirect/IP security fixes; independent review passed.
   Combined46tests pass; private real-PostgreSQL receipt/restart/migration probe passed.
 - [x] Obtain explicit authorization for one candidate workflow, up to three cycles.
-- [ ] Verify the candidate retry and actual Ready/Done.
+- [x] Verify the single candidate Retry against the live history. Fresh seed check passed.
+- [x] Record the final Blocked receipt after three cycles and 13 of 14 review criteria passed.
+- [ ] Establish production CNI and independent egress policy evidence, then verify Ready/Done.
 - [ ] Only after Done, admit remaining current Backlog and observe Autopilot progress.
