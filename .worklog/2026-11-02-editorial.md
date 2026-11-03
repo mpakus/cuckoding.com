@@ -99,6 +99,11 @@ complete below. Provider calls and application deployment are outside this scope
 ### Outcome and next step
 
 Requested website is live at5a6d15c, exact successful Pagesrun41579508007.
-Application source is ready for local-main integration; the running4001 instance
-and original data remain untouched. Next: verify merged main, remove clean merged
-worktrees and leave application activation to its normal next build/start.
+Application merged into local main at a8d3c77. On that exact combined tree,
+`rtk proxy asdf exec mix test test/boss_web --seed 1211` passed150 tests in17.5s;
+`rtk proxy node --test test/app_motion_test.mjs test/site_motion_test.mjs`
+passed11 tests, and `rtk proxy asdf exec mix assets.build` passed. Worktree was
+clean before this evidence-only receipt. No full backend suite repeated for this
+presentation increment. The running4001 instance and original data remain
+untouched. Next: activate the application through its normal next build/start;
+no provider run, package release or runtime restart is claimed here.
