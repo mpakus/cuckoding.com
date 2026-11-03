@@ -330,6 +330,26 @@ defmodule Boss.CatalogRoutingPersistenceTest do
     end
   end
 
+  test "independent routing schema preserves an older strict Autopilot guard" do
+    routing = Boss.Repo.Migrations.AddCatalogRouting
+    continuation = Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure
+    assert :ok = Ecto.Migrator.down(Repo, 20_261_105_120_000, routing, log: false)
+    assert :ok = Ecto.Migrator.down(Repo, 20_261_104_120_000, continuation, log: false)
+
+    before =
+      Repo.query!("SELECT sql FROM sqlite_schema WHERE name='autopilot_delivery_guard'").rows
+
+    assert :ok = Ecto.Migrator.up(Repo, 20_261_105_120_000, routing, log: false)
+
+    assert Repo.query!("SELECT sql FROM sqlite_schema WHERE name='autopilot_delivery_guard'").rows ==
+             before
+
+    assert :ok = Ecto.Migrator.down(Repo, 20_261_105_120_000, routing, log: false)
+
+    assert Repo.query!("SELECT sql FROM sqlite_schema WHERE name='autopilot_delivery_guard'").rows ==
+             before
+  end
+
   defp restart(c) do
     :ok = stop_supervised(Repo)
     Repo.put_dynamic_repo(start_supervised!({Repo, c.opts}))

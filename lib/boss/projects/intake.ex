@@ -344,6 +344,32 @@ defmodule Boss.Projects.Intake do
   defp message(:cancelled), do: "Documentation planning stopped."
   defp message(:codex_unavailable), do: "Codex is unavailable on BOSS's PATH."
 
+  defp message(:catalog_unavailable),
+    do:
+      "Codex could not provide its model catalog. Check the local CLI before starting planning again."
+
+  defp message(:catalog_invalid),
+    do: "Codex returned an invalid model catalog. No planning model was started."
+
+  defp message(:catalog_insufficient_models),
+    do:
+      "The local model catalog has fewer than two eligible reasoning models. No planning model was started."
+
+  defp message(:provider_auth),
+    do:
+      "The selected provider account could not authenticate. Restore its access before starting planning again."
+
+  defp message(:provider_rate_limit),
+    do:
+      "The provider reported a rate or quota limit. Planning stopped without switching accounts."
+
+  defp message(:provider_schema),
+    do:
+      "The provider rejected the request format. Update the adapter before starting planning again."
+
+  defp message(:provider_transport),
+    do: "The provider connection failed. Check connectivity before starting planning again."
+
   defp message(_),
     do:
       "Documentation planning could not complete. Check the committed documents, target and provider."
