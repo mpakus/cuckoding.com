@@ -91,6 +91,18 @@ defmodule Boss.Runs.Manager do
         state
       )
 
+  def handle_call({:delivery_candidate_retry, project, parent, command, candidate}, _from, state)
+      when is_binary(candidate),
+      do:
+        launch(
+          Deliveries.admit_retry(project, parent, command, managed_locked?(state), candidate),
+          state.delivery_worker,
+          state
+        )
+
+  def handle_call({:delivery_candidate_retry, _, _, _, _}, _from, state),
+    do: {:reply, {:error, :invalid_command}, state}
+
   def handle_call({:scheduling_set, version, capacity}, _from, state) do
     result = Scheduling.update(version, capacity, map_size(state.active))
     queue_reply(result, state)

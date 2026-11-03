@@ -106,8 +106,9 @@ defmodule Boss.Deliveries do
   end
 
   @doc false
-  def admit_retry(project, parent_id, command, replay_only \\ false) do
+  def admit_retry(project, parent_id, command, replay_only \\ false, candidate \\ nil) do
     with true <- valid_id?(project) and is_boolean(replay_only),
+         true <- Boss.Deliveries.Retry.valid_candidate?(candidate),
          {:ok, _} <- Ecto.UUID.cast(parent_id),
          {:ok, _} <- Ecto.UUID.cast(command) do
       transaction(fn ->
@@ -116,8 +117,11 @@ defmodule Boss.Deliveries do
         case Repo.get_by(Delivery, task_id: parent.task_id, command_id: command) do
           %Delivery{retry_review_id: review_id} = saved when is_binary(review_id) ->
             case Repo.get(Step, review_id) do
-              %Step{delivery_id: ^parent_id} -> {:existing, saved}
-              _ -> Repo.rollback(:idempotency_conflict)
+              %Step{delivery_id: ^parent_id} when saved.retry_candidate_commit == candidate ->
+                {:existing, saved}
+
+              _ ->
+                Repo.rollback(:idempotency_conflict)
             end
 
           %Delivery{} ->
@@ -125,10 +129,11 @@ defmodule Boss.Deliveries do
 
           nil ->
             task = queued_task!(project, parent.task_id)
-            {:ok, source} = retry_source!(parent)
+            {:ok, source} = retry_source!(parent, candidate)
 
-            unless task.state == "blocked" and task.state_version == source.terminal.version,
-              do: Repo.rollback(:retry_unavailable)
+            unless task.state == source.terminal.to_state and
+                     task.state_version == source.terminal.version,
+                   do: Repo.rollback(:retry_unavailable)
 
             if Boss.Deliveries.Queue.pending?(task.id), do: Repo.rollback(:task_queued)
 
@@ -147,7 +152,8 @@ defmodule Boss.Deliveries do
                 parent.config_hash,
                 parent.reviewer,
                 replay_only,
-                source.review.id
+                source.review.id,
+                candidate
               )
 
             {:new, delivery}
@@ -158,8 +164,8 @@ defmodule Boss.Deliveries do
     end
   end
 
-  defp retry_source!(parent) do
-    case Boss.Deliveries.Retry.parent(parent) do
+  defp retry_source!(parent, candidate) do
+    case Boss.Deliveries.Retry.parent(parent, candidate) do
       {:ok, _} = result -> result
       {:error, reason} -> Repo.rollback(reason)
     end
@@ -227,7 +233,8 @@ defmodule Boss.Deliveries do
          hash,
          reviewer,
          replay_only,
-         retry_review_id \\ nil
+         retry_review_id \\ nil,
+         retry_candidate_commit \\ nil
        ) do
     if replay_only or managed_busy?() or run_busy?() or
          not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
@@ -266,6 +273,7 @@ defmodule Boss.Deliveries do
       task_version: task.state_version,
       command_id: command,
       retry_review_id: retry_review_id,
+      retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
       check_config: config,
       config_hash: hash

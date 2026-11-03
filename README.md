@@ -307,6 +307,15 @@ credential files or displays raw CLI output. See
 
 Data defaults to `~/.boss/boss.db`. Override the entire data directory and/or port:
 
+
+For a local build and foreground launch, run `./bin/build`. It uses port 4001
+and the checkout's `_build/local-data` by default. Use an absolute data directory
+outside `_build` for data you want to keep across build cleanup.
+
+```sh
+PORT=4010 BOSS_DATA_DIR=/absolute/private/boss-data ./bin/build
+```
+
 ```sh
 rtk proxy env BOSS_DATA_DIR=/absolute/path/to/boss-data PORT=4001 mix phx.server
 ```

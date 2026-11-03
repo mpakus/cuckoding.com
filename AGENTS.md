@@ -224,6 +224,10 @@
   (terminal delivery.task_version is the preceding version). Fresh cycle0 snapshot
   and check must supply complete transient output before fixes; never manufacture
   old output or inherit approval. Keep three cycles and twenty total stages.
+- Candidate retry after Failed requires an explicit full commit SHA, the latest
+  historical rejection, a later passing final check and a matching terminal event.
+  Pin the selected SHA separately from the old review SHA and prove ancestry
+  before provider effects. Keep historical findings distinct from fresh approval.
 - Queue only explicit saved workflow requests: pin revision/version/checks/reviewer
   and UUID before effects, claim and link a delivery in one immediate transaction.
   Replay/cancellation must precede dispatch; never silently turn direct Start into

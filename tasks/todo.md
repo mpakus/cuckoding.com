@@ -817,5 +817,6 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Prepare compact offline candidate with real TLS/IPv6 tests, honest Oban
   cancellation, standard migration and redirect/IP security fixes; independent review passed.
   Combined46tests pass; private real-PostgreSQL receipt/restart/migration probe passed.
-- [ ] Obtain new explicit bounded workflow authorization; verify actual Ready/Done.
+- [x] Obtain explicit authorization for one candidate workflow, up to three cycles.
+- [ ] Verify the candidate retry and actual Ready/Done.
 - [ ] Only after Done, admit remaining current Backlog and observe Autopilot progress.

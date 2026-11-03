@@ -6,10 +6,13 @@ It derives the saved checks/reviewer/spec from the latest rejected review; calle
 cannot substitute evidence or a base commit. This creates a new attempt and uses
 the configured provider account, so it requires fresh explicit authorization.
 Ordinary **Start workflow** retains its existing fresh-start behavior.
-Only a current Blocked task with its final rejected review qualifies for this
-API. A Failed delivery ending before its final review is not a retry source.
-An operator-prepared branch cannot be promoted into saved check/review evidence;
-there is no external-candidate resume interface in this increment.
+The ordinary review retry requires a current Blocked task with a final rejected
+review. For a Failed delivery with an earlier rejection and a later passing
+final check, the owner can explicitly call
+`Boss.Deliveries.Retry.start_candidate(project_id, failed_delivery_id, new_command_uuid, full_commit_sha)`.
+The seed must descend from the earlier reviewed commit in the registered
+repository. A replay must specify the same SHA. The new workflow receives
+the historical findings and fresh evidence from its own seed and stages.
 
 The retry pins the parent's final committed task event, revalidates its retained
 candidate and preserves every original acceptance string. A genuine new plan and

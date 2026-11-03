@@ -43,6 +43,70 @@ defmodule Boss.DeliveriesTest do
              Deliveries.admit_retry(c.project.id, parent.id, command)
   end
 
+  test "failed workflow retry pins an explicit seed and replays only the same commit", c do
+    {parent, plan, _, review} = rejected(c, false)
+    seed = String.duplicate("e", 40)
+    command = Ecto.UUID.generate()
+
+    assert {:error, :retry_unavailable} =
+             Deliveries.admit_retry(c.project.id, parent.id, command, false, seed)
+
+    implementation =
+      stage(
+        parent,
+        "implement",
+        2,
+        %{"plan_step_id" => plan.id, "parent_step_id" => review.id},
+        %{
+          "workspace" => parent.intent,
+          "head_commit" => @base
+        }
+      )
+
+    workspace = candidate_workspace(parent.intent)
+
+    snapshot =
+      stage(parent, "snapshot", 2, %{"implementation_step_id" => implementation.id}, %{
+        "workspace" => workspace,
+        "candidate_commit" => @candidate
+      })
+
+    stage(
+      parent,
+      "check",
+      2,
+      %{
+        "snapshot_step_id" => snapshot.id,
+        "plan_step_id" => plan.id,
+        "workspace" => workspace,
+        "candidate_commit" => @candidate
+      },
+      %{"output_complete" => true, "output_hash" => @hash, "candidate_commit" => @candidate}
+    )
+
+    {:ok, parent} = Deliveries.complete(parent.id, "failed", "Review input exceeds bounds")
+    assert {:error, :retry_unavailable} = Deliveries.admit_retry(c.project.id, parent.id, command)
+
+    assert {:error, :invalid_command} =
+             Deliveries.admit_retry(c.project.id, parent.id, command, false, "deadbeef")
+
+    assert {:ok, {:new, child}} =
+             Deliveries.admit_retry(c.project.id, parent.id, command, false, seed)
+
+    assert child.retry_review_id == review.id
+    assert child.retry_candidate_commit == seed
+    assert {:ok, %{candidate_commit: ^seed}} = Boss.Deliveries.Retry.source(child)
+
+    assert {:ok, {:existing, ^child}} =
+             Deliveries.admit_retry(c.project.id, parent.id, command, true, seed)
+
+    assert {:error, :idempotency_conflict} =
+             Deliveries.admit_retry(c.project.id, parent.id, command, true, @candidate)
+
+    assert {:error, _} =
+             Repo.query("UPDATE deliveries SET retry_candidate_commit=NULL WHERE id=?", [child.id])
+  end
+
   test "review retry cannot skip fresh snapshot and checks or change old criteria", c do
     {parent, _plan, _check, _review} = rejected(c)
     {:ok, {:new, child}} = Deliveries.admit_retry(c.project.id, parent.id, Ecto.UUID.generate())
@@ -761,7 +825,7 @@ defmodule Boss.DeliveriesTest do
     {d, plan, check, original}
   end
 
-  defp rejected(c) do
+  defp rejected(c, finish? \\ true) do
     {d, plan, check} = checked(c)
 
     rejected =
@@ -783,12 +847,13 @@ defmodule Boss.DeliveriesTest do
         }
       })
 
-    {:ok, d} = Deliveries.complete(d.id, "blocked", "Review repair budget exhausted")
-
-    assert {:ok, _} = Boss.Deliveries.Retry.parent(d),
-           inspect({d, plan, check, rejected}, limit: :infinity)
-
-    {d, plan, check, rejected}
+    if finish? do
+      {:ok, d} = Deliveries.complete(d.id, "blocked", "Review repair budget exhausted")
+      assert {:ok, _} = Boss.Deliveries.Retry.parent(d)
+      {d, plan, check, rejected}
+    else
+      {d, plan, check, rejected}
+    end
   end
 
   defp merge_input(d, plan, check, original),

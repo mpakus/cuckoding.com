@@ -8,10 +8,24 @@ defmodule Boss.Deliveries.Retry do
   def start(project, parent, command, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:delivery_retry, project, parent, command}, 10_000)
 
+  def start_candidate(project, parent, command, candidate, server \\ Boss.Runs.Manager),
+    do:
+      GenServer.call(
+        server,
+        {:delivery_candidate_retry, project, parent, command, candidate},
+        10_000
+      )
+
   @doc false
-  def parent(parent) do
+  def valid_candidate?(nil), do: true
+  def valid_candidate?(candidate), do: sha?(candidate)
+
+  @doc false
+  def parent(parent, candidate \\ nil) do
     steps = Deliveries.steps(parent.id)
-    review = List.last(steps)
+    last = List.last(steps)
+    review = if candidate, do: Enum.find(Enum.reverse(steps), &(&1.kind == "review")), else: last
+    status = if candidate, do: "failed", else: "blocked"
     check = if review, do: Enum.find(steps, &(&1.id == review.input["check_step_id"]))
     plan = if review, do: Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
     project = Repo.get(Projects.Project, parent.project_id)
@@ -19,12 +33,12 @@ defmodule Boss.Deliveries.Retry do
     terminal =
       Repo.get_by(Boss.Tasks.Event,
         task_id: parent.task_id,
-        command_id: parent.id <> ":complete:blocked"
+        command_id: parent.id <> ":complete:" <> status
       )
 
-    with true <- parent.status == "blocked" and parent.cleanup == "group_empty",
+    with true <- parent.status == status and parent.cleanup == "group_empty",
          true <- parent.integration_intent == %{} and is_nil(parent.integration_command_id),
-         %{version: version, action: "delivery_progress", to_state: "blocked"} <- terminal,
+         %{version: version, action: "delivery_progress", to_state: ^status} <- terminal,
          true <-
            version == parent.task_version + 1 and
              terminal.spec_revision_id == parent.spec_revision_id,
@@ -36,7 +50,7 @@ defmodule Boss.Deliveries.Retry do
          {:ok, report} <- Protocol.review(JSON.encode!(review.receipt["report"]), typed_plan),
          true <- report["verdict"] == "changes_requested",
          true <- check.receipt["output_complete"] == true,
-         true <- check.cycle == review.cycle and review.cycle == parent.cycle,
+         true <- check.cycle == review.cycle and terminal_stage?(parent, last, review, candidate),
          true <- check.input["candidate_commit"] == review.input["candidate_commit"],
          true <- review.input["original_base"] == parent.intent["base_commit"],
          true <- is_map(check.input["workspace"]) and sha?(review.input["candidate_commit"]),
@@ -46,7 +60,15 @@ defmodule Boss.Deliveries.Retry do
                step.input["spec_revision_id"] == parent.spec_revision_id
            end),
          true <- identity?(project, parent.intent) do
-      {:ok, %{parent: parent, plan: plan, check: check, review: review, terminal: terminal}}
+      {:ok,
+       %{
+         parent: parent,
+         plan: plan,
+         check: check,
+         review: review,
+         terminal: terminal,
+         candidate_commit: candidate || review.input["candidate_commit"]
+       }}
     else
       _ -> {:error, :retry_unavailable}
     end
@@ -58,7 +80,7 @@ defmodule Boss.Deliveries.Retry do
   def source(%Delivery{} = child) do
     with %Step{} = review <- Repo.get(Step, child.retry_review_id),
          %Delivery{} = parent <- Repo.get(Delivery, review.delivery_id),
-         {:ok, source} <- parent(parent),
+         {:ok, source} <- parent(parent, child.retry_candidate_commit),
          true <- source.review.id == child.retry_review_id,
          true <-
            Enum.all?(
@@ -81,6 +103,7 @@ defmodule Boss.Deliveries.Retry do
 
     with true <- identity?(Repo.get(Projects.Project, parent.project_id), parent.intent),
          :ok <- Candidate.verify(source.check.input["workspace"], sha),
+         :ok <- verify_seed(parent.intent["repo_path"], sha, source.candidate_commit),
          {:ok, _} <-
            Workspace.git(parent.intent["repo_path"], [
              "merge-base",
@@ -114,7 +137,7 @@ defmodule Boss.Deliveries.Retry do
   def valid_next?(d, %Step{kind: "plan", status: "finished"} = plan, "retry_snapshot", 0, i) do
     with {:ok, source} <- source(d),
          true <- i["source_review_id"] == d.retry_review_id and i["plan_step_id"] == plan.id,
-         true <- i["source_candidate_commit"] == source.review.input["candidate_commit"],
+         true <- i["source_candidate_commit"] == source.candidate_commit,
          {:ok, _} <- Ecto.UUID.cast(i["check_id"]),
          workspace when is_map(workspace) <- i["run_workspace"] do
       workspace["base_commit"] == i["source_candidate_commit"] and
@@ -160,6 +183,33 @@ defmodule Boss.Deliveries.Retry do
       workspace["run_workspace"] == input["run_workspace"] and
       workspace["ref"] == "refs/boss/checks/#{input["check_id"]}" and
       sha?(receipt["candidate_commit"])
+  end
+
+  defp terminal_stage?(parent, review, review, nil), do: review.cycle == parent.cycle
+
+  defp terminal_stage?(parent, %Step{kind: "check", status: "finished"} = last, review, candidate)
+       when is_binary(candidate) do
+    last.cycle == parent.cycle and last.cycle > review.cycle and last.number > review.number and
+      passed?(last) and last.receipt["output_complete"] == true and
+      sha?(last.input["candidate_commit"]) and
+      last.input["candidate_commit"] == last.receipt["candidate_commit"] and
+      last.input["plan_step_id"] == review.input["plan_step_id"] and
+      last.input["config_hash"] == parent.config_hash and
+      last.input["spec_revision_id"] == parent.spec_revision_id
+  end
+
+  defp terminal_stage?(_, _, _, _), do: false
+
+  defp verify_seed(_, sha, sha), do: :ok
+
+  defp verify_seed(repo, reviewed, candidate) do
+    with {:ok, "commit"} <- Workspace.git(repo, ["cat-file", "-t", candidate]),
+         {:ok, _} <- Workspace.git(repo, ["merge-base", "--is-ancestor", reviewed, candidate]) do
+      :ok
+    else
+      {:error, reason} when reason in [:cleanup_unknown, :cancelled] -> {:error, reason}
+      _ -> {:error, :candidate_changed}
+    end
   end
 
   defp repairable?(step) do
