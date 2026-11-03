@@ -83,5 +83,35 @@ defmodule Boss.AutonomyModelPolicyTest do
     end
   end
 
+  test "delivery exclusions preserve the preferred route and use only strong fallbacks" do
+    sol = ModelPolicy.route(1, :implement, 1)
+    astra = ModelPolicy.route(1, :resolve, 1)
+    luna = ModelPolicy.route(1, :implement, 1, %{"complexity" => "small"})
+
+    assert {:ok, ^sol} = ModelPolicy.select(sol, [])
+    assert {:ok, ^sol} = ModelPolicy.select(sol, ["gpt-6-astra"])
+    assert {:ok, ^astra} = ModelPolicy.select(sol, ["gpt-6.1-sol"])
+
+    assert {:ok, %{"model" => "gpt-6.1-sol", "reasoning_effort" => "xhigh"}} =
+             ModelPolicy.select(astra, ["gpt-6-astra"])
+
+    assert {:ok, ^luna} = ModelPolicy.select(luna, ["gpt-6.1-sol", "gpt-6-astra"])
+
+    assert {:ok, %{"model" => "gpt-6.1-sol", "reasoning_effort" => "xhigh"}} =
+             ModelPolicy.select(luna, ["gpt-6-luna"])
+
+    assert {:ok, ^astra} = ModelPolicy.select(luna, ["gpt-6-luna", "gpt-6.1-sol"])
+
+    for preferred <- [sol, astra] do
+      assert {:error, :models_exhausted} =
+               ModelPolicy.select(preferred, ["gpt-6.1-sol", "gpt-6-astra"])
+    end
+
+    assert {:error, :models_exhausted} =
+             ModelPolicy.select(luna, ["gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"])
+
+    assert {:ok, nil} = ModelPolicy.select(nil, ["gpt-6.1-sol", "gpt-6-astra"])
+  end
+
   defp flag(args, name), do: Enum.at(args, Enum.find_index(args, &(&1 == name)) + 1)
 end

@@ -46,5 +46,19 @@ defmodule Boss.Deliveries.ModelPolicy do
            ],
       do: selection("gpt-6.1-sol", "high")
 
+  def select(nil, _excluded_models), do: {:ok, nil}
+
+  def select(%{"model" => model} = preferred, excluded_models)
+      when model in ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"] and
+             is_list(excluded_models) do
+    [preferred, selection("gpt-6.1-sol", "xhigh"), selection("gpt-6-astra", "xhigh")]
+    |> Enum.uniq_by(& &1["model"])
+    |> Enum.find(fn profile -> profile["model"] not in excluded_models end)
+    |> case do
+      nil -> {:error, :models_exhausted}
+      profile -> {:ok, profile}
+    end
+  end
+
   defp selection(model, effort), do: %{"model" => model, "reasoning_effort" => effort}
 end
