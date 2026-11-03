@@ -282,6 +282,7 @@ defmodule BossWeb.SpecSyncLiveTest do
         refresh_pending: nil,
         status: "Syncing specs…",
         entries: [],
+        task_notices: [],
         auto_sync: false,
         drawer_open: false,
         selection: nil,

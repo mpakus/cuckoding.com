@@ -323,6 +323,10 @@ repository permissions and does not create a GitHub Release or change Latest.
 Stable and prerelease artifacts must remain distinct; the local RC is not a stable
 release. Existing recovery limits remain in [RECOVERY.md](RECOVERY.md).
 
+Use Phoenix.HTML 4.4.0 or later in the 4.x series. Rebuild release artifacts
+from the audited dependency lock to include the fix.
+[EEF advisory CVE-2026-117645](https://cna.erlef.org/cves/CVE-2026-117645.html).
+
 Implementation references: [Mix release](https://mix.hexdocs.pm/Mix.Tasks.Release.html),
 [setup-beam](https://github.com/erlef/setup-beam),
 [Bandit fixed-version advisory](https://github.com/mtrudel/bandit/security/advisories/GHSA-cpx7-qf6w-jc63).
