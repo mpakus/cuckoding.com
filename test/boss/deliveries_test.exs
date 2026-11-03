@@ -4,6 +4,16 @@ defmodule Boss.DeliveriesTest do
   @base String.duplicate("a", 40)
   @candidate String.duplicate("b", 40)
   @hash String.duplicate("c", 64)
+  @catalog %{
+    "version" => 2,
+    "primary" => %{"model" => "gpt-5.6-sol", "reasoning_effort" => "high"},
+    "resolver" => %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"},
+    "small" => nil,
+    "fallbacks" => [
+      %{"model" => "gpt-5.6-sol", "reasoning_effort" => "xhigh"},
+      %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"}
+    ]
+  }
 
   test "explicit review retry pins source and replays before changed readiness", c do
     {parent, plan, check, rejected} = rejected(c)
@@ -13,6 +23,8 @@ defmodule Boss.DeliveriesTest do
     assert child.spec_revision_id == parent.spec_revision_id
     assert child.check_config == parent.check_config
     assert child.reviewer == parent.reviewer
+    assert child.routing_version == parent.routing_version
+    assert child.model_catalog == parent.model_catalog
     assert Deliveries.steps(child.id) == []
     assert {:ok, source} = Boss.Deliveries.Retry.source(child)
     assert source.parent == parent
@@ -201,6 +213,7 @@ defmodule Boss.DeliveriesTest do
     id = Ecto.UUID.generate()
     assert {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, id, "mix test")
     assert d.spec_revision_id == c.task.spec_revision_id
+    assert d.routing_version == 2 and d.model_catalog == %{}
     assert Tasks.get_task!(c.task.id).state == "planning"
 
     assert {:ok, {:existing, ^d}} =
@@ -962,15 +975,29 @@ defmodule Boss.DeliveriesTest do
 
   defp checked(c) do
     {:ok, {:new, d}} =
-      Deliveries.admit(
-        c.project.id,
-        c.task.id,
-        Ecto.UUID.generate(),
-        "true",
-        "codex",
-        false,
-        Map.get(c, :autonomy_version, Boss.Deliveries.ModelPolicy.current())
-      )
+      case Map.fetch(c, :autonomy_version) do
+        {:ok, version} ->
+          Deliveries.admit(
+            c.project.id,
+            c.task.id,
+            Ecto.UUID.generate(),
+            "true",
+            "codex",
+            false,
+            version
+          )
+
+        :error ->
+          Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+      end
+
+    d =
+      if d.routing_version == 2 do
+        {:ok, saved} = Deliveries.set_model_catalog(d.id, @catalog)
+        saved
+      else
+        d
+      end
 
     intent = %{
       "run_id" => d.id,
