@@ -6,7 +6,8 @@ defmodule Boss.Deliveries.ModelPolicy do
   def max_cycles(1), do: 5
   def max_cycles(version) when version in [nil, 0], do: 3
 
-  def max_steps(1), do: 40
+  # Includes both resolver opinions, replanning, retry preparation and merge verification.
+  def max_steps(1), do: 48
   def max_steps(version) when version in [nil, 0], do: 20
 
   def route(version, kind, cycle, plan \\ nil)
