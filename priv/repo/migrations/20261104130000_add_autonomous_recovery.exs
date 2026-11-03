@@ -331,6 +331,26 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
 
     """
     json_extract(NEW.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
+    AND EXISTS (SELECT 1 FROM delivery_steps parent
+      WHERE parent.id=json_extract(source.input,'$.parent_step_id') AND parent.delivery_id=d.id
+        AND parent.number=source.number-1
+        AND ((source.cycle=1 AND d.retry_review_id IS NULL AND parent.kind='plan' AND parent.status='finished'
+          AND parent.id=json_extract(source.input,'$.plan_step_id')
+          AND json_extract(source.input,'$.workspace.base_commit')=json_extract(d.intent,'$.base_commit'))
+        OR (source.cycle=1 AND d.retry_review_id IS NOT NULL AND parent.kind='retry_check'
+          AND json_extract(source.input,'$.source_review_id')=d.retry_review_id
+          AND json_extract(parent.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
+          AND json_extract(source.input,'$.workspace.base_commit')=json_extract(parent.input,'$.candidate_commit')
+          AND json_extract(parent.receipt,'$.candidate_commit')=json_extract(parent.input,'$.candidate_commit')
+          AND #{transport("parent")} AND json_extract(parent.receipt,'$.output_complete')=1
+          AND ((parent.status='finished' AND json_extract(parent.receipt,'$.exit_code')=0)
+            OR (parent.status='failed' AND json_extract(parent.receipt,'$.outcome')='checks_failed'
+              AND json_type(parent.receipt,'$.exit_code')='integer' AND json_extract(parent.receipt,'$.exit_code')!=0)))
+        OR (source.cycle>1 AND parent.kind='resolve' AND parent.cycle=source.cycle-1 AND parent.status='finished'
+          AND #{transport("parent")} AND json_extract(parent.receipt,'$.exit_code')=0
+          AND json_type(parent.receipt,'$.report.external_action')='null'
+          AND json_extract(parent.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
+          AND json_extract(source.input,'$.workspace.base_commit')=json_extract(parent.input,'$.candidate_commit'))))
     AND json_type(NEW.input,'$.workspace')='object'
     AND (SELECT count(*) FROM json_each(NEW.input,'$.workspace'))=8
     AND #{identity}

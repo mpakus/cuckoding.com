@@ -507,12 +507,18 @@ defmodule Boss.AutonomyPersistenceTest do
     old = fresh_workspace(d.intent)
 
     failed =
-      finish(d, "implement", 1, %{"plan_step_id" => plan.id, "workspace" => old}, %{
-        "status" => "failed",
-        "outcome" => "exited",
-        "exit_code" => 7,
-        "workspace" => old
-      })
+      finish(
+        d,
+        "implement",
+        1,
+        %{"plan_step_id" => plan.id, "parent_step_id" => plan.id, "workspace" => old},
+        %{
+          "status" => "failed",
+          "outcome" => "exited",
+          "exit_code" => 7,
+          "workspace" => old
+        }
+      )
 
     workspace = fresh_workspace(old)
 
@@ -646,12 +652,18 @@ defmodule Boss.AutonomyPersistenceTest do
     workspace = fresh_workspace(d.intent)
 
     failed =
-      finish(d, "implement", 1, %{"plan_step_id" => plan.id, "workspace" => workspace}, %{
-        "status" => "failed",
-        "outcome" => "exited",
-        "exit_code" => 7,
-        "workspace" => workspace
-      })
+      finish(
+        d,
+        "implement",
+        1,
+        %{"plan_step_id" => plan.id, "parent_step_id" => plan.id, "workspace" => workspace},
+        %{
+          "status" => "failed",
+          "outcome" => "exited",
+          "exit_code" => 7,
+          "workspace" => workspace
+        }
+      )
 
     input =
       resolution_input(d, failed)
@@ -665,6 +677,55 @@ defmodule Boss.AutonomyPersistenceTest do
       finish(d, "resolve", 1, input, %{"report" => resolution(), "candidate_commit" => sha})
 
     assert resolved.input["candidate_commit"] == sha
+  end
+
+  test "failed implementation recovery cannot trust a forged base or predecessor", c do
+    for field <- ["base_commit", "parent_step_id"] do
+      d = delivery(c)
+      plan = finish(d, "plan", 0, %{"workspace" => d.intent}, %{"report" => plan(nil)})
+      workspace = fresh_workspace(d.intent)
+
+      source_input = %{
+        "plan_step_id" => plan.id,
+        "parent_step_id" => plan.id,
+        "workspace" => workspace
+      }
+
+      source_input =
+        if field == "base_commit",
+          do: put_in(source_input, ["workspace", "base_commit"], String.duplicate("f", 40)),
+          else: Map.put(source_input, "parent_step_id", Ecto.UUID.generate())
+
+      failed =
+        finish(d, "implement", 1, source_input, %{
+          "status" => "failed",
+          "outcome" => "exited",
+          "exit_code" => 7
+        })
+
+      input =
+        resolution_input(d, failed)
+        |> Map.merge(%{
+          "plan_step_id" => plan.id,
+          "workspace" => fresh_workspace(source_input["workspace"]),
+          "candidate_commit" => source_input["workspace"]["base_commit"]
+        })
+
+      assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "resolve", 1, input)
+
+      assert {:error, _} =
+               raw_step(
+                 d,
+                 "resolve",
+                 1,
+                 Map.put(input, "model_profile", %{
+                   "model" => "gpt-6-astra",
+                   "reasoning_effort" => "xhigh"
+                 })
+               )
+
+      assert {:ok, _} = Deliveries.complete(d.id, "failed")
+    end
   end
 
   defp delivery(c, version \\ 1, sha \\ @sha) do
