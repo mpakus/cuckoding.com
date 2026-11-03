@@ -556,3 +556,10 @@ Add a documentation project and start its planner from the project page.
 Read the pinned code and committed Markdown with Codex, validate typed tasks
 and dependencies, and atomically hand them to the existing sequential queue.
 A default local publication branch keeps the user's checkout available.
+
+## Workflow attention
+
+Persist actionable task notes for terminal stage and review outcomes, and
+announce changed attention versions on connected boards. Allow one typed
+planner clarification before implementation for sources without a deliverable
+or with a missing owner decision.

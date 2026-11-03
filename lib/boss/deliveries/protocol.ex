@@ -85,7 +85,8 @@ defmodule Boss.Deliveries.Protocol do
           deliverable, or a decision is genuinely missing, put one precise question in
           clarification. For a new task with no deliverable, return empty steps and
           acceptance and null file_scopes. Do not invent consent or a feature.
-          If previous_plan is supplied, retain exactly its acceptance criterion strings;
+          If previous_plan is supplied, its saved deliverable is the scope of this retry.
+          Retain exactly its acceptance criterion strings;
           use previous_review and previous_diff to update implementation steps and scopes.
           Previous_review applies to previous_review_candidate_commit. Previous_diff shows
           the prepared previous_candidate_commit, which may already address those findings.

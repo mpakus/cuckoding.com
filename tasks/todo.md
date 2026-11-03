@@ -831,3 +831,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify Add, one Start, validated task generation and first dispatch in the UI.
 - [x] Verify two generated dependent tasks reach Done on a private repository.
 - [x] Verify an invalid generated dependency leaves no partial tasks or batch.
+
+## Workflow attention
+
+- [x] Identify live Task1 and the separate Autopilot stop from their saved evidence.
+- [x] Repair the close-delimited read limit on a retained draft and verify real sockets.
+- [x] Verify persisted task notes, notification dedupe and early planner clarification.

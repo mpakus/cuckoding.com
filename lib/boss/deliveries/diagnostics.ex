@@ -100,7 +100,8 @@ defmodule Boss.Deliveries.Diagnostics do
   defp finding(_), do: "Review requires more evidence."
 
   defp concise(message) do
-    line = String.replace(message, ~r/\s+/u, " ") |> String.trim() |> String.trim_trailing(".")
+    line =
+      String.replace(message, ~r/[\p{Cc}\s]+/u, " ") |> String.trim() |> String.trim_trailing(".")
 
     if byte_size(line) <= 300 do
       line

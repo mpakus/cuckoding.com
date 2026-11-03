@@ -29,6 +29,9 @@ defmodule Boss.DeliveryDiagnosticsTest do
     assert String.valid?(text) and byte_size(text) < 1000
     assert text =~ "Next: clarify"
 
+    assert Diagnostics.clarification(%{"issues" => [%{"message" => "Fix\0the limit"}]}) =~
+             "Fix the limit"
+
     assert Diagnostics.step_failure("check", %{
              "outcome" => "timeout",
              "output" => "private output"

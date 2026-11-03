@@ -293,6 +293,12 @@
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
   halts. Do not persist raw output or truncate prompts to manufacture approval.
+- Terminal workflow attention uses the persisted task event for the reason and
+  recovery action. Derive it from bounded structured findings and fixed stage
+  diagnostics. Strip controls, preserve UTF-8 and never include raw output.
+  Notify connected boards once per task version. Older receipts remain immutable.
+  A typed planner question can stop before implementation; retain a retry's
+  approved scope and distinguish missing decisions from code defects.
 - Fresh check worktrees must install actual locked dependencies through the explicit
   repository check command; never vendor dependencies or exclude the real adapter
   from tests to manufacture a passing check. Oversized review input remains a

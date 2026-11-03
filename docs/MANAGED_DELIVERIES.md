@@ -39,6 +39,19 @@ the independent reviewer before Start. The selection is saved for the whole
 workflow, including every fix cycle. Install/sign in to the selected CLI on BOSS's
 PATH; there is no automatic provider fallback. See [Claude review](CLAUDE_REVIEW.md).
 
+## Task attention
+
+A workflow stop records a short reason and recovery action on the task and its
+transition event. An open project board announces new attention states with a
+link to the task. The task note and history remain available after reconnect.
+For older generic reasons, the task can show a concise explanation from its
+saved review or check receipt without changing the historical event.
+
+When repository sources cannot identify a deliverable or resolve a material
+choice, the planner can return a single clarification question before any
+implementation. A valid retry retains the previous plan's scope. Code defects
+still go through the existing repair cycle and exact candidate review.
+
 ## Inputs and stages
 
 Admission saves the task's immutable source revision, current task version,
