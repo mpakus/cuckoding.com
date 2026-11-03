@@ -4,6 +4,7 @@
   "properties": {
     "summary": {"type": "string"},
     "clarification": {"type": ["string", "null"]},
+    "complexity": {"type": "string", "enum": ["small", "standard", "complex"]},
     "steps": {"type": "array", "items": {"type": "string"}},
     "acceptance": {"type": "array", "items": {"type": "string"}},
     "file_scopes": {
@@ -21,5 +22,5 @@
       }
     }
   },
-  "required": ["summary", "steps", "acceptance", "file_scopes", "clarification"]
+  "required": ["summary", "steps", "acceptance", "file_scopes", "clarification", "complexity"]
 }

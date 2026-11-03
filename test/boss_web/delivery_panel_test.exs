@@ -6,7 +6,8 @@ defmodule BossWeb.DeliveryPanelTest do
   test "explicit workflow start explains trusted checks, retries and account usage" do
     html = panel([])
     assert html =~ "Start workflow"
-    assert html =~ "maximum of three implementation/check/review cycles"
+    assert html =~ "up to five implementation/check/review cycles"
+    assert html =~ "resolve questions with another model"
     assert html =~ "local Codex account"
     assert html =~ "may incur charges for multiple runs"
     assert html =~ "without shell expansion"
@@ -26,6 +27,38 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "mix"
     assert html =~ String.duplicate("a", 40)
     refute html =~ "Integrate approved result"
+  end
+
+  test "autonomous resolution shows the saved model, assumptions and versioned budget" do
+    step = %{
+      number: 2,
+      kind: "resolve",
+      status: "finished",
+      input: %{"model_profile" => %{"model" => "gpt-6-astra", "reasoning_effort" => "xhigh"}},
+      receipt: %{
+        "report" => %{
+          "summary" => "Use the existing convention <script>unsafe</script>",
+          "steps" => ["Repair the boundary and verify it"],
+          "assumptions" => ["The saved acceptance criteria remain unchanged"],
+          "external_action" => nil
+        }
+      }
+    }
+
+    saved = delivery("planning") |> Map.put(:autonomy_version, 1)
+    html = panel([%{saved | steps: [step]}], start_available: false)
+    assert html =~ "Cycle 2 of 5"
+    assert html =~ "gpt-6-astra"
+    assert html =~ "xhigh"
+    assert html =~ "Resolution and assumptions"
+    assert html =~ "saved acceptance criteria remain unchanged"
+    assert html =~ "&lt;script&gt;unsafe&lt;/script&gt;"
+    refute html =~ "<script>"
+
+    html = panel([%{saved | steps: [%{step | status: "running", receipt: %{}}]}])
+    assert html =~ "Resolving with another model"
+    assert html =~ "Stop workflow"
+    refute html =~ "Done — integrated"
   end
 
   test "ready is explicit integration, includes target contract, and is not Done" do

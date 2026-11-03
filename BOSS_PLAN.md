@@ -6,6 +6,15 @@
 > **Primary stack:** Elixir · Phoenix · LiveView · SQLite · OTP · Git worktrees  
 > **Product principle:** **Specify → Plan → Implement → Test → Review → Integrate**
 
+> **Product revision — 2026-11-02:** Autonomous delivery is the primary development
+> objective. The owner supplies the initial specification and delegates ordinary
+> implementation decisions. Questions and recoverable failures first go to another
+> model for diagnosis, then to a fresh implementation attempt, checks and review.
+> Minimize owner questions, elapsed time and intervention. This revision supersedes
+> earlier immediate-escalation defaults; historical requests retain their saved
+> policy. See [docs/AUTONOMY.md](docs/AUTONOMY.md) for the implementation contract
+> and its verified acceptance scope.
+
 ## 1. Vision
 
 **Boss** is a small, local-first application that coordinates coding agents already installed on a developer's computer. The user supplies Markdown specifications; Boss turns them into tasks, delegates planning and coding to agents, verifies deliverables, runs independent reviews, and tracks progress on a clean Kanban board.

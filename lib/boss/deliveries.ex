@@ -2,12 +2,13 @@ defmodule Boss.Deliveries do
   @moduledoc "Explicit managed delivery, with immutable stage receipts and manual publication."
   import Ecto.Query
   alias Boss.{Repo, Runs, Tasks}
-  alias Boss.Deliveries.{Delivery, Scheduling, Step}
+  alias Boss.Deliveries.{Delivery, ModelPolicy, Scheduling, Step}
   alias Boss.Projects.{Project, Spec, SpecRevision}
   @active ~w(planning implementing testing reviewing integrating)
   @terminal ~w(done blocked needs_input failed cancelled interrupted)
   @stages %{
     "plan" => "planning",
+    "resolve" => "planning",
     "retry_snapshot" => "planning",
     "retry_check" => "planning",
     "implement" => "implementing",
@@ -43,7 +44,60 @@ defmodule Boss.Deliveries do
   def get(project, id), do: Repo.get_by(Delivery, project_id: project, id: id)
 
   def steps(id),
-    do: Repo.all(from s in Step, where: s.delivery_id == ^id, order_by: s.number, limit: 20)
+    do: Repo.all(from s in Step, where: s.delivery_id == ^id, order_by: s.number, limit: 48)
+
+  @doc false
+  def model_profile(delivery, kind, cycle, plan_step_id \\ nil) do
+    d = Repo.get!(Delivery, delivery.id)
+    kind = to_string(kind)
+
+    if d.autonomy_version == 0 or (d.reviewer == "claude" and kind in ~w(review merge_review)) do
+      {:ok, nil}
+    else
+      saved_plan =
+        case saved_step(plan_step_id) do
+          %Step{delivery_id: id, kind: "plan"} = p when id == d.id -> p
+          _ -> nil
+        end
+
+      preferred =
+        if kind == "plan" and not is_nil(saved_plan) and saved_plan.status == "failed" and
+             known_model_failure?(saved_plan.receipt) do
+          attempt =
+            if get_in(saved_plan.input, ["model_profile", "model"]) == "gpt-6-astra",
+              do: 2,
+              else: 1
+
+          ModelPolicy.route(d.autonomy_version, :resolve, attempt)
+        else
+          ModelPolicy.route(
+            d.autonomy_version,
+            kind,
+            cycle,
+            if(saved_plan, do: saved_plan.receipt["report"])
+          )
+        end
+
+      saved_steps = steps(d.id)
+
+      excluded =
+        saved_steps
+        |> Enum.filter(&unavailable_model?/1)
+        |> Enum.map(&get_in(&1.input, ["model_profile", "model"]))
+        |> Enum.reject(&is_nil/1)
+
+      excluded =
+        case {kind, cycle, List.last(saved_steps)} do
+          {"resolve", 2, %Step{kind: "resolve", input: input}} ->
+            [get_in(input, ["model_profile", "model"]) | excluded]
+
+          _ ->
+            excluded
+        end
+
+      ModelPolicy.select(preferred, excluded)
+    end
+  end
 
   def list(project, task) do
     Repo.all(
@@ -71,9 +125,14 @@ defmodule Boss.Deliveries do
   def admit(project, task, command, text, replay_only \\ false),
     do: admit(project, task, command, text, "codex", replay_only)
 
-  def admit(project, task, command, text, reviewer, replay_only) do
+  def admit(project, task, command, text, reviewer, replay_only),
+    do: admit(project, task, command, text, reviewer, replay_only, ModelPolicy.current())
+
+  @doc false
+  def admit(project, task, command, text, reviewer, replay_only, autonomy_version) do
     with true <- valid_id?(project) and valid_id?(task),
          true <- reviewer in ["codex", "claude"] and is_boolean(replay_only),
+         true <- autonomy_version in [0, 1],
          {:ok, _} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
       transaction(fn ->
@@ -99,7 +158,20 @@ defmodule Boss.Deliveries do
 
             if Boss.Deliveries.Queue.pending?(task), do: Repo.rollback(:task_queued)
             task = queued_task!(project, task)
-            {:new, admit_new!(project, task, command, config, hash, reviewer, replay_only)}
+
+            {:new,
+             admit_new!(
+               project,
+               task,
+               command,
+               config,
+               hash,
+               reviewer,
+               replay_only,
+               nil,
+               nil,
+               autonomy_version
+             )}
         end
       end)
     else
@@ -155,7 +227,8 @@ defmodule Boss.Deliveries do
                 parent.reviewer,
                 replay_only,
                 source.review.id,
-                candidate
+                candidate,
+                parent.autonomy_version
               )
 
             {:new, delivery}
@@ -208,7 +281,10 @@ defmodule Boss.Deliveries do
               request.check_config,
               request.config_hash,
               request.reviewer,
-              false
+              false,
+              nil,
+              nil,
+              request.autonomy_version
             )
 
           saved = Queue.save!(request, status: "started", delivery_id: delivery.id)
@@ -235,8 +311,9 @@ defmodule Boss.Deliveries do
          hash,
          reviewer,
          replay_only,
-         retry_review_id \\ nil,
-         retry_candidate_commit \\ nil
+         retry_review_id,
+         retry_candidate_commit,
+         autonomy_version
        ) do
     if replay_only or managed_busy?() or run_busy?() or
          not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
@@ -277,6 +354,7 @@ defmodule Boss.Deliveries do
       retry_review_id: retry_review_id,
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
+      autonomy_version: autonomy_version,
       check_config: config,
       config_hash: hash
     })
@@ -396,9 +474,12 @@ defmodule Boss.Deliveries do
         current_task!(delivery)
         if delivery.cleanup == "unknown", do: Repo.rollback(:cleanup_unknown)
 
-        unless Map.has_key?(@stages, kind) and is_integer(cycle) and cycle in 0..3 and
+        unless Map.has_key?(@stages, kind) and is_integer(cycle) and
+                 cycle in 0..ModelPolicy.max_cycles(delivery.autonomy_version) and
                  bounded_map?(input, 65_536),
                do: Repo.rollback(:invalid_step)
+
+        input = pin_model!(delivery, kind, cycle, input)
 
         previous = latest(id)
 
@@ -412,7 +493,9 @@ defmodule Boss.Deliveries do
           do: Repo.rollback(:scope_conflict)
 
         number = if previous, do: previous.number + 1, else: 1
-        if number > 20, do: Repo.rollback(:budget_exhausted)
+
+        if number > ModelPolicy.max_steps(delivery.autonomy_version),
+          do: Repo.rollback(:budget_exhausted)
 
         step =
           Repo.insert!(%Step{
@@ -583,8 +666,49 @@ defmodule Boss.Deliveries do
 
   defp valid_next?(_, %Step{status: "running"}, _, _, _), do: false
 
-  defp valid_next?(d, %Step{kind: "plan", status: "finished", id: id}, "implement", 1, i),
-    do: is_nil(d.retry_review_id) and i["plan_step_id"] == id
+  defp valid_next?(%Delivery{autonomy_version: 1} = d, previous, "resolve", cycle, i),
+    do: resolution_input?(d, previous, cycle, i)
+
+  defp valid_next?(
+         %Delivery{autonomy_version: 1} = d,
+         %Step{kind: "resolve"} = previous,
+         "plan",
+         0,
+         i
+       ) do
+    resolution_passed?(previous) and previous.cycle == 0 and
+      i["parent_step_id"] == previous.id and i["plan_step_id"] == previous.input["plan_step_id"] and
+      i["workspace"] == d.intent and
+      Repo.aggregate(from(s in Step, where: s.delivery_id == ^d.id and s.kind == "plan"), :count) <
+        3
+  end
+
+  defp valid_next?(
+         %Delivery{autonomy_version: 1} = d,
+         %Step{kind: "resolve"} = previous,
+         "implement",
+         cycle,
+         i
+       ) do
+    resolution_passed?(previous) and previous.cycle > 0 and cycle == previous.cycle + 1 and
+      cycle <= ModelPolicy.max_cycles(d.autonomy_version) and
+      i["parent_step_id"] == previous.id and i["resolution_step_id"] == previous.id and
+      i["source_step_id"] == previous.input["source_step_id"] and
+      i["plan_step_id"] == previous.input["plan_step_id"] and
+      get_in(i, ["workspace", "base_commit"]) == previous.input["candidate_commit"]
+  end
+
+  defp valid_next?(
+         d,
+         %Step{kind: "plan", status: "finished", id: id, receipt: r},
+         "implement",
+         1,
+         i
+       ),
+       do:
+         is_nil(d.retry_review_id) and i["plan_step_id"] == id and
+           (d.autonomy_version == 0 or
+              (is_nil(r["report"]["clarification"]) and r["report"]["acceptance"] != []))
 
   defp valid_next?(d, previous, kind, cycle, input)
        when kind in ["retry_snapshot", "retry_check"] or
@@ -624,9 +748,11 @@ defmodule Boss.Deliveries do
            i["original_base"] == d.intent["base_commit"] and r["output_complete"] == true and
            hash?(i["input_hash"])
 
-  defp valid_next?(_, %Step{kind: kind, cycle: cycle} = previous, "implement", next, i)
+  defp valid_next?(d, %Step{kind: kind, cycle: cycle} = previous, "implement", next, i)
        when kind in ["check", "review"] do
-    next == cycle + 1 and next <= 3 and i["parent_step_id"] == previous.id and
+    d.autonomy_version == 0 and next == cycle + 1 and
+      next <= ModelPolicy.max_cycles(d.autonomy_version) and
+      i["parent_step_id"] == previous.id and
       ((kind == "check" and previous.status == "failed" and
           previous.receipt["output_complete"] == true and
           previous.receipt["outcome"] == "checks_failed" and
@@ -736,7 +862,14 @@ defmodule Boss.Deliveries do
   defp success_receipt?(%Step{kind: "plan"} = step, r),
     do:
       process_passed?(r) and valid_plan?(r["report"]) and
-        Boss.Deliveries.Retry.preserved_plan?(step.delivery_id, r["report"])
+        Boss.Deliveries.Retry.preserved_plan?(step.delivery_id, r["report"]) and
+        preserved_replan?(step, r["report"])
+
+  defp success_receipt?(%Step{kind: "resolve", input: input}, r),
+    do:
+      process_passed?(r) and sha?(r["candidate_commit"]) and
+        r["candidate_commit"] == input["candidate_commit"] and
+        match?({:ok, _}, Boss.Deliveries.Protocol.resolution(JSON.encode!(r["report"])))
 
   defp success_receipt?(%Step{kind: kind}, r) do
     process_passed?(r) and
@@ -756,6 +889,206 @@ defmodule Boss.Deliveries do
     do:
       r["exit_kind"] == "exit" and r["exit_code"] == 0 and
         r["eof"] == %{"stdout" => true, "stderr" => true}
+
+  defp pin_model!(d, kind, cycle, input) do
+    if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
+         not (d.reviewer == "claude" and kind in ~w(review merge_review)) do
+      route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
+      unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
+
+      if (kind == "resolve" and route_cycle not in [1, 2]) or
+           (kind == "implement" and route_cycle not in 1..5),
+         do: Repo.rollback(:invalid_step)
+
+      profile =
+        case model_profile(d, kind, route_cycle, input["plan_step_id"]) do
+          {:ok, profile} -> profile
+          {:error, reason} -> Repo.rollback(reason)
+        end
+
+      unless is_map(profile) and Map.get(input, "model_profile", profile) == profile,
+        do: Repo.rollback(:invalid_step)
+
+      Map.put(input, "model_profile", profile)
+    else
+      input
+    end
+  end
+
+  defp saved_step(id) when is_binary(id), do: Repo.get(Step, id)
+  defp saved_step(_), do: nil
+
+  defp resolution_input?(_, nil, _, _), do: false
+
+  defp resolution_input?(d, previous, cycle, i) do
+    source = saved_step(i["source_step_id"])
+    attempt = i["resolution_attempt"]
+
+    with %Step{delivery_id: id} <- source,
+         true <- id == d.id and source.cycle == cycle and cycle < ModelPolicy.max_cycles(1),
+         true <- i["parent_step_id"] == previous.id and i["config_hash"] == d.config_hash,
+         true <- hash?(i["input_hash"]) and hash?(i["feedback_hash"]),
+         true <- recoverable_source?(source),
+         true <-
+           (attempt == 1 and previous.id == source.id) or
+             (attempt == 2 and previous.kind == "resolve" and previous.cycle == cycle and
+                previous.input["resolution_attempt"] == 1 and
+                previous.input["source_step_id"] == source.id and second_opinion?(previous)) do
+      case source.kind do
+        "plan" ->
+          i["plan_step_id"] == source.id and i["workspace"] == d.intent and
+            i["candidate_commit"] == d.intent["base_commit"] and
+            Repo.aggregate(
+              from(s in Step, where: s.delivery_id == ^d.id and s.kind == "plan"),
+              :count
+            ) < 3
+
+        "implement" ->
+          i["plan_step_id"] == source.input["plan_step_id"] and
+            implementation_base?(d, source) and
+            fresh_resolution_workspace?(d, source, previous, i)
+
+        _ ->
+          i["plan_step_id"] == source.input["plan_step_id"] and
+            i["workspace"] == source.input["workspace"] and
+            i["candidate_commit"] == source.input["candidate_commit"]
+      end
+    else
+      _ -> false
+    end
+  end
+
+  defp recoverable_source?(%Step{kind: "implement"} = source), do: unavailable_model?(source)
+
+  defp recoverable_source?(%Step{kind: kind, status: status, receipt: r}) do
+    r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
+      r["eof"] == %{"stdout" => true, "stderr" => true} and
+      case {kind, status} do
+        {"plan", "finished"} ->
+          is_binary(get_in(r, ["report", "clarification"])) and r["exit_code"] == 0
+
+        {"review", "finished"} ->
+          get_in(r, ["report", "verdict"]) in ~w(changes_requested needs_spec_revision) and
+            r["exit_code"] == 0
+
+        {"check", "failed"} ->
+          r["outcome"] == "checks_failed" and r["output_complete"] == true and
+            is_integer(r["exit_code"]) and r["exit_code"] != 0
+
+        {kind, "failed"} when kind in ["plan", "review"] ->
+          known_model_failure?(r)
+
+        _ ->
+          false
+      end
+  end
+
+  defp second_opinion?(%Step{status: "finished", receipt: r}),
+    do:
+      r["cleanup"] == "group_empty" and process_passed?(r) and
+        is_binary(get_in(r, ["report", "external_action"]))
+
+  defp second_opinion?(%Step{status: "failed", receipt: r}),
+    do:
+      r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
+        r["eof"] == %{"stdout" => true, "stderr" => true} and known_model_failure?(r)
+
+  defp second_opinion?(_), do: false
+
+  defp known_model_failure?(r),
+    do: r["outcome"] in ["invalid_report", "exited"] and is_integer(r["exit_code"])
+
+  defp unavailable_model?(%Step{kind: kind, status: "failed", receipt: r})
+       when kind in ~w(plan implement review merge_review resolve),
+       do:
+         r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
+           r["eof"] == %{"stdout" => true, "stderr" => true} and r["outcome"] == "exited" and
+           is_integer(r["exit_code"]) and r["exit_code"] != 0
+
+  defp unavailable_model?(_), do: false
+
+  defp implementation_base?(d, source) do
+    base = get_in(source.input, ["workspace", "base_commit"])
+
+    with %Step{delivery_id: id} = parent <- saved_step(source.input["parent_step_id"]),
+         true <- id == d.id and parent.number == source.number - 1 do
+      case {source.cycle, d.retry_review_id, parent.kind} do
+        {1, nil, "plan"} ->
+          parent.id == source.input["plan_step_id"] and parent.status == "finished" and
+            base == d.intent["base_commit"]
+
+        {1, retry, "retry_check"} when not is_nil(retry) ->
+          parent.input["plan_step_id"] == source.input["plan_step_id"] and
+            base == parent.input["candidate_commit"] and
+            Boss.Deliveries.Retry.valid_next?(d, parent, "implement", 1, source.input)
+
+        {cycle, _, "resolve"} when cycle > 1 ->
+          parent.cycle == cycle - 1 and resolution_passed?(parent) and
+            parent.input["plan_step_id"] == source.input["plan_step_id"] and
+            base == parent.input["candidate_commit"]
+
+        _ ->
+          false
+      end
+    else
+      _ -> false
+    end
+  end
+
+  defp fresh_resolution_workspace?(d, source, previous, input) do
+    workspace = input["workspace"]
+    old = source.input["workspace"]
+
+    with true <- is_map(workspace) and map_size(workspace) == 8 and is_map(old),
+         {:ok, _} <- Ecto.UUID.cast(workspace["run_id"]),
+         true <- is_binary(old["path"]),
+         true <-
+           Enum.all?(
+             ~w(project_id repo_path git_common_dir base_branch),
+             &(workspace[&1] == d.intent[&1])
+           ),
+         true <- sha?(old["base_commit"]) and workspace["base_commit"] == old["base_commit"],
+         true <- input["candidate_commit"] == old["base_commit"],
+         true <- workspace["branch"] == "codex/boss-run-#{workspace["run_id"]}",
+         true <- workspace["path"] == Path.join(Path.dirname(old["path"]), workspace["run_id"]),
+         true <- workspace["path"] != old["path"] and workspace["path"] != d.intent["path"] do
+      if input["resolution_attempt"] == 2 do
+        workspace == previous.input["workspace"]
+      else
+        Enum.all?(steps(d.id), fn step ->
+          Enum.all?([step.input["workspace"], step.receipt["workspace"]], fn
+            saved when is_map(saved) ->
+              saved["path"] != workspace["path"] and saved["branch"] != workspace["branch"]
+
+            _ ->
+              true
+          end)
+        end)
+      end
+    else
+      _ -> false
+    end
+  end
+
+  defp resolution_passed?(%Step{status: "finished", receipt: r}),
+    do:
+      r["cleanup"] == "group_empty" and process_passed?(r) and
+        is_nil(get_in(r, ["report", "external_action"]))
+
+  defp resolution_passed?(_), do: false
+
+  defp preserved_replan?(step, report) do
+    Repo.all(
+      from s in Step,
+        where:
+          s.delivery_id == ^step.delivery_id and s.kind == "plan" and s.status == "finished" and
+            s.number < ^step.number
+    )
+    |> Enum.all?(fn previous ->
+      acceptance = previous.receipt["report"]["acceptance"]
+      acceptance == [] or MapSet.new(acceptance) == MapSet.new(report["acceptance"])
+    end)
+  end
 
   defp valid_plan?(report) when is_map(report),
     do: match?({:ok, _}, Boss.Deliveries.Protocol.plan(JSON.encode!(report)))

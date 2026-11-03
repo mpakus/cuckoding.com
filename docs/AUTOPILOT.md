@@ -37,8 +37,11 @@ uses the same inputs and UUID. It returns the saved batch even if tasks or sourc
 have changed since admission.
 
 Autopilot runs one task at a time through planning, implementation, checks,
-independent review and integration. Only Done satisfies a prerequisite. Check
-failures and review change requests use the existing three-cycle repair budget.
+independent review and integration. Only Done satisfies a prerequisite. New starts
+pin the [autonomy policy](AUTONOMY.md): questions and recoverable failures receive
+another model's diagnosis, followed by fresh implementation, checks and review.
+The policy permits five implementation cycles; historical batches retain their
+original three-cycle budget and model behavior.
 A Failed, Needs attention or Needs input task with verified cleanup and no
 integration intent keeps its saved reason while independent tasks continue.
 When no runnable tasks remain, the batch reports outstanding work. Cancellation,

@@ -10,12 +10,13 @@ defmodule Boss.Deliveries.Protocol do
          keys = Enum.map(pairs, &elem(&1, 0)),
          true <- length(keys) == length(Enum.uniq(keys)),
          true <-
-           Enum.sort(keys -- ["clarification"]) in [
+           Enum.sort(keys -- ["clarification", "complexity"]) in [
              ~w(acceptance steps summary),
              ~w(acceptance file_scopes steps summary)
            ],
          plan = Map.new(pairs),
          question = plan["clarification"],
+         true <- plan["complexity"] in [nil, "small", "standard", "complex"],
          true <- is_nil(question) or text?(question, 500),
          true <- text?(plan["summary"], 2000),
          true <- strings?(plan["steps"], 2000) or (is_binary(question) and plan["steps"] == []),
@@ -44,6 +45,25 @@ defmodule Boss.Deliveries.Protocol do
     end
   end
 
+  def resolution(text) when is_binary(text) and byte_size(text) in 1..32_768 do
+    with true <- String.valid?(text),
+         {:ok, %Jason.OrderedObject{values: pairs}} <-
+           Jason.decode(text, objects: :ordered_objects),
+         keys = Enum.map(pairs, &elem(&1, 0)),
+         true <- Enum.sort(keys) == ~w(assumptions external_action steps summary),
+         report = Map.new(pairs),
+         true <- text?(report["summary"], 2000),
+         true <- strings?(report["steps"], 2000),
+         true <- report["assumptions"] == [] or strings?(report["assumptions"], 1000),
+         true <- is_nil(report["external_action"]) or text?(report["external_action"], 500) do
+      {:ok, report}
+    else
+      _ -> {:error, :invalid_resolution}
+    end
+  end
+
+  def resolution(_), do: {:error, :invalid_resolution}
+
   def review(text, plan) do
     with {:ok, report} <- Verdict.decode(text),
          true <-
@@ -58,6 +78,7 @@ defmodule Boss.Deliveries.Protocol do
   def prompt(kind, input)
       when kind in [
              :plan,
+             :resolve,
              :implement,
              :review,
              :claude_review,
@@ -79,6 +100,10 @@ defmodule Boss.Deliveries.Protocol do
           backslashes, colons or control characters; no trailing slash. Use null
           when you cannot confidently bound the changes; never use an empty list.
           These predictions coordinate workers, not permissions or correctness proof.
+          Set complexity to small only for a narrow mechanical change with clear local
+          checks and no security, concurrency, persistence, migration or architecture
+          decisions. Otherwise use standard or complex. This is a model-routing hint;
+          it never changes acceptance criteria or execution permissions.
           Preserve every requirement of the original specification. Resolve ordinary
           implementation choices from the repository and cited sources. Set clarification
           to null when work can proceed. If the source is workflow guidance without a
@@ -91,6 +116,26 @@ defmodule Boss.Deliveries.Protocol do
           Previous_review applies to previous_review_candidate_commit. Previous_diff shows
           the prepared previous_candidate_commit, which may already address those findings.
           Do not remove, paraphrase or add acceptance criteria for a repeated workflow.
+          """
+
+        :resolve ->
+          """
+          Resolve the saved planning question or implementation/check/review failure
+          so another fresh implementation session can continue autonomously.
+          Inspect relevant source read-only and use the supplied complete evidence.
+          Find the root cause, distinguish code defects from missing external access
+          or evidence, and give concrete next steps. Resolve ordinary technical and
+          product choices using the original specification, repository conventions
+          and the simplest reversible option; record any necessary assumptions.
+          Preserve all saved acceptance criterion strings and the original scope.
+          Do not weaken checks, invent consent, credentials, infrastructure or test
+          evidence, or claim that a diagnosis approves the candidate. Do not edit files,
+          execute checks, install dependencies, commit, merge, push or start background
+          processes. Return only summary, steps, assumptions and external_action as
+          required by the output schema. Use null for external_action when the agents
+          can proceed; otherwise identify the specific owner-only action or unavailable
+          prerequisite. A difficult bug or ordinary implementation choice alone is
+          not an external_action. Include complete actionable steps in either case.
           """
 
         :implement ->

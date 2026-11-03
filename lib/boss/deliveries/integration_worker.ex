@@ -140,6 +140,10 @@ defmodule Boss.Deliveries.IntegrationWorker do
     kind = if delivery.reviewer == "claude", do: :claude_merge_review, else: :merge_review
     prompt = ok!(Protocol.prompt(kind, input))
 
+    profile =
+      if delivery.reviewer == "codex",
+        do: ok!(Deliveries.model_profile(delivery, :merge_review, delivery.cycle, plan.id))
+
     {review, report} =
       stage(
         delivery,
@@ -153,7 +157,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
           "target_commit" => target,
           "original_base" => base,
           "output_hash" => check.receipt["output_hash"],
-          "input_hash" => Protocol.digest(input)
+          "input_hash" => Protocol.digest(input),
+          "model_profile" => profile
         },
         fn ->
           ok!(verify.())
@@ -163,7 +168,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
               delivery.reviewer,
               candidate["path"],
               prompt,
-              &Protocol.review(&1, plan.receipt["report"])
+              &Protocol.review(&1, plan.receipt["report"]),
+              profile
             )
 
           receipt = Worker.verify_agent(receipt, verify)

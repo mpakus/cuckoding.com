@@ -9,6 +9,7 @@ defmodule Boss.Projects.Intake.Request do
     field :check_config, :map
     field :config_hash, :string
     field :reviewer, :string
+    field :autonomy_version, :integer, default: 0
     field :workspace, :map, default: %{}
     field :status, :string, default: "planning"
     field :cleanup, :string, default: "pending"

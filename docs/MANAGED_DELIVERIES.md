@@ -18,8 +18,8 @@ The retry pins the parent's final committed task event, revalidates its retained
 candidate and preserves every original acceptance string. A genuine new plan and
 fresh snapshot/check precede implementation, which receives the complete saved
 review plus fresh transient check output. Historical raw output is not invented
-or persisted. Three repair cycles and twenty total stages remain the limit;
-unchanged repeated findings stop sooner. Old deliveries, stages and approvals are
+or persisted. The parent's saved policy retains its cycle and stage budget;
+legacy retries stop sooner on unchanged repeated findings. Old deliveries, stages and approvals are
 never reopened or copied as new success. Ready/Done still require new checks,
 review and exact publication/postchecks through the usual gates.
 
@@ -120,10 +120,16 @@ worktree at the exact rejected candidate, preserving previous workspaces. Source
 plan, full feedback and check receipt/output accompany the fix. The next review
 still compares against the original base, so earlier changes remain in scope.
 
-There are at most **three implementation/check/review cycles**. Repeated normalized
-failure on the same tree/config blocks earlier. Exhaustion becomes `blocked`;
-`needs_spec_revision` becomes `needs_input`. Invalid reports, changed snapshots,
-truncated/non-UTF8 output, launch/provider failures and Stop do not trigger retries.
+New admissions pin [autonomy policy version 1](AUTONOMY.md): up to **five
+implementation/check/review cycles**, with a persisted read-only diagnosis before
+repair and an alternate implementation model. Planning questions and review
+clarifications first go to the resolver; a second model examines a reported
+external prerequisite before owner attention. Exact acceptance criteria remain
+fixed. Known-clean invalid planning/review reports can also enter resolution.
+Historical version 0 retains **three cycles** and its original immediate refusal
+behavior. Exhausted budgets still retain an honest unfinished result. Changed
+snapshots, truncated/non-UTF8 output, unknown cleanup and Stop do not authorize
+automatic continuation.
 Plan and each agent invocation have a 20-minute bound; checks retain their saved
 command limits. No paid/provider smoke run is repeated automatically by development
 verification.

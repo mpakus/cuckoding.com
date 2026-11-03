@@ -23,7 +23,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
-    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake}
+    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
   ]
 
   setup do

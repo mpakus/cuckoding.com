@@ -37,8 +37,16 @@ defmodule Boss.Deliveries.Queue do
   end
 
   @doc false
-  def admit(project, task, command, text, reviewer) do
+  def admit(
+        project,
+        task,
+        command,
+        text,
+        reviewer,
+        autonomy_version \\ Boss.Deliveries.ModelPolicy.current()
+      ) do
     with true <- valid_id?(project) and valid_id?(task) and reviewer in ["codex", "claude"],
+         true <- autonomy_version in [0, 1],
          {:ok, _} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
       transaction(fn ->
@@ -119,7 +127,8 @@ defmodule Boss.Deliveries.Queue do
               command_id: command,
               check_config: config,
               config_hash: hash,
-              reviewer: reviewer
+              reviewer: reviewer,
+              autonomy_version: autonomy_version
             })
         end
       end)

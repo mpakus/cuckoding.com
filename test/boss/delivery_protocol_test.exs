@@ -42,6 +42,76 @@ defmodule Boss.DeliveryProtocolTest do
     assert {:ok, ^reordered} = Protocol.plan(JSON.encode!(reordered), original)
   end
 
+  test "optional task complexity is bounded and cannot alter retry acceptance" do
+    for complexity <- [nil, "small", "standard", "complex"] do
+      plan = Map.put(@plan, "complexity", complexity)
+      assert {:ok, ^plan} = Protocol.plan(JSON.encode!(plan), @plan)
+    end
+
+    for complexity <- [true, 1, [], %{}, "easy", "small\0", "Small"] do
+      assert {:error, :invalid_plan} =
+               Protocol.plan(JSON.encode!(Map.put(@plan, "complexity", complexity)))
+    end
+
+    duplicate =
+      ~s({"summary":"ok","steps":["step"],"acceptance":["criterion"],"complexity":"small","complexity":"complex"})
+
+    assert {:error, :invalid_plan} = Protocol.plan(duplicate)
+  end
+
+  test "resolution keeps bounded typed advice separate from approval and rejects malformed output" do
+    report = %{
+      "summary" => "The boundary check happens after reading",
+      "steps" => ["Check the byte budget before the next read", "Add exact-boundary coverage"],
+      "assumptions" => [],
+      "external_action" => nil
+    }
+
+    assert {:ok, ^report} = Protocol.resolution(JSON.encode!(report))
+    external = %{report | "external_action" => "Supply the selected test account"}
+    assert {:ok, ^external} = Protocol.resolution(JSON.encode!(external))
+
+    for invalid <- [
+          JSON.encode!(Map.put(report, "verdict", "approved")),
+          JSON.encode!(Map.delete(report, "external_action")),
+          JSON.encode!(%{report | "steps" => []}),
+          JSON.encode!(%{report | "steps" => List.duplicate("step", 21)}),
+          JSON.encode!(%{report | "steps" => [String.duplicate("x", 2001)]}),
+          JSON.encode!(%{report | "summary" => "\0"}),
+          JSON.encode!(%{report | "summary" => " "}),
+          JSON.encode!(%{report | "summary" => String.duplicate("x", 2001)}),
+          JSON.encode!(%{report | "assumptions" => %{}}),
+          JSON.encode!(%{report | "assumptions" => [true]}),
+          JSON.encode!(%{report | "assumptions" => [String.duplicate("x", 1001)]}),
+          JSON.encode!(%{report | "external_action" => false}),
+          JSON.encode!(%{report | "external_action" => String.duplicate("x", 501)}),
+          String.replace(JSON.encode!(report), "{", ~s({"summary":"duplicate",), global: false),
+          JSON.encode!(report) <> "{}",
+          String.duplicate("x", 32_769),
+          <<255>>
+        ] do
+      assert {:error, :invalid_resolution} = Protocol.resolution(invalid)
+    end
+  end
+
+  test "resolver receives complete evidence with a read-only role and immutable criteria" do
+    input = %{
+      "specification" => "Original source",
+      "plan" => @plan,
+      "previous_feedback" => %{"output" => %{"stdout" => "complete check", "stderr" => "error"}}
+    }
+
+    assert {:ok, prompt} = Protocol.prompt(:resolve, input)
+    [_, serialized] = String.split(prompt, "BOSS delivery input (JSON):\n", parts: 2)
+    assert JSON.decode!(serialized) == input
+    assert prompt =~ "Preserve all saved acceptance criterion strings"
+    assert prompt =~ "Do not weaken checks"
+    assert prompt =~ "Do not edit files"
+
+    assert {:error, :input_too_large} =
+             Protocol.prompt(:resolve, %{"source" => String.duplicate("x", 1_048_576)})
+  end
+
   test "typed file predictions preserve paths; legacy and null scopes are unknown" do
     scopes = [
       %{"path" => "lib/Hello.ex", "kind" => "file"},

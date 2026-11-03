@@ -26,7 +26,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
-    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure}
+    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
   ]
 
   setup context do
@@ -257,6 +258,67 @@ defmodule Boss.AutopilotNativeTest do
            |> Enum.count(&String.contains?(&1, ~s("kind": "intake"))) == 1
   end
 
+  test "Autopilot resolves a planning question with Astra and publishes both dependencies", c do
+    System.put_env("BOSS_AUTOPILOT_MODE", "autonomy_plan")
+    manager = start_manager(c.repo)
+    original = git(c.source, ["rev-parse", "HEAD"])
+    ids = Enum.map(c.tasks, & &1.id)
+
+    assert {:ok, batch} =
+             Autopilot.start(
+               c.project.id,
+               Ecto.UUID.generate(),
+               ids,
+               "python3 check.py",
+               "codex",
+               manager
+             )
+
+    first = wait_for_implementation(c, "one", 1)
+    assert first.autonomy_version == 1
+    stages = Deliveries.steps(first.id)
+    assert Enum.map(stages, & &1.kind) == ~w(plan resolve plan implement)
+    resolution = Enum.find(stages, &(&1.kind == "resolve"))
+    assert resolution.status == "finished"
+
+    assert resolution.input["model_profile"] == %{
+             "model" => "gpt-6-astra",
+             "reasoning_effort" => "xhigh"
+           }
+
+    assert resolution.receipt["report"]["external_action"] == nil
+
+    assert Enum.at(stages, 0).receipt["report"]["acceptance"] ==
+             Enum.at(stages, 2).receipt["report"]["acceptance"]
+
+    release(c, "one", 1)
+    second = wait_for_implementation(c, "two", 1)
+    first = Deliveries.get(c.project.id, first.id)
+    assert first.status == "done"
+    assert second.intent["base_commit"] == first.integration_intent["candidate_commit"]
+    release(c, "two", 1)
+    eventually(fn -> Repo.get!(AutopilotBatch, batch.id).status == "completed" end, 3000)
+
+    assert Enum.all?(c.tasks, &(Repo.get!(Tasks.Task, &1.id).state == "done"))
+
+    calls =
+      c.root
+      |> Path.join("calls")
+      |> File.read!()
+      |> String.split("\n", trim: true)
+      |> Enum.map(&JSON.decode!/1)
+
+    assert Enum.any?(
+             calls,
+             &(&1["kind"] == "resolve" && &1["model"] == "gpt-6-astra" &&
+                 &1["reasoning_effort"] == "xhigh")
+           )
+
+    assert Enum.count(calls, &(&1["task"] == "one" && &1["kind"] == "plan")) == 2
+    assert git(c.source, ["rev-parse", "HEAD"]) == original
+    assert git(c.source, ["status", "--porcelain"]) == ""
+  end
+
   @tag documentation: true
   test "an invalid generated dependency creates neither tasks nor a batch", c do
     alias Boss.Projects.Intake
@@ -304,7 +366,7 @@ defmodule Boss.AutopilotNativeTest do
   end
 
   @tag :continue_on_failure
-  test "a failed plan leaves its dependent waiting and independent work reaches Done",
+  test "exhausted planning recovery gates its dependent while independent work reaches Done",
        c do
     git(c.source, ["switch", "main"])
     manager = start_manager(c.repo)
@@ -349,7 +411,11 @@ defmodule Boss.AutopilotNativeTest do
     assert Repo.aggregate(Deliveries.Delivery, :count) == 2
 
     calls = Path.join(c.root, "calls") |> File.read!() |> String.split("\n", trim: true)
-    assert Enum.map(calls, &Jason.decode!(&1)["task"]) == ~w(one three three three)
+    decoded = Enum.map(calls, &Jason.decode!/1)
+    assert Enum.map(decoded, & &1["task"]) == ~w(one one one one one three three three)
+
+    assert decoded |> Enum.filter(&(&1["task"] == "one")) |> Enum.map(& &1["kind"]) ==
+             ~w(plan resolve plan resolve plan)
   end
 
   defp wait_for_implementation(c, name, cycle) do

@@ -23,7 +23,8 @@ defmodule Boss.AutopilotPersistenceTest do
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
-    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure}
+    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
   ]
 
   setup do
@@ -116,7 +117,7 @@ defmodule Boss.AutopilotPersistenceTest do
     assert Repo.aggregate(Deliveries.Delivery, :count) == 1
 
     assert_raise RuntimeError, "Refusing to discard Autopilot history", fn ->
-      Ecto.Migrator.run(Repo, @migrations, :down, to: 20_261_027_070_000, log: false)
+      Ecto.Migrator.down(Repo, 20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot, log: false)
     end
   end
 
@@ -250,11 +251,20 @@ defmodule Boss.AutopilotPersistenceTest do
 
   test "empty migration can round trip and lower versions keep their queue guards", c do
     assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_104_130_000,
+               Boss.Repo.Migrations.AddAutonomousRecovery,
+               log: false
+             )
+
+    assert :ok =
              Ecto.Migrator.down(Repo, 20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot,
                log: false
              )
 
-    assert [20_261_027_070_000] = Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
+    assert [20_261_027_070_000, 20_261_104_130_000] =
+             Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
 
     assert {:ok, batch} =
              Autopilot.admit(c.project.id, Ecto.UUID.generate(), ids(c), "true", "codex")
