@@ -1,7 +1,9 @@
 import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
+import {installMotion} from "./motion.mjs"
 
+installMotion(document, window)
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const TaskDrawer = {
   mounted() {

@@ -1,5 +1,213 @@
 @import "tailwindcss" source(none);
 @source "../../lib/boss_web";
 
+@theme {
+  --color-paper: #f6f3ea;
+  --color-surface: #fffdf7;
+  --color-ink: #252a24;
+  --color-body: #41483f;
+  --color-muted: #62675c;
+  --color-forest: #35593c;
+  --color-sage: #dce7d8;
+  --color-peach: #f1d4c2;
+  --color-line: #c8ccc0;
+  --color-control-line: #858e7f;
+  --color-danger: #9b3d2c;
+  --color-danger-soft: #f8e9e1;
+  --color-danger-line: #d9b6a7;
+  --color-warning: #78501c;
+  --color-warning-soft: #f4ead2;
+  --color-warning-line: #d7c29a;
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+}
+
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
-[data-phx-session] { display: contents }
+
+@layer base {
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  [data-phx-session] { display: contents; }
+  ::selection { color: var(--color-paper); background: var(--color-forest); }
+  :is(button, input, select, textarea) { accent-color: var(--color-forest); }
+  :is(a, button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--color-forest);
+    outline-offset: 3px;
+  }
+  :is(button, summary, a) { -webkit-tap-highlight-color: transparent; }
+  button:disabled { cursor: not-allowed; }
+}
+
+@layer components {
+  .app-shell { min-height: 100dvh; display: flex; flex-direction: column; }
+  .app-shell-header { border-bottom: 1px solid var(--color-line); }
+  .app-shell-bar, .app-shell-footer {
+    width: calc(100% - 48px);
+    max-width: 1360px;
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .app-shell-bar { min-height: 88px; }
+  .app-brand-group { display: flex; align-items: center; gap: 24px; }
+  .app-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 25px;
+    font-weight: 650;
+    letter-spacing: -1.2px;
+    text-decoration: none;
+  }
+  .app-brand-eye {
+    position: relative;
+    width: 25px;
+    height: 17px;
+    border: 2px solid currentColor;
+    border-radius: 70% 15%;
+    transform: rotate(45deg);
+  }
+  .app-brand-eye::after {
+    content: "";
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    top: 3px;
+    left: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .app-nav { display: flex; align-items: center; gap: 24px; font-size: 14px; }
+  .app-nav a { padding-block: 10px; border-bottom: 1px solid transparent; }
+  .app-nav a[aria-current="page"] { border-bottom-color: var(--color-ink); }
+  .app-main {
+    width: calc(100% - 48px);
+    max-width: 1120px;
+    margin-inline: auto;
+    padding-block: 48px 64px;
+    flex: 1;
+    min-width: 0;
+  }
+  .app-main:has(#task-board) { max-width: 1360px; }
+  .app-main:focus { outline: none; }
+  .app-shell-footer {
+    padding-block: 22px;
+    border-top: 1px solid var(--color-line);
+    color: var(--color-muted);
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .app-footer-brand { color: var(--color-ink); font-size: 16px; font-weight: 650; letter-spacing: -.6px; }
+  .app-footer-tools { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .app-motion-label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+  .app-motion-label:has(:disabled) { cursor: default; }
+  .app-motion-label input { width: 15px; height: 15px; }
+  .app-skip-link {
+    position: fixed;
+    z-index: 100;
+    top: 12px;
+    left: 24px;
+    padding: 10px 16px;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    transform: translateY(-160%);
+  }
+  .app-skip-link:focus { transform: none; }
+
+  .app-page-header { margin-bottom: 32px; }
+  .app-eyebrow { font-size: 10px; line-height: 1.6; font-weight: 650; letter-spacing: .13em; text-transform: uppercase; color: var(--color-muted); }
+  .app-page-title { margin-top: 14px; font-size: clamp(2.25rem, 4vw, 3.25rem); line-height: 1.08; font-weight: 500; letter-spacing: -.055em; overflow-wrap: anywhere; }
+  .app-page-title em { font-family: var(--font-serif); font-weight: 400; }
+  .app-page-description { max-width: 68ch; margin-top: 16px; color: var(--color-body); line-height: 1.65; }
+  .app-panel { min-width: 0; padding: 24px; border: 1px solid var(--color-line); border-radius: 3px; background: var(--color-surface); }
+  .app-panel-heading { font-size: 19px; line-height: 1.3; font-weight: 550; letter-spacing: -.025em; }
+  .app-empty-state { padding: 32px 24px; border: 1px dashed var(--color-control-line); border-radius: 3px; color: var(--color-muted); }
+  .app-badge { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 2px; background: var(--color-sage); color: var(--color-ink); font-size: 11px; font-weight: 550; line-height: 1.4; }
+
+  .app-button-primary, .app-button-secondary, .app-button-danger {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .app-button-primary { background: var(--color-ink); color: var(--color-paper); }
+  .app-button-secondary { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-control-line); }
+  .app-button-danger { background: var(--color-surface); color: var(--color-danger); border-color: var(--color-danger); }
+  :is(.app-button-primary, .app-button-secondary, .app-button-danger):disabled { opacity: .45; cursor: not-allowed; }
+  .app-field {
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-control-line);
+    border-radius: 3px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .app-field::placeholder { color: var(--color-muted); opacity: 1; }
+  .app-field[readonly] { background: var(--color-paper); }
+  .app-field[aria-invalid="true"] { border-color: var(--color-danger); }
+  .app-field:disabled { opacity: .6; }
+
+  #task-drawer { color: var(--color-ink); background: var(--color-surface); }
+  #task-drawer::backdrop { background: rgb(37 42 36 / .28); }
+
+  @media (max-width: 640px) {
+    .app-shell-bar, .app-main, .app-shell-footer { width: calc(100% - 32px); }
+    .app-shell-bar { min-height: 76px; }
+    .app-brand-group > .app-eyebrow { display: none; }
+    .app-nav { gap: 18px; font-size: 13px; }
+    .app-main { padding-block: 32px 48px; }
+    .app-panel { padding: 20px; }
+    .app-shell-footer { gap: 8px 20px; }
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-nav a:hover { border-bottom-color: var(--color-control-line); }
+  .app-footer-brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .app-button-primary:not(:disabled):hover { background: var(--color-forest); }
+  .app-button-secondary:not(:disabled):hover { background: var(--color-sage); }
+  .app-button-danger:not(:disabled):hover { background: var(--color-danger-soft); }
+}
+
+/* Motion explains pointer interactions without moving task data or delaying focus. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-motion="on"][data-input="pointer"] :is(.app-button-primary, .app-button-secondary, .app-button-danger) {
+    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, transform 150ms var(--ease-out);
+  }
+  html[data-motion="on"][data-input="pointer"] :is(.app-button-primary, .app-button-secondary, .app-button-danger):not(:disabled):active { transform: scale(.98); }
+  html[data-motion="on"][data-input="pointer"] #task-drawer[open] {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 250ms var(--ease-out), transform 250ms var(--ease-drawer);
+  }
+  @starting-style {
+    html[data-motion="on"][data-input="pointer"] #task-drawer[open] { opacity: 0; transform: translateX(4%); }
+  }
+}
