@@ -148,7 +148,7 @@ defmodule BossWeb.TaskBoard do
       aria-labelledby="task-drawer-title"
       class="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-full max-w-2xl overflow-hidden border-l border-line bg-paper p-0 text-ink backdrop:bg-ink/35 open:flex open:flex-col"
     >
-      <div class="flex shrink-0 items-start justify-between gap-4 border-b border-line bg-surface px-5 py-4 sm:px-6">
+      <div class="flex max-h-[40dvh] shrink-0 items-start justify-between gap-4 overflow-y-auto border-b border-line bg-surface px-5 py-4 sm:px-6">
         <div class="min-w-0">
           <p class="app-eyebrow mb-2">Task details</p>
           <h2 id="task-drawer-title" class="min-w-0 break-words text-xl font-semibold">
