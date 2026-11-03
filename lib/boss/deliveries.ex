@@ -945,6 +945,7 @@ defmodule Boss.Deliveries do
 
         "implement" ->
           i["plan_step_id"] == source.input["plan_step_id"] and
+            implementation_base?(d, source) and
             fresh_resolution_workspace?(d, source, previous, i)
 
         _ ->
@@ -1006,6 +1007,34 @@ defmodule Boss.Deliveries do
 
   defp unavailable_model?(_), do: false
 
+  defp implementation_base?(d, source) do
+    base = get_in(source.input, ["workspace", "base_commit"])
+
+    with %Step{delivery_id: id} = parent <- saved_step(source.input["parent_step_id"]),
+         true <- id == d.id and parent.number == source.number - 1 do
+      case {source.cycle, d.retry_review_id, parent.kind} do
+        {1, nil, "plan"} ->
+          parent.id == source.input["plan_step_id"] and parent.status == "finished" and
+            base == d.intent["base_commit"]
+
+        {1, retry, "retry_check"} when not is_nil(retry) ->
+          parent.input["plan_step_id"] == source.input["plan_step_id"] and
+            base == parent.input["candidate_commit"] and
+            Boss.Deliveries.Retry.valid_next?(d, parent, "implement", 1, source.input)
+
+        {cycle, _, "resolve"} when cycle > 1 ->
+          parent.cycle == cycle - 1 and resolution_passed?(parent) and
+            parent.input["plan_step_id"] == source.input["plan_step_id"] and
+            base == parent.input["candidate_commit"]
+
+        _ ->
+          false
+      end
+    else
+      _ -> false
+    end
+  end
+
   defp fresh_resolution_workspace?(d, source, previous, input) do
     workspace = input["workspace"]
     old = source.input["workspace"]
@@ -1028,8 +1057,11 @@ defmodule Boss.Deliveries do
       else
         Enum.all?(steps(d.id), fn step ->
           Enum.all?([step.input["workspace"], step.receipt["workspace"]], fn
-            nil -> true
-            saved -> saved["path"] != workspace["path"] and saved["branch"] != workspace["branch"]
+            saved when is_map(saved) ->
+              saved["path"] != workspace["path"] and saved["branch"] != workspace["branch"]
+
+            _ ->
+              true
           end)
         end)
       end
