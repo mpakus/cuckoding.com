@@ -2,7 +2,7 @@ defmodule Boss.Projects.Intake.Planner do
   @moduledoc false
   alias Boss.Agents.Workspace
   alias Boss.Checks.Candidate
-  alias Boss.Deliveries.{Integration, Worker}
+  alias Boss.Deliveries.{Integration, ModelPolicy, Worker}
   alias Boss.Projects.Intake
 
   @max_files 64
@@ -12,6 +12,8 @@ defmodule Boss.Projects.Intake.Planner do
   @task_fields ~w(acceptance depends_on id sources specification title)
 
   def run(project, request_id) do
+    request = Boss.Repo.get!(Intake.Request, request_id)
+
     with {:ok, workspace} <- Workspace.plan(project, request_id),
          :ok <- Integration.preflight(project, request_id, workspace.base_commit),
          {:ok, docs} <- documents(project, workspace),
@@ -21,7 +23,7 @@ defmodule Boss.Projects.Intake.Planner do
          {:ok, _} <- Workspace.prepare(workspace),
          :ok <- Candidate.verify_tree(workspace.path, workspace.base_commit),
          :ok <- validate_current(project, %{workspace: intent}),
-         {:ok, tasks} <- plan(workspace.path, prompt, docs),
+         {:ok, tasks} <- plan(workspace.path, prompt, docs, request.autonomy_version),
          :ok <- Candidate.verify_tree(workspace.path, workspace.base_commit) do
       {:ok, %{workspace: intent, tasks: tasks}}
     end
@@ -37,8 +39,14 @@ defmodule Boss.Projects.Intake.Planner do
     end
   end
 
-  defp plan(path, prompt, docs) do
-    case Worker.run_agent(:intake, path, prompt, &decode(&1, Map.keys(docs))) do
+  defp plan(path, prompt, docs, autonomy_version) do
+    case Worker.run_agent(
+           :intake,
+           path,
+           prompt,
+           &decode(&1, Map.keys(docs)),
+           ModelPolicy.route(autonomy_version, :intake, 0)
+         ) do
       %{"status" => "finished", "cleanup" => "group_empty", "report" => report} ->
         {:ok, report["tasks"]}
 
