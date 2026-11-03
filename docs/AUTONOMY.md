@@ -91,4 +91,8 @@ elapsed delivery time, model cost per accepted result and defects found afterwar
 Do not improve these numbers by weakening tests or renaming unfinished work Done.
 
 Implementation and verification results are recorded in `tasks/todo.md` and the
-2026-11-02 worklog; this document defines the target contract.
+2026-11-02 worklog. Finite native CLI acceptance covers planning questions,
+rejected changes, unavailable model exits, partial implementations, Stop and Repo
+loss. The complete macOS application regression passed 660 tests with one
+Linux-only skip (seed 1208). Real account availability, cost and delivery speed
+remain unverified.

@@ -12,6 +12,8 @@
   preserve acceptance criteria and show the resolution evidence. Measure successful
   autonomous delivery, not merely safe refusal. Historical requests keep their
   original policy; Stop and unknown execution ownership still stop dispatch.
+  Change a shipped routing/budget contract through a new policy version; never
+  reinterpret old requests or rewrite their model and approval evidence.
 - Use multiple agents for independent implementation/review tasks. Give each
   writer an isolated worktree and `codex/` branch with explicit file ownership;
   integrate dependent work sequentially. Keep one owner for shared migrations
