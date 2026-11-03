@@ -25,6 +25,14 @@ never changes filesystem permissions, the selected account, check configuration
 or the original specification. An explicitly selected Claude reviewer stays Claude.
 Every model call uses a fresh session; a diagnosis is guidance, not approval.
 
+A confirmed nonzero model-process exit excludes that model from later stages of
+the same delivery only after both streams end and process-group cleanup is known.
+Routing tries the preferred model, then the remaining Sol/Astra option with xhigh
+reasoning. Luna is eligible only for the initial explicitly small implementation.
+An unfavorable review or failed project check is not evidence of model unavailability.
+If no eligible model remains, the workflow reports exhausted model routes instead
+of silently using a CLI default. Every selected profile is saved before execution.
+
 Model IDs are `gpt-6-astra`, `gpt-6.1-sol` and `gpt-6-luna`. The installed Codex
 CLI accepts `--model` and the `model_reasoning_effort` configuration override.
 Official model documentation describes the requested reasoning levels:
@@ -48,8 +56,14 @@ the next implementation starts in a fresh worktree and is checked and reviewed
 again. A repeated failure does not immediately terminate a version 1 delivery:
 the implementation model changes before the remaining attempt budget is used.
 
+A confirmed nonzero implementation-process exit retains its workspace, including
+partial edits. Diagnosis uses a new read-only workspace at that attempt's saved
+base commit; the replacement implementation uses another fresh workspace at the
+same base. Partial failed output never becomes an accepted candidate implicitly.
+
 Version 1 allows at most five implementation cycles and forty-eight persisted stages.
-The second opinion is bounded as well. The budget prevents an unresolved task
+The second opinion must use a different eligible strong model. Its attempts are
+bounded as well. The budget prevents an unresolved task
 from consuming models indefinitely; independent eligible tasks can still proceed.
 Legacy version 0 keeps its original three-cycle/twenty-stage behavior.
 
@@ -57,7 +71,13 @@ The resolver cannot change acceptance criteria, fabricate credentials, invent
 infrastructure evidence or mark a task Done. Owner Stop, uncertain process cleanup,
 unresolved storage effects and candidate tampering retain their existing handling.
 After both opinions, a genuinely unavailable external action is reported precisely.
-This is the remaining intervention boundary, not a successful delivery.
+The workflow remains unfinished when intervention is required.
+
+This recovery loop covers managed delivery planning, implementation, checks and
+review. Documentation intake pins the model policy but does not yet run this
+resolver loop itself. Integration still stops on conflicts, candidate/target drift
+or failed publication checks; it does not automatically rewrite the approved
+candidate. These are explicit remaining autonomy work, alongside provider testing.
 
 ## Acceptance
 
