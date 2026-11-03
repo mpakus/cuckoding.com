@@ -91,7 +91,9 @@ defmodule Boss.Deliveries.Retry do
                :check_config,
                :config_hash,
                :reviewer,
-               :autonomy_version
+               :autonomy_version,
+               :routing_version,
+               :model_catalog
              ],
              &(Map.fetch!(child, &1) == Map.fetch!(parent, &1))
            ),

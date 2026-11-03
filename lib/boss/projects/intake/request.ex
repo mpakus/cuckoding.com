@@ -10,6 +10,8 @@ defmodule Boss.Projects.Intake.Request do
     field :config_hash, :string
     field :reviewer, :string
     field :autonomy_version, :integer, default: 0
+    field :routing_version, :integer, default: 1
+    field :model_catalog, :map, default: %{}
     field :workspace, :map, default: %{}
     field :status, :string, default: "planning"
     field :cleanup, :string, default: "pending"

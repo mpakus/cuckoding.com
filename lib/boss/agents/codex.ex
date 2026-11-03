@@ -45,9 +45,19 @@ defmodule Boss.Agents.Codex do
 
   def args(kind, output_path, nil), do: args(kind, output_path)
 
-  def args(kind, output_path, %{"model" => model, "reasoning_effort" => effort})
-      when model in ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"] and
+  def args(kind, output_path, %{"model" => model, "reasoning_effort" => effort} = profile)
+      when model in [
+             "gpt-6-astra",
+             "gpt-6.1-sol",
+             "gpt-6-luna",
+             "gpt-5.6-sol",
+             "gpt-5.6-terra",
+             "gpt-5.6-luna"
+           ] and
              effort in ["medium", "high", "xhigh"] do
+    unless Boss.Agents.ModelCatalog.profile?(profile),
+      do: raise(ArgumentError, "invalid model profile")
+
     argv = args(kind, output_path)
 
     Enum.drop(argv, -1) ++
@@ -94,6 +104,7 @@ defmodule Boss.Agents.Codex do
       started: false,
       terminal: false,
       error: nil,
+      error_class: nil,
       usage: %{}
     }
 
@@ -116,6 +127,7 @@ defmodule Boss.Agents.Codex do
       "event_count" => state.count,
       "stdout_bytes" => state.stdout_bytes,
       "stderr_bytes" => state.stderr_bytes,
+      "error_class" => state.error_class,
       "usage" => state.usage
     }
 
@@ -153,6 +165,7 @@ defmodule Boss.Agents.Codex do
             fail(state, :missing_turn)
 
           type in ["error", "turn.failed"] ->
+            state = %{state | error_class: classify_error(event)}
             fail(record(state, type), :agent_error)
 
           true ->
@@ -176,7 +189,60 @@ defmodule Boss.Agents.Codex do
         events: Enum.take([%{"type" => type, "sequence" => state.count + 1} | state.events], 20)
     }
 
-  defp fail(state, reason), do: %{state | error: reason, buffer: ""}
+  defp fail(state, reason),
+    do: %{state | error: reason, error_class: state.error_class || "transport", buffer: ""}
+
+  defp classify_error(event) do
+    error = if is_map(event["error"]), do: event["error"], else: %{}
+    code = event["code"] || error["code"] || error["type"]
+    status = event["status_code"] || error["status_code"]
+    message = event["message"] || error["message"] || event["error"]
+    # Inspect only a bounded transient message; retain the fixed category, never its text.
+    message =
+      if is_binary(message), do: String.slice(message, 0, 4096) |> String.downcase(), else: ""
+
+    cond do
+      code in ~w(model_not_found unsupported_model model_not_available invalid_model) or
+          Regex.match?(
+            ~r/(?:model.{0,120}(?:does not exist|not found|not supported|not available|not accessible)|(?:unsupported|unknown) model)/s,
+            message
+          ) ->
+        "model_unavailable"
+
+      code in ~w(invalid_api_key authentication_error unauthorized permission_denied) or
+        status in [401, 403] or
+          Regex.match?(
+            ~r/invalid api key|authentication failed|not authenticated|please (?:log|sign) in/,
+            message
+          ) ->
+        "auth"
+
+      code in ~w(rate_limit_exceeded insufficient_quota usage_limit_reached) or status == 429 or
+          Regex.match?(
+            ~r/rate limit|quota exceeded|exceeded your current quota|usage limit/,
+            message
+          ) ->
+        "rate_limit"
+
+      code in ~w(invalid_json_schema invalid_response_format unsupported_response_format) or
+          Regex.match?(
+            ~r/invalid (?:json )?schema|unsupported (?:json )?schema|invalid response_format/,
+            message
+          ) ->
+        "schema"
+
+      code in ~w(connection_error connection_failed request_timeout server_error) or
+        (is_integer(status) and status in 500..599) or
+          Regex.match?(
+            ~r/connection (?:reset|refused|closed)|stream disconnected|error sending request/,
+            message
+          ) ->
+        "transport"
+
+      true ->
+        "unknown"
+    end
+  end
 
   defp usage(value) when is_map(value) do
     Map.filter(

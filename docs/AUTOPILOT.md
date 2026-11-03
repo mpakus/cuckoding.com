@@ -17,7 +17,7 @@ plan records that the planner found no outstanding work. Original Markdown stays
 on disk and generated specifications are stored with their source paths and SHA.
 
 This first increment plans once per documentation project. Later Starts use
-remaining New cards. Existing task-spec projects keep their Markdown watcher and
+remaining eligible unfinished cards. Existing task-spec projects keep their Markdown watcher and
 ordinary Start. A changed target, invalid plan or stopped planner prevents the
 handoff. After a coordinator restart, interrupted planning retains unknown cleanup
 and requires inspection. Planning has a Stop control.
@@ -26,10 +26,13 @@ and requires inspection. Planning has a Stop control.
 
 On a project page, choose **Autopilot** beside **Sync specs**, enter a trusted
 check command and choose the independent reviewer. **Start Autopilot** authorizes
-the entire current Backlog: present tasks in New, up to 256. The list must still
+a fresh snapshot of all eligible present unfinished tasks: New, Failed, Blocked
+and Needs Input, up to 256. Previously failed tasks receive new workflow UUIDs;
+old receipts remain immutable and Done tasks are excluded. Tasks with active work,
+unknown cleanup or unfinished integration are ineligible. The list must still
 match when saved; larger or changed selections are refused, never truncated.
-Failed tasks need an explicit new workflow from their details. Later imports and
-source revisions are not silently added or adopted.
+Historical routing-version-1 batches retain their original New-only snapshot.
+Later imports and source revisions are not silently added or adopted.
 
 The saved batch pins each task's revision/version, check configuration, reviewer,
 workflow UUID and integration UUID before effects. A retry of an uncertain Start
@@ -41,9 +44,14 @@ independent review and integration. Only Done satisfies a prerequisite. New star
 pin the [autonomy policy](AUTONOMY.md): questions and recoverable failures receive
 another model's diagnosis, followed by fresh implementation, checks and review.
 The policy permits five implementation cycles; historical batches retain their
-original three-cycle budget and model behavior.
+saved cycle budget and model behavior.
 A Failed, Needs attention or Needs input task with verified cleanup and no
 integration intent keeps its saved reason while independent tasks continue.
+A shared model/CLI failure stops the batch before another task is admitted;
+unstarted tasks retain their states. This includes typed catalog/provider failures
+and exhausted legacy strong-model routes. Repeated clean startup failures across
+two distinct strong models before any successful plan are also shared evidence;
+invalid reports and rejected code are not classified as provider failures.
 When no runnable tasks remain, the batch reports outstanding work. Cancellation,
 unknown cleanup, target drift and failed integration can still stop the batch.
 

@@ -145,7 +145,13 @@ defmodule Boss.Deliveries.Protocol do
           Follow every saved acceptance criterion. If prior feedback is present, fix
           the concrete failures that still apply to this worktree. Trace each finding to
           the exact failing branch and add a focused regression where the current suite
-          missed it. For limits, test below, exactly at, and above the boundary; check
+          missed it. Reproduce the failure with a bounded local experiment or focused
+          test, inspect the result, change the implementation, and rerun that test.
+          Run the saved check command when feasible before finishing; report the exact
+          checks you actually ran and any remaining failure. Keep experiments inside
+          this worktree, do not use real paid services or change external accounts,
+          and do not replace the original acceptance criteria with easier checks.
+          For limits, test below, exactly at, and above the boundary; check
           whether the next read or write happens at the ceiling. When feedback names
           a review_candidate_commit and prepared_candidate_commit, the review describes
           the former and this worktree starts from a fresh snapshot of the latter.

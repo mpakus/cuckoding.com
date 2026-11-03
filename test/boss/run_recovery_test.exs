@@ -24,7 +24,8 @@ defmodule Boss.RunRecoveryTest do
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
-    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
   ]
 
   test "Repo loss kills a real run group and restart quarantines its committed attempt" do

@@ -590,3 +590,21 @@ into application navigation, project setup, agent discovery, board and task draw
 Preserve controls, native focus and evidence semantics; verify responsive layouts
 and connected LiveView behavior. Publish only the website path allowlist from the
 fresh remote baseline, independently of local application integration.
+
+
+## Catalog routing and recovery after shared failures — 2026-11-03
+
+The source-launcher project had43 recent deliveries fail before implementation:
+the fixed Sol6 and Astra6 calls both exited1, while installed CLI metadata listed
+supported5.6 models. The historical receipts cannot identify the exact upstream
+error. New routing2 discovers and pins visible supported roles before inference,
+keeps generic errors distinct from model unavailability and preserves old routing.
+A shared catalog/provider/startup failure stops the batch before another task.
+A fresh explicit Start snapshots eligible unfinished tasks, including old failures,
+without rewriting their evidence. Recovery still requires actual changes, checks,
+independent review and exact-commit publication before Done.
+
+Acceptance covers native finite model handoff, a failed implementation with semantic
+exit0, direct Stop during catalog discovery, SQL guard bypass attempts, and two
+Failed tasks reaching Done with a rejected first candidate and alternate implementer.
+See the November3 worklog for command results and separate live activation evidence.

@@ -120,7 +120,7 @@ worktree at the exact rejected candidate, preserving previous workspaces. Source
 plan, full feedback and check receipt/output accompany the fix. The next review
 still compares against the original base, so earlier changes remain in scope.
 
-New admissions pin [autonomy policy version 1](AUTONOMY.md): up to **five
+New admissions pin [autonomy policy version 1 and catalog routing version 2](AUTONOMY.md): up to **five
 implementation/check/review cycles**, with a persisted read-only diagnosis before
 repair and an alternate implementation model. Planning questions and review
 clarifications first go to the resolver; a second model examines a reported

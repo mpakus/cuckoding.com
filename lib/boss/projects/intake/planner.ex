@@ -1,6 +1,6 @@
 defmodule Boss.Projects.Intake.Planner do
   @moduledoc false
-  alias Boss.Agents.Workspace
+  alias Boss.Agents.{ModelCatalog, Workspace}
   alias Boss.Checks.Candidate
   alias Boss.Deliveries.{Integration, ModelPolicy, Worker}
   alias Boss.Projects.Intake
@@ -14,7 +14,8 @@ defmodule Boss.Projects.Intake.Planner do
   def run(project, request_id) do
     request = Boss.Repo.get!(Intake.Request, request_id)
 
-    with {:ok, workspace} <- Workspace.plan(project, request_id),
+    with {:ok, request} <- prepare_models(request),
+         {:ok, workspace} <- Workspace.plan(project, request_id),
          :ok <- Integration.preflight(project, request_id, workspace.base_commit),
          {:ok, docs} <- documents(project, workspace),
          {:ok, prompt} <- prompt(workspace.base_commit, docs),
@@ -23,11 +24,25 @@ defmodule Boss.Projects.Intake.Planner do
          {:ok, _} <- Workspace.prepare(workspace),
          :ok <- Candidate.verify_tree(workspace.path, workspace.base_commit),
          :ok <- validate_current(project, %{workspace: intent}),
-         {:ok, tasks} <- plan(workspace.path, prompt, docs, request.autonomy_version),
+         {:ok, tasks} <- plan(workspace.path, prompt, docs, request),
          :ok <- Candidate.verify_tree(workspace.path, workspace.base_commit) do
       {:ok, %{workspace: intent, tasks: tasks}}
     end
   end
+
+  defp prepare_models(%{routing_version: 2, model_catalog: catalog} = request) do
+    if catalog == %{} do
+      case ModelCatalog.discover() do
+        {:ok, snapshot} -> Intake.set_model_catalog(request.id, snapshot)
+        {:error, :catalog_cleanup_unknown} -> {:error, :cleanup_unknown}
+        {:error, _} = error -> error
+      end
+    else
+      with :ok <- ModelCatalog.validate(catalog), do: {:ok, request}
+    end
+  end
+
+  defp prepare_models(request), do: {:ok, request}
 
   def validate_current(project, %{workspace: %{"run_id" => id, "base_commit" => base} = intent}) do
     with {:ok, workspace} <- Workspace.plan(project, id),
@@ -39,13 +54,18 @@ defmodule Boss.Projects.Intake.Planner do
     end
   end
 
-  defp plan(path, prompt, docs, autonomy_version) do
+  defp plan(path, prompt, docs, request) do
+    profile =
+      if request.routing_version == 2,
+        do: ModelPolicy.route(2, :intake, 0, nil, request.model_catalog),
+        else: ModelPolicy.route(request.autonomy_version, :intake, 0)
+
     case Worker.run_agent(
            :intake,
            path,
            prompt,
            &decode(&1, Map.keys(docs)),
-           ModelPolicy.route(autonomy_version, :intake, 0)
+           profile
          ) do
       %{"status" => "finished", "cleanup" => "group_empty", "report" => report} ->
         {:ok, report["tasks"]}
@@ -55,6 +75,23 @@ defmodule Boss.Projects.Intake.Planner do
 
       %{"status" => "cancelled"} ->
         {:error, :cancelled}
+
+      %{
+        "status" => "failed",
+        "cleanup" => "group_empty",
+        "summary" => %{"error_class" => error_class}
+      }
+      when request.routing_version == 2 and
+             error_class in ["auth", "rate_limit", "schema", "transport"] ->
+        reason =
+          case error_class do
+            "auth" -> :provider_auth
+            "rate_limit" -> :provider_rate_limit
+            "schema" -> :provider_schema
+            "transport" -> :provider_transport
+          end
+
+        {:error, reason}
 
       _ ->
         {:error, :invalid_documentation_plan}

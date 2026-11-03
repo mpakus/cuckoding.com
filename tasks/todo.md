@@ -876,3 +876,22 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify responsive drawer keyboard access, including a 200-character title
   at320x568; merge reviewed presentation branches into local main. Postmerge
  150web/11motion tests and assets build passed on a8d3c77.
+
+
+## Shared failure recovery and actual CLI model routing — 2026-11-03
+
+- [x] Read exact4001 source-launcher receipts without changing tasks:43 recent
+  deliveries stopped at plan/resolve, no implementation; distinguish metadata
+  mismatch from unrecorded upstream error cause.
+- [x] Pin validated visible model roles under routing2; keep historical routing,
+  retries, model-stage evidence and budgets immutable. Native metadata-only probe
+  returned Sol5.6/high, Terra5.6/xhigh and Luna5.6/medium; no inference proof claimed.
+- [x] Verify typed provider errors, semantic exit0 recovery and Stop during catalog
+  discovery with finite fixtures; retain unknown-cleanup quarantine.
+- [x] Verify shared failure blocks next dispatch through context and direct SQL;
+  task-specific rejected code retains the recovery path. Catalog/type and circuit
+  persistence suite13passed; combined scope/catalog20passed(seed1316).
+- [x] Complete application regression coverage in shards and corrected focused
+  reruns; final combined100passed(seed1318). Exactlocal-mainintegration next.
+- [ ] Apply the reviewed update to the idle4001 instance with a verified private
+  backup; retain history and require a new explicit Start for provider execution.

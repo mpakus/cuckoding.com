@@ -27,7 +27,7 @@ defmodule BossWeb.AutopilotPanel do
         <%= if @documentation do %>
           Autopilot plans tasks from committed documentation and code, then implements them in dependency order.
         <% else %>
-          Current Backlog runs one task at a time through implementation, checks, fixes, review and integration.
+          A new Start runs eligible unfinished tasks one at a time through implementation, checks, fixes, review and integration.
         <% end %>
       </p>
       <div
@@ -130,7 +130,7 @@ defmodule BossWeb.AutopilotPanel do
             >Stop Autopilot</button>
           </div>
           <p :if={@batch.status in ["running", "paused"]} class="text-xs text-muted">
-            Pause lets the current workflow reach review approval, then prevents integration and the next task. Stop cancels active work and the remaining Backlog snapshot.
+            Pause lets the current workflow reach review approval, then prevents integration and the next task. Stop cancels active work and the remaining saved selection.
             Restart pauses automatic work until you resume it.
           </p>
         </div>
@@ -147,14 +147,16 @@ defmodule BossWeb.AutopilotPanel do
         >
           <fieldset disabled={@pending != nil || !@supported} class="min-w-0">
             <legend class="text-sm font-medium">
-              {if @plans_from_docs, do: "Project documentation", else: "Current Backlog"}
+              {if @plans_from_docs, do: "Project documentation", else: "Eligible unfinished tasks"}
             </legend>
             <p id="autopilot-selection-help" class="mt-1 text-xs text-muted">
               <%= if @plans_from_docs do %>
                 Codex will inspect the committed documentation and code. Autopilot saves the resulting tasks with their dependencies and begins the first ready task.
               <% else %>
-                Start saves all current Backlog tasks (up to 256). Newly imported tasks stay outside this run.
-                Dependencies must reach Done before their dependent task starts. Failed tasks need an explicit retry from their task details.
+                A new Start saves all eligible New, Failed, Blocked and Needs input tasks (up to 256).
+                Each receives a fresh workflow request; earlier batches and evidence stay unchanged.
+                Active work, unconfirmed cleanup and unresolved integration are excluded.
+                Dependencies must reach Done before their dependent task starts. Later imports stay outside this run.
               <% end %>
             </p>
             <p
@@ -162,13 +164,13 @@ defmodule BossWeb.AutopilotPanel do
               id="autopilot-selection-count"
               class="mt-2 text-sm text-body"
             >
-              {length(@choices)} tasks in Backlog
+              {length(@choices)} eligible unfinished tasks
             </p>
             <p
               :if={!@plans_from_docs && @choices == [] && !@documentation}
               class="mt-2 text-sm text-muted"
             >
-              No tasks in Backlog. Import a spec to start Autopilot.
+              No eligible unfinished tasks. Import a spec or inspect tasks with unresolved work.
             </p>
             <ul
               :if={!@plans_from_docs && @choices != []}
@@ -180,6 +182,9 @@ defmodule BossWeb.AutopilotPanel do
                 class="min-w-0 break-words text-sm"
               >
                 {entry.title}
+                <span class="ml-2 text-xs text-muted">{if entry.state == "new",
+                  do: "New",
+                  else: "Retry · " <> label(entry.state)}</span>
                 <span class="block break-all text-xs text-muted">{entry.relative_path} · revision {entry.task_revision}</span>
               </li>
             </ul>
@@ -216,12 +221,14 @@ defmodule BossWeb.AutopilotPanel do
             <%= if @plans_from_docs do %>
               Start authorizes project planning and execution of the generated tasks.
             <% else %>
-              Start authorizes execution of the entire current Backlog.
+              Start authorizes a new execution of the entire eligible unfinished selection, including retries of failed tasks.
+              It does not resume an earlier batch.
             <% end %>
             Start also authorizes automatic integration into <strong class="break-all">{@project.base_branch}</strong>.
             New workflows resolve questions with another model and can use up to five implementation cycles.
             A task reaches Done only after verified review, publication and postchecks.
-            Independent tasks can continue after a task failure with confirmed cleanup.
+            Independent tasks can continue after a task-specific failure with confirmed cleanup.
+            Shared model, catalog or provider failures stop the batch before another task starts.
             Stop, unknown cleanup and integration failures halt the batch.
           </p>
           <p id="autopilot-provider-help" class="text-xs text-muted">

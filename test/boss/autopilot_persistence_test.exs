@@ -24,7 +24,8 @@ defmodule Boss.AutopilotPersistenceTest do
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
-    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
   ]
 
   setup do
@@ -251,6 +252,11 @@ defmodule Boss.AutopilotPersistenceTest do
 
   test "empty migration can round trip and lower versions keep their queue guards", c do
     assert :ok =
+             Ecto.Migrator.down(Repo, 20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting,
+               log: false
+             )
+
+    assert :ok =
              Ecto.Migrator.down(
                Repo,
                20_261_104_130_000,
@@ -263,7 +269,7 @@ defmodule Boss.AutopilotPersistenceTest do
                log: false
              )
 
-    assert [20_261_027_070_000, 20_261_104_130_000] =
+    assert [20_261_027_070_000, 20_261_104_130_000, 20_261_105_120_000] =
              Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
 
     assert {:ok, batch} =

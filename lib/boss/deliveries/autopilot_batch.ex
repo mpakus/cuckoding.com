@@ -9,6 +9,7 @@ defmodule Boss.Deliveries.AutopilotBatch do
     field :config_hash, :string
     field :reviewer, :string
     field :autonomy_version, :integer, default: 0
+    field :routing_version, :integer, default: 1
     field :status, :string, default: "running"
     field :reason, :string
     field :version, :integer, default: 0

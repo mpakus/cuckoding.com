@@ -27,7 +27,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
-    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
   ]
 
   setup context do
@@ -112,7 +113,7 @@ defmodule Boss.AutopilotNativeTest do
                 explicit_id: name,
                 title: name,
                 original_text:
-                  "---\nid: #{name}\n#{if name == "two", do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
+                  "---\nid: #{name}\n#{if name == "two" and !context[:independent], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
               })
 
             record.task
@@ -258,7 +259,8 @@ defmodule Boss.AutopilotNativeTest do
            |> Enum.count(&String.contains?(&1, ~s("kind": "intake"))) == 1
   end
 
-  test "Autopilot resolves a planning question with Astra and publishes both dependencies", c do
+  test "Autopilot resolves a planning question with its catalog resolver and publishes both dependencies",
+       c do
     System.put_env("BOSS_AUTOPILOT_MODE", "autonomy_plan")
     manager = start_manager(c.repo)
     original = git(c.source, ["rev-parse", "HEAD"])
@@ -282,7 +284,7 @@ defmodule Boss.AutopilotNativeTest do
     assert resolution.status == "finished"
 
     assert resolution.input["model_profile"] == %{
-             "model" => "gpt-6-astra",
+             "model" => "gpt-5.6-terra",
              "reasoning_effort" => "xhigh"
            }
 
@@ -310,7 +312,7 @@ defmodule Boss.AutopilotNativeTest do
 
     assert Enum.any?(
              calls,
-             &(&1["kind"] == "resolve" && &1["model"] == "gpt-6-astra" &&
+             &(&1["kind"] == "resolve" && &1["model"] == "gpt-5.6-terra" &&
                  &1["reasoning_effort"] == "xhigh")
            )
 
@@ -363,6 +365,82 @@ defmodule Boss.AutopilotNativeTest do
     assert {:ok, _} = Autopilot.cancel(c.project.id, batch.id, current.version, @registry)
     eventually(fn -> :sys.get_state(manager).active == %{} end)
     refute Repo.get!(Tasks.Task, List.last(c.tasks).id).state == "done"
+  end
+
+  @tag :independent
+  test "a fresh all-Failed batch repairs with another model and publishes without altering old evidence",
+       c do
+    failures =
+      for task <- c.tasks do
+        {:ok, {:new, delivery}} =
+          Deliveries.admit(c.project.id, task.id, Ecto.UUID.generate(), "python3 check.py")
+
+        {:ok, failed} =
+          Deliveries.complete(delivery.id, "failed", "Earlier known-clean task failure")
+
+        failed
+      end
+
+    assert Enum.all?(c.tasks, &(Repo.get!(Tasks.Task, &1.id).state == "failed"))
+    System.put_env("BOSS_AUTOPILOT_MODE", "repair")
+    manager = start_manager(c.repo)
+    original = git(c.source, ["rev-parse", "HEAD"])
+
+    {:ok, batch} =
+      Autopilot.start(
+        c.project.id,
+        Ecto.UUID.generate(),
+        Enum.map(c.tasks, & &1.id),
+        "python3 check.py",
+        "codex",
+        manager
+      )
+
+    assert batch.routing_version == 2
+    first = wait_for_implementation(c, "one", 1)
+    release(c, "one", 1)
+    fixed = wait_for_implementation(c, "one", 2)
+    assert fixed.id == first.id
+    assert fixed.integration_command_id == nil
+    stages = Deliveries.steps(fixed.id)
+    attempts = Enum.filter(stages, &(&1.kind == "implement"))
+    assert Enum.map(attempts, & &1.cycle) == [1, 2]
+
+    assert Enum.map(attempts, & &1.input["model_profile"]["model"]) == [
+             "gpt-5.6-sol",
+             "gpt-5.6-terra"
+           ]
+
+    assert Enum.any?(stages, &(&1.kind == "resolve" and &1.status == "finished"))
+
+    assert Enum.any?(
+             stages,
+             &(&1.kind == "review" and &1.receipt["report"]["verdict"] == "changes_requested")
+           )
+
+    release(c, "one", 2)
+    second = wait_for_implementation(c, "two", 1)
+    assert Deliveries.get(c.project.id, first.id).status == "done"
+    release(c, "two", 1)
+    eventually(fn -> Repo.get!(AutopilotBatch, batch.id).status == "completed" end, 3000)
+    assert Enum.all?(c.tasks, &(Repo.get!(Tasks.Task, &1.id).state == "done"))
+    assert Enum.map(failures, &Repo.get!(Deliveries.Delivery, &1.id)) == failures
+
+    for delivery <- [first, second] do
+      done = Deliveries.get(c.project.id, delivery.id)
+      assert done.status == "done"
+      steps = Deliveries.steps(done.id)
+      assert Enum.any?(steps, &(&1.kind == "publish" and &1.status == "finished"))
+      assert Enum.any?(steps, &(&1.kind == "post_check" and &1.status == "finished"))
+    end
+
+    assert git(c.source, ["rev-parse", "main"]) ==
+             Deliveries.get(c.project.id, second.id).integration_intent["candidate_commit"]
+
+    assert git(c.source, ["rev-parse", "HEAD"]) == original
+    assert git(c.source, ["status", "--porcelain"]) == ""
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 4
+    assert {:ok, []} = Autopilot.selection(c.project.id)
   end
 
   @tag :continue_on_failure

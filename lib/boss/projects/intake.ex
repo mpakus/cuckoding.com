@@ -112,6 +112,7 @@ defmodule Boss.Projects.Intake do
                config_hash: hash,
                reviewer: reviewer,
                autonomy_version: Boss.Deliveries.ModelPolicy.current(),
+               routing_version: Boss.Deliveries.ModelPolicy.current_routing(),
                check_text: text
              })}
         end
@@ -128,6 +129,10 @@ defmodule Boss.Projects.Intake do
                Repo.rollback(:cancelled)
 
              %Request{status: "planning", workspace: empty} = request when empty == %{} ->
+               unless request.routing_version == 1 or
+                        Boss.Agents.ModelCatalog.validate(request.model_catalog) == :ok,
+                      do: Repo.rollback(:catalog_invalid)
+
                save!(request, workspace: workspace)
 
              _ ->
@@ -137,6 +142,29 @@ defmodule Boss.Projects.Intake do
       {:ok, _} -> :ok
       error -> error
     end
+  end
+
+  def set_model_catalog(id, snapshot) do
+    transaction(fn ->
+      case Repo.get(Request, id) do
+        %Request{status: "planning", stop_requested: true} ->
+          Repo.rollback(:cancelled)
+
+        %Request{status: "planning", routing_version: 2} = request ->
+          unless Boss.Agents.ModelCatalog.validate(snapshot) == :ok,
+            do: Repo.rollback(:catalog_invalid)
+
+          cond do
+            request.model_catalog == snapshot -> request
+            request.model_catalog != %{} -> Repo.rollback(:immutable_model_catalog)
+            request.workspace != %{} -> Repo.rollback(:invalid_intent)
+            true -> save!(request, model_catalog: snapshot)
+          end
+
+        _ ->
+          Repo.rollback(:invalid_intent)
+      end
+    end)
   end
 
   def execute(request, repo, manager) do
@@ -315,6 +343,33 @@ defmodule Boss.Projects.Intake do
 
   defp message(:cancelled), do: "Documentation planning stopped."
   defp message(:codex_unavailable), do: "Codex is unavailable on BOSS's PATH."
+
+  defp message(:catalog_unavailable),
+    do:
+      "Codex could not provide its model catalog. Check the local CLI before starting planning again."
+
+  defp message(:catalog_invalid),
+    do: "Codex returned an invalid model catalog. No planning model was started."
+
+  defp message(:catalog_insufficient_models),
+    do:
+      "The local model catalog has fewer than two eligible reasoning models. No planning model was started."
+
+  defp message(:provider_auth),
+    do:
+      "The selected provider account could not authenticate. Restore its access before starting planning again."
+
+  defp message(:provider_rate_limit),
+    do:
+      "The provider reported a rate or quota limit. Planning stopped without switching accounts."
+
+  defp message(:provider_schema),
+    do:
+      "The provider rejected the request format. Update the adapter before starting planning again."
+
+  defp message(:provider_transport),
+    do:
+      "Codex transport or protocol failed. Check the CLI, adapter and connection before starting planning again."
 
   defp message(_),
     do:
