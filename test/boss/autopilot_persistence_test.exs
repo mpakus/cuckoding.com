@@ -254,7 +254,9 @@ defmodule Boss.AutopilotPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_104_130_000,
-               Boss.Repo.Migrations.AddAutonomousRecovery, log: false)
+               Boss.Repo.Migrations.AddAutonomousRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(Repo, 20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot,
