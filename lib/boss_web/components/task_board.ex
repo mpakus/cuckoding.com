@@ -146,9 +146,9 @@ defmodule BossWeb.TaskBoard do
       data-return-focus={@return_focus}
       data-revision={@desired}
       aria-labelledby="task-drawer-title"
-      class="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-full max-w-2xl overflow-y-auto border-l border-line bg-paper p-0 text-ink backdrop:bg-ink/35"
+      class="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-full max-w-2xl overflow-hidden border-l border-line bg-paper p-0 text-ink backdrop:bg-ink/35 open:flex open:flex-col"
     >
-      <div class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-surface px-5 py-4 sm:px-6">
+      <div class="flex shrink-0 items-start justify-between gap-4 border-b border-line bg-surface px-5 py-4 sm:px-6">
         <div class="min-w-0">
           <p class="app-eyebrow mb-2">Task details</p>
           <h2 id="task-drawer-title" class="min-w-0 break-words text-xl font-semibold">
@@ -163,7 +163,7 @@ defmodule BossWeb.TaskBoard do
           class="app-button-secondary shrink-0 px-3 py-2 text-sm"
         >Close</.link>
       </div>
-      <div class="space-y-6 px-5 py-5 sm:px-6">
+      <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
         <p :if={@loading && !@source_ready} role="status" class="text-sm text-muted">
           Loading task details…
         </p>
