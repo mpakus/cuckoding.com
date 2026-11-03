@@ -40,7 +40,7 @@ defmodule Boss.AutonomyModelPolicyTest do
     assert ModelPolicy.route(version, :resolve, 2)["model"] == "gpt-6.1-sol"
     assert ModelPolicy.route(version, :resolve, 2)["reasoning_effort"] == "xhigh"
 
-    for kind <- [:plan, :review, :intake] do
+    for kind <- [:plan, :review, :merge_review, :intake] do
       assert ModelPolicy.route(version, kind, 0)["model"] == "gpt-6.1-sol"
     end
 

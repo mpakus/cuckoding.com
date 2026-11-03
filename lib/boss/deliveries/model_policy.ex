@@ -33,7 +33,16 @@ defmodule Boss.Deliveries.ModelPolicy do
     do: selection("gpt-6.1-sol", "high")
 
   def route(1, kind, _, _)
-      when kind in [:plan, "plan", :review, "review", :intake, "intake"],
+      when kind in [
+             :plan,
+             "plan",
+             :review,
+             "review",
+             :merge_review,
+             "merge_review",
+             :intake,
+             "intake"
+           ],
       do: selection("gpt-6.1-sol", "high")
 
   defp selection(model, effort), do: %{"model" => model, "reasoning_effort" => effort}
