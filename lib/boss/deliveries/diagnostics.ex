@@ -16,6 +16,34 @@ defmodule Boss.Deliveries.Diagnostics do
     do:
       "The target branch changed before this stage. Inspect its current commit, then start a fresh workflow."
 
+  def message("catalog_unavailable"),
+    do:
+      "Codex could not return its model catalog. No inference was started. Check the installed CLI, then start again."
+
+  def message("catalog_invalid"),
+    do:
+      "Codex returned an unsupported model catalog. No model was guessed and no inference was started. Update the CLI or its adapter before retrying."
+
+  def message("catalog_insufficient_models"),
+    do:
+      "The Codex catalog does not offer two supported coding models for independent diagnosis. No inference was started."
+
+  def message("provider_auth"),
+    do:
+      "Codex reported an authentication failure. This workflow stopped before another model call. Restore the selected account's access before a fresh Start."
+
+  def message("provider_rate_limit"),
+    do:
+      "Codex reported a quota or rate limit. This workflow stopped before another model call. Retry after capacity is available."
+
+  def message("provider_schema"),
+    do:
+      "Codex rejected the structured request configuration. This workflow stopped before another model call. Repair the adapter before retrying."
+
+  def message("provider_transport"),
+    do:
+      "Codex could not complete its transport or event protocol. This workflow stopped before another model call. Check CLI compatibility and connectivity before retrying."
+
   def message(_), do: nil
 
   def repair_stop(prefix, %{"kind" => "review", "report" => report}),

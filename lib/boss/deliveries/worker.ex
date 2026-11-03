@@ -1,7 +1,7 @@
 defmodule Boss.Deliveries.Worker do
   @moduledoc false
   alias Boss.{Deliveries, Repo}
-  alias Boss.Agents.{Claude, Codex, ReportFile, Workspace}
+  alias Boss.Agents.{Claude, Codex, ModelCatalog, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
   alias Boss.Deliveries.{Diagnostics, ModelPolicy, Protocol, Retry}
@@ -23,6 +23,7 @@ defmodule Boss.Deliveries.Worker do
   end
 
   defp perform(delivery) do
+    delivery = prepare_models(delivery)
     {project, revision} = Deliveries.inputs(delivery)
     source = ok!(Retry.source(delivery))
     continue!()
@@ -69,6 +70,23 @@ defmodule Boss.Deliveries.Worker do
       failures
     )
   end
+
+  defp prepare_models(%{routing_version: 2, model_catalog: catalog} = delivery) do
+    if catalog == %{} do
+      continue!()
+
+      case ModelCatalog.discover() do
+        {:ok, snapshot} -> stored!(Deliveries.set_model_catalog(delivery.id, snapshot))
+        {:error, :catalog_cleanup_unknown} -> throw({:halt, :cleanup_unknown})
+        {:error, reason} -> throw({:halt, reason})
+      end
+    else
+      ok!(ModelCatalog.validate(catalog))
+      delivery
+    end
+  end
+
+  defp prepare_models(delivery), do: delivery
 
   defp plan(delivery, source, input, parent \\ nil, previous_plan \\ nil, attempt \\ 0) do
     intent = delivery.intent
@@ -380,7 +398,7 @@ defmodule Boss.Deliveries.Worker do
         end
       )
 
-    if autonomous?(delivery) and failed_execution?(implementation) do
+    if autonomous?(delivery) and failed_execution?(delivery, implementation) do
       recover_implementation(
         delivery,
         project,
@@ -939,13 +957,21 @@ defmodule Boss.Deliveries.Worker do
 
   defp recoverable?(_), do: false
 
-  defp failed_execution?(%{status: "failed", receipt: r}),
+  defp failed_execution?(%{routing_version: 2}, %{status: "failed", receipt: r}),
+    do:
+      r["outcome"] == "exited" and r["cleanup"] == "group_empty" and
+        r["exit_kind"] == "exit" and is_integer(r["exit_code"]) and
+        (r["exit_code"] != 0 or
+           get_in(r, ["summary", "error_class"]) in ["model_unavailable", "unknown"]) and
+        r["eof"] == %{"stdout" => true, "stderr" => true}
+
+  defp failed_execution?(_, %{status: "failed", receipt: r}),
     do:
       r["outcome"] == "exited" and r["cleanup"] == "group_empty" and
         r["exit_kind"] == "exit" and is_integer(r["exit_code"]) and r["exit_code"] != 0 and
         r["eof"] == %{"stdout" => true, "stderr" => true}
 
-  defp failed_execution?(_), do: false
+  defp failed_execution?(_, _), do: false
 
   defp version(delivery), do: Map.get(delivery, :autonomy_version, 0)
   defp autonomous?(delivery), do: version(delivery) == 1
@@ -1227,8 +1253,24 @@ defmodule Boss.Deliveries.Worker do
     {receipt, value} = run.()
     saved = stored!(Deliveries.finish_step(step.id, receipt))
     Process.delete(:delivery_step)
+    shared_agent_failure!(delivery, saved)
     {saved, value}
   end
+
+  defp shared_agent_failure!(%{routing_version: 2}, %{status: "failed", receipt: receipt}) do
+    if receipt["cleanup"] == "group_empty" and
+         receipt["eof"] == %{"stdout" => true, "stderr" => true} do
+      case get_in(receipt, ["summary", "error_class"]) do
+        "auth" -> throw({:halt, :provider_auth})
+        "rate_limit" -> throw({:halt, :provider_rate_limit})
+        "schema" -> throw({:halt, :provider_schema})
+        "transport" -> throw({:halt, :provider_transport})
+        _ -> :ok
+      end
+    end
+  end
+
+  defp shared_agent_failure!(_, _), do: :ok
 
   defp begin_step(delivery, kind, cycle, input) do
     continue!()
@@ -1262,12 +1304,28 @@ defmodule Boss.Deliveries.Worker do
   defp halt(delivery, reason) do
     receipt = failure(reason)
     if id = Process.delete(:delivery_step), do: Deliveries.finish_step(id, receipt)
-    Deliveries.complete(delivery.id, receipt["status"], receipt["reason"])
+    Deliveries.complete(delivery.id, receipt["status"], receipt["reason"], failure_code(reason))
   rescue
     _ -> {:error, :storage_error}
   catch
     _, _ -> {:error, :storage_error}
   end
+
+  defp failure_code(reason)
+       when reason in [
+              :catalog_unavailable,
+              :catalog_invalid,
+              :catalog_insufficient_models,
+              :codex_unavailable,
+              :models_exhausted,
+              :provider_auth,
+              :provider_rate_limit,
+              :provider_schema,
+              :provider_transport
+            ],
+       do: Atom.to_string(reason)
+
+  defp failure_code(_), do: nil
 
   defp failure(reason) do
     {status, cleanup, message} =
@@ -1309,6 +1367,18 @@ defmodule Boss.Deliveries.Worker do
         :models_exhausted ->
           {"failed", "group_empty",
            "No eligible model remains after recorded execution failures. Restore model access before starting another workflow."}
+
+        reason
+        when reason in [
+               :catalog_unavailable,
+               :catalog_invalid,
+               :catalog_insufficient_models,
+               :provider_auth,
+               :provider_rate_limit,
+               :provider_schema,
+               :provider_transport
+             ] ->
+          {"failed", "group_empty", Diagnostics.message(Atom.to_string(reason))}
 
         _ ->
           {"failed", "group_empty",
