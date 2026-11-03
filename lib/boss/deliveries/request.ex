@@ -12,6 +12,7 @@ defmodule Boss.Deliveries.Request do
     field :config_hash, :string
     field :reviewer, :string
     field :autonomy_version, :integer, default: 0
+    field :routing_version, :integer, default: 1
     field :status, :string, default: "queued"
     field :reason, :string
     timestamps(type: :utc_datetime_usec)
