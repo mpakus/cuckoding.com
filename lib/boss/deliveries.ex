@@ -46,6 +46,59 @@ defmodule Boss.Deliveries do
   def steps(id),
     do: Repo.all(from s in Step, where: s.delivery_id == ^id, order_by: s.number, limit: 48)
 
+  @doc false
+  def model_profile(delivery, kind, cycle, plan_step_id \\ nil) do
+    d = Repo.get!(Delivery, delivery.id)
+    kind = to_string(kind)
+
+    if d.autonomy_version == 0 or (d.reviewer == "claude" and kind in ~w(review merge_review)) do
+      {:ok, nil}
+    else
+      saved_plan =
+        case saved_step(plan_step_id) do
+          %Step{delivery_id: id, kind: "plan"} = p when id == d.id -> p
+          _ -> nil
+        end
+
+      preferred =
+        if kind == "plan" and not is_nil(saved_plan) and saved_plan.status == "failed" and
+             known_model_failure?(saved_plan.receipt) do
+          attempt =
+            if get_in(saved_plan.input, ["model_profile", "model"]) == "gpt-6-astra",
+              do: 2,
+              else: 1
+
+          ModelPolicy.route(d.autonomy_version, :resolve, attempt)
+        else
+          ModelPolicy.route(
+            d.autonomy_version,
+            kind,
+            cycle,
+            if(saved_plan, do: saved_plan.receipt["report"])
+          )
+        end
+
+      saved_steps = steps(d.id)
+
+      excluded =
+        saved_steps
+        |> Enum.filter(&unavailable_model?/1)
+        |> Enum.map(&get_in(&1.input, ["model_profile", "model"]))
+        |> Enum.reject(&is_nil/1)
+
+      excluded =
+        case {kind, cycle, List.last(saved_steps)} do
+          {"resolve", 2, %Step{kind: "resolve", input: input}} ->
+            [get_in(input, ["model_profile", "model"]) | excluded]
+
+          _ ->
+            excluded
+        end
+
+      ModelPolicy.select(preferred, excluded)
+    end
+  end
+
   def list(project, task) do
     Repo.all(
       from d in Delivery,
@@ -840,14 +893,6 @@ defmodule Boss.Deliveries do
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
          not (d.reviewer == "claude" and kind in ~w(review merge_review)) do
-      saved_plan =
-        case saved_step(input["plan_step_id"]) do
-          %Step{delivery_id: id, kind: "plan"} = p when id == d.id -> p
-          _ -> nil
-        end
-
-      plan = if saved_plan, do: saved_plan.receipt["report"]
-
       route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
       unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
 
@@ -856,16 +901,9 @@ defmodule Boss.Deliveries do
          do: Repo.rollback(:invalid_step)
 
       profile =
-        if kind == "plan" and not is_nil(saved_plan) and saved_plan.status == "failed" and
-             known_model_failure?(saved_plan.receipt) do
-          attempt =
-            if get_in(saved_plan.input, ["model_profile", "model"]) == "gpt-6-astra",
-              do: 2,
-              else: 1
-
-          ModelPolicy.route(d.autonomy_version, :resolve, attempt)
-        else
-          ModelPolicy.route(d.autonomy_version, kind, route_cycle, plan)
+        case model_profile(d, kind, route_cycle, input["plan_step_id"]) do
+          {:ok, profile} -> profile
+          {:error, reason} -> Repo.rollback(reason)
         end
 
       unless is_map(profile) and Map.get(input, "model_profile", profile) == profile,
@@ -896,22 +934,30 @@ defmodule Boss.Deliveries do
              (attempt == 2 and previous.kind == "resolve" and previous.cycle == cycle and
                 previous.input["resolution_attempt"] == 1 and
                 previous.input["source_step_id"] == source.id and second_opinion?(previous)) do
-      if source.kind == "plan" do
-        i["plan_step_id"] == source.id and i["workspace"] == d.intent and
-          i["candidate_commit"] == d.intent["base_commit"] and
-          Repo.aggregate(
-            from(s in Step, where: s.delivery_id == ^d.id and s.kind == "plan"),
-            :count
-          ) < 3
-      else
-        i["plan_step_id"] == source.input["plan_step_id"] and
-          i["workspace"] == source.input["workspace"] and
-          i["candidate_commit"] == source.input["candidate_commit"]
+      case source.kind do
+        "plan" ->
+          i["plan_step_id"] == source.id and i["workspace"] == d.intent and
+            i["candidate_commit"] == d.intent["base_commit"] and
+            Repo.aggregate(
+              from(s in Step, where: s.delivery_id == ^d.id and s.kind == "plan"),
+              :count
+            ) < 3
+
+        "implement" ->
+          i["plan_step_id"] == source.input["plan_step_id"] and
+            fresh_resolution_workspace?(d, source, previous, i)
+
+        _ ->
+          i["plan_step_id"] == source.input["plan_step_id"] and
+            i["workspace"] == source.input["workspace"] and
+            i["candidate_commit"] == source.input["candidate_commit"]
       end
     else
       _ -> false
     end
   end
+
+  defp recoverable_source?(%Step{kind: "implement"} = source), do: unavailable_model?(source)
 
   defp recoverable_source?(%Step{kind: kind, status: status, receipt: r}) do
     r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
@@ -950,6 +996,47 @@ defmodule Boss.Deliveries do
 
   defp known_model_failure?(r),
     do: r["outcome"] in ["invalid_report", "exited"] and is_integer(r["exit_code"])
+
+  defp unavailable_model?(%Step{kind: kind, status: "failed", receipt: r})
+       when kind in ~w(plan implement review merge_review resolve),
+       do:
+         r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
+           r["eof"] == %{"stdout" => true, "stderr" => true} and r["outcome"] == "exited" and
+           is_integer(r["exit_code"]) and r["exit_code"] != 0
+
+  defp unavailable_model?(_), do: false
+
+  defp fresh_resolution_workspace?(d, source, previous, input) do
+    workspace = input["workspace"]
+    old = source.input["workspace"]
+
+    with true <- is_map(workspace) and map_size(workspace) == 8 and is_map(old),
+         {:ok, _} <- Ecto.UUID.cast(workspace["run_id"]),
+         true <- is_binary(old["path"]),
+         true <-
+           Enum.all?(
+             ~w(project_id repo_path git_common_dir base_branch),
+             &(workspace[&1] == d.intent[&1])
+           ),
+         true <- sha?(old["base_commit"]) and workspace["base_commit"] == old["base_commit"],
+         true <- input["candidate_commit"] == old["base_commit"],
+         true <- workspace["branch"] == "codex/boss-run-#{workspace["run_id"]}",
+         true <- workspace["path"] == Path.join(Path.dirname(old["path"]), workspace["run_id"]),
+         true <- workspace["path"] != old["path"] and workspace["path"] != d.intent["path"] do
+      if input["resolution_attempt"] == 2 do
+        workspace == previous.input["workspace"]
+      else
+        Enum.all?(steps(d.id), fn step ->
+          Enum.all?([step.input["workspace"], step.receipt["workspace"]], fn
+            nil -> true
+            saved -> saved["path"] != workspace["path"] and saved["branch"] != workspace["branch"]
+          end)
+        end)
+      end
+    else
+      _ -> false
+    end
+  end
 
   defp resolution_passed?(%Step{status: "finished", receipt: r}),
     do:

@@ -412,14 +412,14 @@ defmodule Boss.AutonomyPersistenceTest do
     assert next.input["model_profile"]["model"] == "gpt-6-astra"
   end
 
-  test "known exited model failures get another opinion and a different replanner", c do
+  test "invalid reports do not exclude a model and a failed resolver gets another opinion", c do
     d = delivery(c)
 
     failed =
       finish(d, "plan", 0, %{"workspace" => d.intent}, %{
         "status" => "failed",
-        "outcome" => "exited",
-        "exit_code" => 1
+        "outcome" => "invalid_report",
+        "exit_code" => 0
       })
 
     first =
@@ -450,14 +450,224 @@ defmodule Boss.AutonomyPersistenceTest do
     assert {:ok, replan} = Deliveries.begin_step(d.id, "plan", 0, input)
 
     assert replan.input["model_profile"] == %{
-             "model" => "gpt-6-astra",
+             "model" => "gpt-6.1-sol",
              "reasoning_effort" => "xhigh"
            }
 
     assert {:ok, _} = Deliveries.finish_step(replan.id, receipt(%{"report" => plan(nil)}))
   end
 
-  defp delivery(c, version \\ 1) do
+  test "unavailable models stay excluded after restart and cannot be forced through SQL", c do
+    d = delivery(c)
+
+    failed =
+      finish(d, "plan", 0, %{"workspace" => d.intent}, %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 7
+      })
+
+    resolved = finish(d, "resolve", 0, resolution_input(d, failed), %{"report" => resolution()})
+
+    fresh =
+      finish(
+        d,
+        "plan",
+        0,
+        %{"workspace" => d.intent, "parent_step_id" => resolved.id, "plan_step_id" => failed.id},
+        %{"report" => plan(nil)}
+      )
+
+    assert fresh.input["model_profile"]["model"] == "gpt-6-astra"
+
+    :ok = stop_supervised(Repo)
+    Repo.put_dynamic_repo(start_supervised!({Repo, c.opts}))
+    assert {:ok, profile} = Deliveries.model_profile(d, :implement, 1, fresh.id)
+    assert profile == %{"model" => "gpt-6-astra", "reasoning_effort" => "xhigh"}
+    assert {:ok, ^profile} = Deliveries.model_profile(d, :review, 1, fresh.id)
+
+    input = %{
+      "plan_step_id" => fresh.id,
+      "model_profile" => %{"model" => "gpt-6.1-sol", "reasoning_effort" => "high"}
+    }
+
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "implement", 1, input)
+    assert {:error, _} = raw_step(d, "implement", 1, input)
+
+    assert {:ok, implementation} =
+             Deliveries.begin_step(d.id, "implement", 1, Map.delete(input, "model_profile"))
+
+    assert implementation.input["model_profile"] == profile
+  end
+
+  test "a failed implementation resolves from a fresh saved base without adopting partial work",
+       c do
+    d = delivery(c)
+    plan = finish(d, "plan", 0, %{"workspace" => d.intent}, %{"report" => plan(nil)})
+    old = fresh_workspace(d.intent)
+
+    failed =
+      finish(d, "implement", 1, %{"plan_step_id" => plan.id, "workspace" => old}, %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 7,
+        "workspace" => old
+      })
+
+    workspace = fresh_workspace(old)
+
+    input =
+      resolution_input(d, failed)
+      |> Map.merge(%{"plan_step_id" => plan.id, "workspace" => workspace})
+
+    profile = %{"model" => "gpt-6-astra", "reasoning_effort" => "xhigh"}
+
+    for invalid <- [
+          Map.put(input, "workspace", old),
+          put_in(input, ["workspace", "repo_path"], "/other/repository"),
+          Map.put(input, "candidate_commit", String.duplicate("c", 40))
+        ] do
+      assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "resolve", 1, invalid)
+      assert {:error, _} = raw_step(d, "resolve", 1, Map.put(invalid, "model_profile", profile))
+    end
+
+    resolved = finish(d, "resolve", 1, input, %{"report" => resolution()})
+
+    next = %{
+      "plan_step_id" => plan.id,
+      "parent_step_id" => resolved.id,
+      "resolution_step_id" => resolved.id,
+      "source_step_id" => failed.id,
+      "workspace" => fresh_workspace(workspace)
+    }
+
+    assert {:error, :invalid_step} =
+             Deliveries.begin_step(
+               d.id,
+               "implement",
+               2,
+               put_in(next, ["workspace", "base_commit"], String.duplicate("c", 40))
+             )
+
+    assert {:error, _} =
+             raw_step(
+               d,
+               "implement",
+               2,
+               put_in(
+                 Map.put(next, "model_profile", profile),
+                 ["workspace", "base_commit"],
+                 String.duplicate("c", 40)
+               )
+             )
+
+    assert {:ok, implementation} = Deliveries.begin_step(d.id, "implement", 2, next)
+    assert implementation.input["workspace"]["base_commit"] == old["base_commit"]
+    assert implementation.input["model_profile"] == profile
+    assert Repo.get!(Deliveries.Step, failed.id).input["workspace"] == old
+  end
+
+  test "exhausted strong models stop without reusing a failed model", c do
+    d = delivery(c)
+
+    failed =
+      finish(d, "plan", 0, %{"workspace" => d.intent}, %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 7
+      })
+
+    first =
+      finish(d, "resolve", 0, resolution_input(d, failed), %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 7
+      })
+
+    input =
+      resolution_input(d, failed)
+      |> Map.merge(%{"parent_step_id" => first.id, "resolution_attempt" => 2})
+
+    assert {:error, :models_exhausted} = Deliveries.model_profile(d, :resolve, 2, failed.id)
+    assert {:error, :models_exhausted} = Deliveries.begin_step(d.id, "resolve", 0, input)
+
+    assert {:error, _} =
+             raw_step(
+               d,
+               "resolve",
+               0,
+               Map.put(input, "model_profile", %{
+                 "model" => "gpt-6.1-sol",
+                 "reasoning_effort" => "xhigh"
+               })
+             )
+
+    assert length(Deliveries.steps(d.id)) == 2
+  end
+
+  test "a second opinion cannot silently reuse the first model when the other is unavailable",
+       c do
+    d = delivery(c)
+
+    failed =
+      finish(d, "plan", 0, %{"workspace" => d.intent}, %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 7
+      })
+
+    first =
+      finish(d, "resolve", 0, resolution_input(d, failed), %{
+        "report" => Map.put(resolution(), "external_action", "Need repository access")
+      })
+
+    input =
+      resolution_input(d, failed)
+      |> Map.merge(%{"parent_step_id" => first.id, "resolution_attempt" => 2})
+
+    assert {:error, :models_exhausted} = Deliveries.begin_step(d.id, "resolve", 0, input)
+
+    assert {:error, _} =
+             raw_step(
+               d,
+               "resolve",
+               0,
+               Map.put(input, "model_profile", %{
+                 "model" => "gpt-6-astra",
+                 "reasoning_effort" => "xhigh"
+               })
+             )
+  end
+
+  test "failed implementation recovery retains a complete SHA-256 base identity", c do
+    sha = String.duplicate("c", 64)
+    d = delivery(c, 1, sha)
+    plan = finish(d, "plan", 0, %{"workspace" => d.intent}, %{"report" => plan(nil)})
+    workspace = fresh_workspace(d.intent)
+
+    failed =
+      finish(d, "implement", 1, %{"plan_step_id" => plan.id, "workspace" => workspace}, %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 7,
+        "workspace" => workspace
+      })
+
+    input =
+      resolution_input(d, failed)
+      |> Map.merge(%{
+        "plan_step_id" => plan.id,
+        "workspace" => fresh_workspace(workspace),
+        "candidate_commit" => sha
+      })
+
+    resolved =
+      finish(d, "resolve", 1, input, %{"report" => resolution(), "candidate_commit" => sha})
+
+    assert resolved.input["candidate_commit"] == sha
+  end
+
+  defp delivery(c, version \\ 1, sha \\ @sha) do
     {:ok, {:new, d}} =
       Deliveries.admit(
         c.project.id,
@@ -475,11 +685,23 @@ defmodule Boss.AutonomyPersistenceTest do
       "repo_path" => c.project.root_path,
       "git_common_dir" => c.project.git_common_dir,
       "base_branch" => "main",
-      "base_commit" => @sha
+      "base_commit" => sha,
+      "path" => Path.join(c.project.root_path, d.id),
+      "branch" => "codex/boss-run-#{d.id}"
     }
 
     {:ok, d} = Deliveries.set_intent(d.id, intent)
     d
+  end
+
+  defp fresh_workspace(old) do
+    id = Ecto.UUID.generate()
+
+    Map.merge(old, %{
+      "run_id" => id,
+      "path" => Path.join(Path.dirname(old["path"]), id),
+      "branch" => "codex/boss-run-#{id}"
+    })
   end
 
   defp plan(question),
