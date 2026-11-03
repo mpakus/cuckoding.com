@@ -837,3 +837,11 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Identify live Task1 and the separate Autopilot stop from their saved evidence.
 - [x] Repair the close-delimited read limit on a retained draft and verify real sockets.
 - [x] Verify persisted task notes, notification dedupe and early planner clarification.
+
+## Autopilot continuation after task failure
+
+- [x] Verify an invalid planner report preserves the failed task, gates its dependent,
+  and allows an independent task to reach Done in the native Git fixture.
+- [x] Verify unknown cleanup still halts after worker exit.
+- [x] Back up and restart local 4001, verify migration and preserved task counts.
+- [ ] Observe a fresh owner-started batch on project 1.

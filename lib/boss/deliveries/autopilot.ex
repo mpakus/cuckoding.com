@@ -92,7 +92,7 @@ defmodule Boss.Deliveries.Autopilot do
       %{status: "running"} = batch ->
         complete?(batch) and
           not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
-            r.status == "started" and d.status != "done"
+            r.status == "started" and not settled?(d)
           end)
 
       _ ->
@@ -307,18 +307,20 @@ defmodule Boss.Deliveries.Autopilot do
   defp preflight do
     batch = Repo.one(from b in AutopilotBatch, where: b.status == "running")
 
+    entries = if batch, do: rows(batch.id), else: []
+
     if batch &&
-         not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
-           r.status == "started" and d.status != "done"
+         not Enum.any?(entries, fn {_, r, d, _} ->
+           r.status == "started" and not settled?(d)
          end) do
       project = Repo.get!(Boss.Projects.Project, batch.project_id)
 
-      started? = Enum.any?(rows(batch.id), fn {_, r, _, _} -> r.status == "started" end)
+      published? = Enum.any?(entries, fn {_, _, d, _} -> match?(%Delivery{status: "done"}, d) end)
 
       result =
         with {:ok, workspace} <- Boss.Agents.Workspace.plan(project, batch.id) do
           expected =
-            if started?,
+            if published?,
               do: workspace.base_commit,
               else: Boss.Projects.Intake.initial_base(batch.id) || workspace.base_commit
 
@@ -334,11 +336,18 @@ defmodule Boss.Deliveries.Autopilot do
   defp advance_batch(batch, preflight, cursor) do
     unless complete?(batch), do: Repo.rollback(:incomplete_autopilot)
     entries = rows(batch.id)
-    unfinished = Enum.reject(entries, fn {_, _, d, _} -> d && d.status == "done" end)
+    unfinished = Enum.reject(entries, fn {_, _, d, _} -> settled?(d) end)
 
     case unfinished do
       [] ->
-        {:changed, view(save(batch, "completed", nil))}
+        if Enum.all?(entries, fn {_, _, d, _} -> d.status == "done" end) do
+          {:changed, view(save(batch, "completed", nil))}
+        else
+          block(
+            batch,
+            "All runnable tasks finished. Open the tasks that need attention for details."
+          )
+        end
 
       _ ->
         case Enum.find(unfinished, fn {_, r, _, _} -> r.status == "started" end) do
@@ -380,6 +389,17 @@ defmodule Boss.Deliveries.Autopilot do
         end
     end
   end
+
+  defp settled?(%Delivery{status: "done"}), do: true
+
+  defp settled?(%Delivery{
+         status: status,
+         cleanup: "group_empty",
+         integration_command_id: nil
+       }),
+       do: status in ~w(failed blocked needs_input)
+
+  defp settled?(_), do: false
 
   defp start_next(batch, entries, preflight, cursor) do
     cond do
@@ -443,7 +463,7 @@ defmodule Boss.Deliveries.Autopilot do
           {:scanned, _} ->
             block(
               batch,
-              "No selected task is ready. Resolve missing, unfinished or cyclic prerequisites, then start a fresh selection."
+              "No remaining task is ready. Open tasks that need attention and resolve missing, unfinished or cyclic prerequisites, then start Autopilot again."
             )
 
           {_, request, _, _} ->

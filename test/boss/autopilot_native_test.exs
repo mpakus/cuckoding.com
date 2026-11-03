@@ -25,7 +25,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
-    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake}
+    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
+    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure}
   ]
 
   setup context do
@@ -103,7 +104,7 @@ defmodule Boss.AutopilotNativeTest do
           })
 
         tasks =
-          for name <- ~w(one two) do
+          for name <- if(context[:continue_on_failure], do: ~w(one two three), else: ~w(one two)) do
             {:ok, record} =
               Projects.record_spec(project.id, %{
                 relative_path: "#{name}.md",
@@ -302,7 +303,8 @@ defmodule Boss.AutopilotNativeTest do
     refute Repo.get!(Tasks.Task, List.last(c.tasks).id).state == "done"
   end
 
-  test "checked-out target blocks before any model and failed plan stops the remaining tasks",
+  @tag :continue_on_failure
+  test "a failed plan leaves its dependent waiting and independent work reaches Done",
        c do
     git(c.source, ["switch", "main"])
     manager = start_manager(c.repo)
@@ -323,7 +325,7 @@ defmodule Boss.AutopilotNativeTest do
     refute File.exists?(Path.join(c.root, "calls"))
     assert Repo.aggregate(Deliveries.Delivery, :count) == 0
     git(c.source, ["switch", "user-work"])
-    System.put_env("BOSS_AUTOPILOT_MODE", "invalid")
+    System.put_env("BOSS_AUTOPILOT_MODE", "invalid_first")
 
     {:ok, failed} =
       Autopilot.start(
@@ -335,12 +337,19 @@ defmodule Boss.AutopilotNativeTest do
         manager
       )
 
+    independent = wait_for_implementation(c, "three", 1)
+    [first, dependent, _] = c.tasks
+    assert Repo.get!(Tasks.Task, first.id).state == "failed"
+    assert Repo.get!(Tasks.Task, dependent.id).state == "new"
+    release(c, "three", 1)
     eventually(fn -> Repo.get!(AutopilotBatch, failed.id).status == "blocked" end)
-    assert Repo.aggregate(Deliveries.Delivery, :count) == 1
-    assert Repo.get!(Tasks.Task, List.last(c.tasks).id).state == "new"
 
-    assert File.read!(Path.join(c.root, "calls")) |> String.split("\n", trim: true) |> length() ==
-             1
+    assert Deliveries.get(c.project.id, independent.id).status == "done"
+    assert Repo.get!(Tasks.Task, dependent.id).state == "new"
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 2
+
+    calls = Path.join(c.root, "calls") |> File.read!() |> String.split("\n", trim: true)
+    assert Enum.map(calls, &Jason.decode!(&1)["task"]) == ~w(one three three three)
   end
 
   defp wait_for_implementation(c, name, cycle) do

@@ -22,7 +22,8 @@ defmodule Boss.AutopilotPersistenceTest do
     {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
-    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake}
+    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
+    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure}
   ]
 
   setup do
@@ -139,11 +140,11 @@ defmodule Boss.AutopilotPersistenceTest do
     assert {:ok, %{max_parallel_tasks: 3}} = Boss.Deliveries.Scheduling.get()
   end
 
-  test "manager retains the automatic slot until actual EXIT and halts on failed receipt", c do
+  test "manager retains the automatic slot until actual EXIT and halts on unknown cleanup", c do
     parent = self()
 
     worker = fn delivery, _, manager ->
-      result = Deliveries.complete(delivery.id, "failed", "Fixture failed")
+      result = Deliveries.complete(delivery.id, "interrupted", "Fixture interrupted")
       send(manager, {:delivery_finished, delivery.id, self(), result})
       send(parent, {:held, delivery, self()})
 
@@ -167,7 +168,7 @@ defmodule Boss.AutopilotPersistenceTest do
     {:ok, blocked} = Autopilot.current(c.project.id)
     assert blocked.id == batch.id
     assert Enum.count(blocked.items, &(&1.request_status == "cancelled")) == 3
-    assert Deliveries.get(c.project.id, delivery.id).status == "failed"
+    assert Deliveries.get(c.project.id, delivery.id).status == "interrupted"
     refute_receive {:held, _, _}, 50
   end
 

@@ -36,7 +36,7 @@ data = json.loads(prompt.split("BOSS delivery input (JSON):\n", 1)[1])
 assert data["check_config"]["argv"] == ["python3", "check.py"]
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
 kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
-name = "two" if "# two\n" in data["specification"] else "one"
+name = next(name for name in ("one", "two", "three") if f"# {name}\n" in data["specification"])
 root = Path(os.environ["BOSS_DELIVERY_FIXTURE"])
 mode = os.environ.get("BOSS_AUTOPILOT_MODE", "approved")
 with (root / "calls").open("a") as log:
@@ -56,7 +56,7 @@ else:
     assert args[args.index("--sandbox") + 1] == "read-only"
     if kind == "plan":
         report = {"summary": "Write result", "steps": ["Write result.txt"],
-                  "acceptance": [] if mode == "invalid" else ["Create result.txt"], "file_scopes": None}
+                  "acceptance": [] if mode == "invalid_first" and name == "one" else ["Create result.txt"], "file_scopes": None}
     else:
         assert data["check_receipt"]["exit_code"] == 0
         assert "result.txt" in data["diff"]

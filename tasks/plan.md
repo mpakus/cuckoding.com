@@ -324,13 +324,14 @@ scope до Ready/terminal; planning-only peers не блокируют друг 
 Явный Start сохраняет полный набор присутствующих New задач (до 256), pinned
 revision/version, checks, reviewer и UUID. Один workflow проходит plan, implement,
 checks, исправления и review; затем существующая exact-SHA integration с postchecks
-доводит его до Done. Только после этого начинается следующий. Готовность зависимостей
+доводит его до Done. Независимая задача может начаться после локального сбоя
+с подтверждённой очисткой до интеграции. Готовность зависимостей
 может менять порядок; новые импорты и Failed задачи автоматически не добавляются.
 
 Pause позволяет текущему workflow дойти до approval, затем запрещает интеграцию и
 следующий запуск. Stop адресует live worker и отменяет остаток batch. Restart
 приостанавливает незапущенную работу; неизвестные последствия не повторяются.
-Неполный batch, изменившийся Backlog, занятый target, terminal failure и неизвестный
+Неполный batch, изменившийся Backlog, занятый target, сбой интеграции и неизвестный
 cleanup дают явный отказ. Ручная Queue сохраняет прежнюю семантику.
 
 Кнопка Autopilot находится рядом с Sync specs; панель показывает сохранённые задачи
@@ -563,3 +564,11 @@ Persist actionable task notes for terminal stage and review outcomes, and
 announce changed attention versions on connected boards. Allow one typed
 planner clarification before implementation for sources without a deliverable
 or with a missing owner decision.
+
+
+## Autopilot continuation after a task failure
+
+Keep terminal task receipts and skip only pre-integration Failed, Blocked and
+Needs input deliveries with verified cleanup. Run independent tasks in the saved
+batch, enforce Done for dependencies, retain the intake base until verified
+publication, and report partial completion once no runnable items remain.

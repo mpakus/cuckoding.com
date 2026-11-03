@@ -36,12 +36,13 @@ workflow UUID and integration UUID before effects. A retry of an uncertain Start
 uses the same inputs and UUID. It returns the saved batch even if tasks or sources
 have changed since admission.
 
-One task proceeds through planning, implementation, checks, independent review
-and automatic integration before the next task starts. Dependency readiness can
-change the listed order; only Done satisfies a prerequisite. Known check failures
-and review change requests use the existing three-cycle repair budget. Invalid
-reports, changed candidates, unknown cleanup, failed integration, missing or cyclic
-prerequisites, and exhausted repair budgets stop the batch with a reason.
+Autopilot runs one task at a time through planning, implementation, checks,
+independent review and integration. Only Done satisfies a prerequisite. Check
+failures and review change requests use the existing three-cycle repair budget.
+A Failed, Needs attention or Needs input task with verified cleanup and no
+integration intent keeps its saved reason while independent tasks continue.
+When no runnable tasks remain, the batch reports outstanding work. Cancellation,
+unknown cleanup, target drift and failed integration can still stop the batch.
 
 The existing [delivery gates](MANAGED_DELIVERIES.md) remain mandatory. Ready is
 not Done: publication and postchecks must succeed for the exact reviewed commit.

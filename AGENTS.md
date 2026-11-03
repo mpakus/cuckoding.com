@@ -241,12 +241,16 @@
   started request never returns to the queue or automatically respawns a stage.
 - Autopilot requires an explicit whole-current-Backlog snapshot (present New tasks,
   max256), immutable request links and integration UUIDs. Replay precedes readiness;
-  require every member before dispatch. Only one task advances through verified
-  Done before another starts, regardless of saved worker capacity. Bound dependency
-  sweeps without waiting writes; reset the sweep cursor after Resume. Pause prevents
+  require every member before dispatch. Only one task runs at a time, regardless
+  of saved worker capacity. Bound dependency sweeps without waiting writes; reset
+  the sweep cursor after Resume. Pause prevents
   new tasks/integration but lets admitted work finish. Stop withdraws the batch and
-  signals its owned worker directly. Restart pauses; terminal failure halts without
-  fresh retries. Check target availability before model effects and at publication.
+  signals its owned worker directly. Restart pauses. A pre-integration failure,
+  block or clarification with known cleanup releases only the execution slot;
+  it never satisfies dependencies
+  or retries that task. Stop, unknown cleanup and integration failures still halt.
+  Keep the intake base pin until the first verified Done. Check target
+  availability before model effects and at publication.
   See docs/AUTOPILOT.md; ordinary Start/Queue never imply automatic integration.
   For an explicitly requested checked-out-target repair, inspect every worktree
   and preserve files/ref tips. A clean checkout can move to a new observer branch

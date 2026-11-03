@@ -210,9 +210,9 @@ defmodule Boss.Projects.Intake do
              from i in Boss.Deliveries.AutopilotItem,
                join: r in Boss.Deliveries.Request,
                on: r.id == i.request_id,
-               where:
-                 i.autopilot_id == ^batch and not is_nil(r.delivery_id) and
-                   r.delivery_id != ^delivery.id
+               join: d in Boss.Deliveries.Delivery,
+               on: d.id == r.delivery_id,
+               where: i.autopilot_id == ^batch and d.id != ^delivery.id and d.status == "done"
            ) do
       base
     else
