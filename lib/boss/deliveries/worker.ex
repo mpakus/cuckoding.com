@@ -77,16 +77,7 @@ defmodule Boss.Deliveries.Worker do
       if parent,
         do: Enum.find(Deliveries.steps(delivery.id), &(&1.id == parent.input["plan_step_id"]))
 
-    profile =
-      if autonomous?(delivery) and not is_nil(prior) and prior.status == "failed" and
-           prior.receipt["outcome"] in ["exited", "invalid_report"] do
-        alternate =
-          if get_in(prior.input, ["model_profile", "model"]) == "gpt-6-astra", do: 2, else: 1
-
-        profile(delivery, :resolve, alternate)
-      else
-        profile(delivery, :plan, 0)
-      end
+    profile = profile(delivery, :plan, 0, prior)
 
     prompt = ok!(Protocol.prompt(:plan, input))
     previous_plan = previous_plan || if(source, do: source.plan.receipt["report"])
@@ -338,7 +329,7 @@ defmodule Boss.Deliveries.Worker do
     base = if previous, do: previous.candidate_commit, else: delivery.intent["base_commit"]
     workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
     workspace = Map.put(workspace, "base_commit", base)
-    profile = profile(delivery, :implement, cycle, plan)
+    profile = profile(delivery, :implement, cycle, plan_step)
 
     input = %{
       "specification" => source,
@@ -389,7 +380,105 @@ defmodule Boss.Deliveries.Worker do
         end
       )
 
-    successful!(implementation)
+    if autonomous?(delivery) and failed_execution?(implementation) do
+      recover_implementation(
+        delivery,
+        project,
+        source,
+        plan_step,
+        plan,
+        cycle,
+        implementation,
+        feedback,
+        failures
+      )
+    else
+      successful!(implementation)
+
+      check_implementation(
+        delivery,
+        project,
+        source,
+        plan_step,
+        plan,
+        cycle,
+        workspace,
+        implementation,
+        feedback,
+        failures
+      )
+    end
+  end
+
+  defp recover_implementation(
+         delivery,
+         project,
+         source,
+         plan_step,
+         plan,
+         cycle,
+         implementation,
+         feedback,
+         failures
+       ) do
+    continue!()
+
+    if cycle >= ModelPolicy.max_cycles(version(delivery)) do
+      Deliveries.complete(
+        delivery.id,
+        "blocked",
+        "The five-cycle implementation budget is exhausted. Failed workspaces remain retained."
+      )
+    else
+      base = implementation.input["workspace"]["base_commit"]
+      workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
+      workspace = Map.put(workspace, "base_commit", base)
+
+      problem = %{
+        "kind" => "implementation",
+        "receipt" => implementation.receipt,
+        "previous_feedback" => feedback
+      }
+
+      {resolution, advice} =
+        resolve(delivery, plan_step, plan, implementation, workspace, base, problem, source)
+
+      feedback =
+        (feedback || problem)
+        |> Map.put("implementation_failure", implementation.receipt)
+        |> Map.put("resolution", advice)
+
+      cycle(
+        delivery,
+        project,
+        source,
+        plan_step,
+        plan,
+        cycle + 1,
+        %{
+          candidate_commit: base,
+          step_id: resolution.id,
+          resolution_step_id: resolution.id,
+          source_step_id: implementation.id
+        },
+        feedback,
+        failures
+      )
+    end
+  end
+
+  defp check_implementation(
+         delivery,
+         project,
+         source,
+         plan_step,
+         plan,
+         cycle,
+         workspace,
+         implementation,
+         feedback,
+         failures
+       ) do
     continue!()
     candidate = ok!(Candidate.plan(workspace, Ecto.UUID.generate()))
 
@@ -532,7 +621,7 @@ defmodule Boss.Deliveries.Worker do
 
     kind = if delivery.reviewer == "claude", do: :claude_review, else: :review
     prompt = ok!(Protocol.prompt(kind, input))
-    profile = if delivery.reviewer == "codex", do: profile(delivery, :review, cycle, plan)
+    profile = if delivery.reviewer == "codex", do: profile(delivery, :review, cycle, plan_step)
 
     {review, report} =
       step(
@@ -760,15 +849,16 @@ defmodule Boss.Deliveries.Worker do
        ) do
     continue!()
     parent = parent || problem
-    profile = profile(delivery, :resolve, attempt)
+    profile = profile(delivery, :resolve, attempt, plan_step)
+    prepare? = problem.kind == "implement" and attempt == 1
 
     verify = fn ->
-      if problem.kind == "plan",
+      if problem.kind in ["plan", "implement"],
         do: Candidate.verify_tree(workspace["path"], sha),
         else: Candidate.verify(workspace, sha)
     end
 
-    ok!(verify.())
+    unless prepare?, do: ok!(verify.())
 
     input = %{
       "specification" => source,
@@ -801,6 +891,7 @@ defmodule Boss.Deliveries.Worker do
         },
         fn ->
           continue!()
+          if prepare?, do: ok!(Workspace.prepare(workspace))
           ok!(verify.())
 
           receipt =
@@ -848,11 +939,19 @@ defmodule Boss.Deliveries.Worker do
 
   defp recoverable?(_), do: false
 
+  defp failed_execution?(%{status: "failed", receipt: r}),
+    do:
+      r["outcome"] == "exited" and r["cleanup"] == "group_empty" and
+        r["exit_kind"] == "exit" and is_integer(r["exit_code"]) and r["exit_code"] != 0 and
+        r["eof"] == %{"stdout" => true, "stderr" => true}
+
+  defp failed_execution?(_), do: false
+
   defp version(delivery), do: Map.get(delivery, :autonomy_version, 0)
   defp autonomous?(delivery), do: version(delivery) == 1
 
-  defp profile(delivery, kind, cycle, plan \\ nil),
-    do: ModelPolicy.route(version(delivery), kind, cycle, plan)
+  defp profile(delivery, kind, cycle, plan_step),
+    do: ok!(Deliveries.model_profile(delivery, kind, cycle, if(plan_step, do: plan_step.id)))
 
   @doc false
   def run_check(path, config, verify) do
@@ -1008,10 +1107,23 @@ defmodule Boss.Deliveries.Worker do
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
 
     if kind == :implement do
-      agent_process(executable, Codex.args(:implement, nil, profile), path, prompt)
+      agent_process(
+        executable,
+        Codex.args(:implement, nil, profile),
+        path,
+        prompt,
+        not is_nil(profile)
+      )
     else
       case ReportFile.with_file(fn output, file ->
-             receipt = agent_process(executable, Codex.args(kind, output, profile), path, prompt)
+             receipt =
+               agent_process(
+                 executable,
+                 Codex.args(kind, output, profile),
+                 path,
+                 prompt,
+                 not is_nil(profile)
+               )
 
              if receipt["status"] == "finished" do
                with {:ok, text} <- ReportFile.read(output, file),
@@ -1030,7 +1142,7 @@ defmodule Boss.Deliveries.Worker do
     end
   end
 
-  defp agent_process(executable, args, path, prompt) do
+  defp agent_process(executable, args, path, prompt, drain_model_errors?) do
     continue!()
     parser = :ets.new(:delivery_codex, [:set, :public])
     :ets.insert(parser, {:state, Codex.new()})
@@ -1040,7 +1152,11 @@ defmodule Boss.Deliveries.Worker do
         [{:state, state}] = :ets.lookup(parser, :state)
         state = Codex.feed(state, event)
         :ets.insert(parser, {:state, state})
-        if state.error, do: :stop, else: :ok
+        # A framed model error may precede its natural nonzero exit. Preserve that
+        # evidence for routing, while the transport keeps its time/output/Stop bounds.
+        if state.error && not (drain_model_errors? and state.error == :agent_error),
+          do: :stop,
+          else: :ok
       end
 
       result =
@@ -1189,6 +1305,10 @@ defmodule Boss.Deliveries.Worker do
 
         :codex_unavailable ->
           {"failed", "not_started", "Codex is unavailable in BOSS's PATH."}
+
+        :models_exhausted ->
+          {"failed", "group_empty",
+           "No eligible model remains after recorded execution failures. Restore model access before starting another workflow."}
 
         _ ->
           {"failed", "group_empty",

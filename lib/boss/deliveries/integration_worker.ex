@@ -1,7 +1,7 @@
 defmodule Boss.Deliveries.IntegrationWorker do
   @moduledoc false
   alias Boss.{Deliveries, Repo}
-  alias Boss.Deliveries.{Integration, ModelPolicy, Protocol, Worker}
+  alias Boss.Deliveries.{Integration, Protocol, Worker}
   alias Boss.Agents.Workspace
   alias Boss.Checks.Candidate
 
@@ -142,13 +142,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
 
     profile =
       if delivery.reviewer == "codex",
-        do:
-          ModelPolicy.route(
-            Map.get(delivery, :autonomy_version, 0),
-            :review,
-            delivery.cycle,
-            plan.receipt["report"]
-          )
+        do: ok!(Deliveries.model_profile(delivery, :merge_review, delivery.cycle, plan.id))
 
     {review, report} =
       stage(
