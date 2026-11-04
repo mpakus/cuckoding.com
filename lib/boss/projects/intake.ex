@@ -4,7 +4,7 @@ defmodule Boss.Projects.Intake do
   alias Boss.{Deliveries, Projects, Repo, Runs}
   alias Boss.Deliveries.{Autopilot, AutopilotBatch}
   alias Boss.Projects.{Project, Spec}
-  alias Boss.Projects.Intake.{Planner, Request}
+  alias Boss.Projects.Intake.{Attempts, Planner, Request}
 
   def start(project, command, text, reviewer, server \\ Runs.Manager),
     do: GenServer.call(server, {:project_intake_start, project, command, text, reviewer}, 10_000)
@@ -17,6 +17,11 @@ defmodule Boss.Projects.Intake do
         limit: 1
     )
   end
+
+  def attempts(id), do: Attempts.list(id)
+  def begin_attempt(id), do: Attempts.begin(id)
+  def finish_attempt(id, receipt), do: Attempts.finish(id, receipt)
+  def plan_hash(tasks), do: Attempts.plan_hash(tasks)
 
   def topic(project), do: "project-intake:#{project}"
 
@@ -62,7 +67,14 @@ defmodule Boss.Projects.Intake do
         where:
           r.id == ^id and r.project_id == ^project and r.command_id == ^command and
             r.check_config == ^config and r.config_hash == ^hash and r.reviewer == ^reviewer and
-            r.status == "planning" and not r.stop_requested
+            r.status == "planning" and not r.stop_requested and
+            (r.planning_version == 0 or
+               fragment(
+                 "EXISTS (SELECT 1 FROM project_intake_attempts a WHERE a.request_id=? AND a.status='finished' AND a.source_base=json_extract(?, '$.base_commit') AND a.number=(SELECT max(number) FROM project_intake_attempts WHERE request_id=?))",
+                 r.id,
+                 r.workspace,
+                 r.id
+               ))
     )
   end
 
@@ -121,6 +133,7 @@ defmodule Boss.Projects.Intake do
                reviewer: reviewer,
                autonomy_version: Boss.Deliveries.ModelPolicy.current(),
                routing_version: Boss.Deliveries.ModelPolicy.current_routing(),
+               planning_version: 1,
                check_text: text
              })}
         end
@@ -208,9 +221,15 @@ defmodule Boss.Projects.Intake do
   def reconcile do
     transaction(fn ->
       Repo.all(from r in Request, where: r.status == "planning")
-      |> Enum.map(
-        &save!(&1, status: "interrupted", cleanup: "unknown", reason: message(:cleanup_unknown))
-      )
+      |> Enum.map(fn request ->
+        Attempts.interrupt!(request.id)
+
+        save!(request,
+          status: "interrupted",
+          cleanup: "unknown",
+          reason: message(:cleanup_unknown)
+        )
+      end)
     end)
     |> case do
       {:ok, requests} = result ->
@@ -265,6 +284,7 @@ defmodule Boss.Projects.Intake do
         do: Repo.rollback(:invalid_intent)
 
       if request.stop_requested, do: Repo.rollback(:cancelled)
+      accepted = Attempts.verified!(request, tasks)
 
       namespace =
         if Boss.Projects.Documentation.latest(request.project_id),
@@ -275,7 +295,11 @@ defmodule Boss.Projects.Intake do
 
       case ids do
         [] ->
-          save!(request, status: "finished", cleanup: "group_empty")
+          save!(request,
+            status: "finished",
+            cleanup: "group_empty",
+            accepted_attempt_id: accepted
+          )
 
         _ ->
           with {:ok, batch} <-
@@ -288,7 +312,12 @@ defmodule Boss.Projects.Intake do
                    false,
                    request.id
                  ) do
-            save!(request, status: "finished", cleanup: "group_empty", batch_id: batch.id)
+            save!(request,
+              status: "finished",
+              cleanup: "group_empty",
+              batch_id: batch.id,
+              accepted_attempt_id: accepted
+            )
           else
             {:error, reason} -> Repo.rollback(reason)
           end
@@ -333,7 +362,10 @@ defmodule Boss.Projects.Intake do
       request = Repo.get!(Request, id)
 
       if request.status == "planning" do
-        if reason in [:cleanup_unknown, :storage_error] do
+        unfinished? = Attempts.interrupt!(request.id)
+
+        if unfinished? or Attempts.unknown?(request.id) or
+             reason in [:cleanup_unknown, :storage_error] do
           save!(request,
             status: "interrupted",
             cleanup: "unknown",
@@ -353,6 +385,21 @@ defmodule Boss.Projects.Intake do
 
   defp message(:target_checked_out),
     do: "The publication branch is checked out. Free it before starting Autopilot."
+
+  defp message(:provider_startup),
+    do:
+      "Two different planning models failed before producing a valid report. Check the CLI and provider before starting again."
+
+  defp message(:planning_deadline),
+    do:
+      "Documentation planning reached its saved time limit. Attempts remain available for inspection."
+
+  defp message(:planning_attempts_exhausted),
+    do:
+      "Documentation planning exhausted its three attempts. Inspect the saved validation diagnostics."
+
+  defp message(:models_exhausted),
+    do: "No alternate model remains in the saved catalog for documentation planning."
 
   defp message(:cancelled), do: "Documentation planning stopped."
   defp message(:codex_unavailable), do: "Codex is unavailable on BOSS's PATH."
