@@ -448,7 +448,9 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
              Ecto.Migrator.up(
                Repo,
                20_261_106_150_000,
-               Boss.Repo.Migrations.AddCheckpointRecovery, log: false)
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
 
     assert Repo.get!(Delivery, parent.id) == parent and Deliveries.steps(parent.id) == steps
 

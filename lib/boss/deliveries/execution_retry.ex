@@ -403,7 +403,8 @@ defmodule Boss.Deliveries.ExecutionRetry do
 
   def check_timeout?(
         %{"status" => "failed", "output_complete" => false, "output_hash" => nil} = receipt
-      ), do: timeout?(%{kind: "implement", status: "failed", receipt: receipt})
+      ),
+      do: timeout?(%{kind: "implement", status: "failed", receipt: receipt})
 
   def check_timeout?(_), do: false
 

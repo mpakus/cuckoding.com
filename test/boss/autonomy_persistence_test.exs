@@ -385,7 +385,9 @@ defmodule Boss.AutonomyPersistenceTest do
              Ecto.Migrator.up(
                Repo,
                20_261_106_150_000,
-               Boss.Repo.Migrations.AddCheckpointRecovery, log: false)
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
 
     assert Repo.get!(Request, request.id).autonomy_version == 0
     {:ok, _} = Queue.cancel(c.project.id, request.id)
