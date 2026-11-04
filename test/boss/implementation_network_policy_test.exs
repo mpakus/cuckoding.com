@@ -67,4 +67,21 @@ defmodule Boss.ImplementationNetworkPolicyTest do
       assert_raise ArgumentError, fn -> Codex.args(:implement, nil, @model, changed) end
     end
   end
+
+  test "resolver and implementer learn the pinned capability without treating it as evidence" do
+    policy = NetworkPolicy.profile(1)
+
+    for kind <- [:resolve, :implement] do
+      assert {:ok, prompt} =
+               Boss.Deliveries.Protocol.prompt(kind, %{"implementation_network_policy" => policy})
+
+      assert prompt =~ "historical network-denial notes"
+      assert prompt =~ "not evidence that installation"
+      assert prompt =~ "exact locked revision"
+      assert prompt =~ "does not grant networking or execution permission"
+      assert prompt =~ JSON.encode!(policy)
+      assert {:ok, legacy} = Boss.Deliveries.Protocol.prompt(kind, %{})
+      refute legacy =~ "BOSS has pinned implementation_network_policy"
+    end
+  end
 end
