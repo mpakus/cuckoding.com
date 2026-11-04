@@ -260,6 +260,31 @@ defmodule Boss.Deliveries.Protocol do
       end
 
     role =
+      if kind in [:resolve, :implement] do
+        role <>
+          """
+
+          The original specification, saved criteria, explicit project and security requirements,
+          and saved checks remain authoritative. Prior diagnoses and repair steps are advice to
+          evaluate against current evidence, not additional acceptance criteria. Do not invent
+          an advisory-free dependency gate unless those requirements explicitly mandate it.
+          For each advisory, verify the affected version, configuration and reachable code path; distinguish
+          production exposure from test/build use and package metadata. Test-only use alone does not establish safety.
+          Prefer compatible verified fixes. If none is available, document applicability,
+          any verified mitigation and remaining risk without claiming the advisory is resolved.
+          Documentation cannot waive an explicit security gate or a failing required check.
+          Never hide advisories, suppress scanners, downgrade safeguards or weaken tests to pass.
+          Before repeating work, inspect available same-task repair commits in this repository:
+          verify task/source provenance, relevant diff and compatibility with this candidate.
+          A resolver may recommend applicable changes read-only; an implementer may port only
+          inspected changes into this worktree, then perform fresh required verification.
+          Never inherit old check or approval evidence, move branches or expand this stage's permissions.
+          """
+      else
+        role
+      end
+
+    role =
       if kind in [:merge_review, :claude_merge_review] do
         role <>
           "\nThis is a fresh integration review. The original approval applies only to original_candidate. " <>
