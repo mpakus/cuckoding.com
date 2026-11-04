@@ -253,6 +253,13 @@
   full dependency graph and source paths. Save derived tasks and their batch
   together, keep them outside filesystem import reconciliation, and verify the
   initial Git base again at first dispatch. Stop must survive the handoff.
+- Converting a populated specs project to documentation mode is an explicit idle
+  metadata command: seal exact imported task/revision/version membership atomically
+  and preserve old states/history. Reference tasks remain readable but cannot accept
+  new execution, check/review, adoption or integration intents; saved UUID replay
+  precedes that gate. Refuse active/unknown work and retained publication intent.
+  Conversion never calls a model. Namespace subsequent generated IDs, dependencies
+  and paths by intake UUID, reject collisions, and retain ordinary Done evidence.
 - Queue only explicit saved workflow requests: pin revision/version/checks/reviewer
   and UUID before effects, claim and link a delivery in one immediate transaction.
   Replay/cancellation must precede dispatch; never silently turn direct Start into

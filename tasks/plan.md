@@ -608,3 +608,15 @@ Acceptance covers native finite model handoff, a failed implementation with sema
 exit0, direct Stop during catalog discovery, SQL guard bypass attempts, and two
 Failed tasks reaching Done with a rejected first candidate and alternate implementer.
 See the November3 worklog for command results and separate live activation evidence.
+
+## Recover documentation imported as task cards — 2026-11-03
+
+Project1 contains a documentation bundle, but specs mode imported46 Markdown files
+as tasks, including agent skills and operating instructions. Add explicit idle
+conversion to documentation mode with an immutable snapshot of reference history.
+Preserve every old task/revision/event/receipt, reject new execution against
+references, and namespace generated task identities and dependencies. Conversion
+has no model effects; a separate authorized Start uses the existing planner and
+sequential managed execution. Verify pooled SQL constraints, UI unknown-outcome
+replay, native generation/repair/publication and historical migration compatibility
+before local integration and live activation.

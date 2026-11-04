@@ -16,11 +16,34 @@ in one transaction. The same Start dispatches the first eligible task. An empty
 plan records that the planner found no outstanding work. Original Markdown stays
 on disk and generated specifications are stored with their source paths and SHA.
 
-This first increment plans once per documentation project. Later Starts use
-remaining eligible unfinished cards. Existing task-spec projects keep their Markdown watcher and
-ordinary Start. A changed target, invalid plan or stopped planner prevents the
+Planning runs once per documentation project. Later Starts use remaining eligible
+unfinished cards. Existing task-spec projects keep their Markdown watcher and
+ordinary Start unless explicitly converted. A changed target, invalid plan or stopped planner prevents the
 handoff. After a coordinator restart, interrupted planning retains unknown cleanup
 and requires inspection. Planning has a Stop control.
+
+### Correct a project imported in the wrong mode
+
+If a documentation bundle was registered as task specifications, instruction files
+such as `SKILL.md` or `AGENTS.md` may have become cards. Use **Plan from documentation**
+on the idle project to preserve those cards as reference history and enable the
+documentation planner. This action does not call a model or start work. Root,
+documentation directory and publication target stay unchanged.
+
+Conversion saves an immutable receipt and the exact imported task/revision/version
+membership in one transaction. Old task states, events, source revisions and run
+receipts remain unchanged and readable. Reference cards leave the execution board
+and cannot receive new workflow, manual, check, review, source-adoption or integration
+commands; an identical historical command UUID still replays its saved receipt.
+Active work, unknown cleanup or retained publication intent prevents conversion.
+
+Then use **Start Autopilot** with a trusted check command. This separate Start pins
+the committed Git source, derives executable tasks and dispatches the first one.
+Generated IDs, dependencies and synthetic paths are namespaced by the intake UUID
+so a planner's `bootstrap` cannot overwrite an old imported `bootstrap` task.
+Invalid planning leaves the reference history intact and creates no partial tasks
+or batch. The existing check, independent review and exact-commit publication gates
+still determine Done.
 
 ## Start from existing task specifications
 
