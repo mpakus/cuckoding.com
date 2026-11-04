@@ -30,7 +30,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
   ]
 
   setup context do
@@ -59,6 +60,16 @@ defmodule Boss.AutopilotNativeTest do
     source = String.trim(physical)
     File.write!(Path.join(source, "result.txt"), "base")
     File.cp!(Path.expand("../fixtures/delivery_check.py", __DIR__), Path.join(source, "check.py"))
+
+    if context[:timeout_recovery] do
+      File.write!(Path.join(source, "check.py"), ~S"""
+      from pathlib import Path
+      import sys
+      print("CHECK_OUTPUT_FOR_TIMEOUT_REPAIR", flush=True)
+      if Path("result.txt").read_text() == "partial\n":
+          sys.exit(7)
+      """)
+    end
 
     if context[:documentation] || context[:convert_documentation] do
       File.mkdir!(Path.join(source, "docs"))
@@ -722,6 +733,147 @@ defmodule Boss.AutopilotNativeTest do
 
     assert decoded |> Enum.filter(&(&1["task"] == "one")) |> Enum.map(& &1["kind"]) ==
              ~w(plan resolve plan resolve plan)
+  end
+
+  @tag timeout_recovery: true
+  test "retained native timeout repairs checks and review through another model to exact Done",
+       c do
+    alias Boss.Deliveries.{Retry, Step}
+    {parent, failed} = timeout_source(c)
+    old = Deliveries.get(c.project.id, parent.id)
+    old_task = Repo.get!(Tasks.Task, parent.task_id)
+    assert old.status == "failed" and old.cleanup == "group_empty"
+    assert failed.receipt["outcome"] == "timeout"
+    assert failed.receipt["signal"] == 15
+    assert failed.receipt["eof"] == %{"stdout" => true, "stderr" => true}
+    assert File.read!(Path.join(failed.input["workspace"]["path"], "result.txt")) == "partial\n"
+    System.put_env("BOSS_AUTOPILOT_MODE", "timeout_repair")
+    manager = start_manager(c.repo)
+    command = Ecto.UUID.generate()
+    {:ok, child} = Retry.start_timeout(c.project.id, parent.id, command, manager)
+    first = wait_for_implementation(c, "one", 1)
+    assert first.id == child.id
+    steps = Deliveries.steps(child.id)
+    implementation = List.last(steps)
+    assert implementation.input["model_profile"]["model"] == "gpt-5.6-terra"
+    assert Enum.any?(steps, &(&1.kind == "timeout_check" and &1.status == "failed"))
+    assert Enum.any?(steps, &(&1.kind == "resolve" and &1.status == "finished"))
+    assert {:ok, replay} = Retry.start_timeout(c.project.id, parent.id, command, manager)
+    assert replay.id == child.id
+    assert Repo.get!(Step, failed.id) == failed
+    assert Deliveries.get(c.project.id, parent.id) == old
+    assert Repo.get!(Tasks.Task, old_task.id).spec_revision_id == old_task.spec_revision_id
+    release(c, "one", 1)
+    second = wait_for_implementation(c, "one", 2)
+    assert second.id == child.id
+    release(c, "one", 2)
+    eventually(fn -> Deliveries.get(c.project.id, child.id).status == "ready_to_merge" end, 3000)
+    ready = Deliveries.get(c.project.id, child.id)
+    integration = Ecto.UUID.generate()
+    {:ok, _} = Deliveries.integrate(c.project.id, child.id, integration, manager)
+    eventually(fn -> Deliveries.get(c.project.id, child.id).status == "done" end, 3000)
+    done = Deliveries.get(c.project.id, child.id)
+    assert Repo.get!(Tasks.Task, parent.task_id).state == "done"
+    assert git(c.source, ["rev-parse", "main"]) == done.integration_intent["candidate_commit"]
+    assert File.read!(Path.join(failed.input["workspace"]["path"], "result.txt")) == "partial\n"
+    assert Deliveries.get(c.project.id, parent.id) == old
+    assert ready.intent["base_commit"] == parent.intent["base_commit"]
+    assert Enum.count(Deliveries.steps(child.id), &(&1.kind == "review")) == 2
+
+    assert Enum.any?(
+             Deliveries.steps(child.id),
+             &(&1.kind == "postcheck" and &1.status == "finished")
+           )
+
+    assert {:ok, replay} = Retry.start_timeout(c.project.id, parent.id, command, manager)
+    assert replay.id == child.id
+  end
+
+  defp timeout_source(c) do
+    alias Boss.Agents.{ModelCatalog, Workspace}
+    alias Boss.Deliveries.{Protocol, Worker}
+    task = hd(c.tasks)
+
+    {:ok, {:new, delivery}} =
+      Deliveries.admit(
+        c.project.id,
+        task.id,
+        Ecto.UUID.generate(),
+        "python3 check.py",
+        "codex",
+        false,
+        1,
+        2
+      )
+
+    {:ok, catalog} = ModelCatalog.discover()
+    {:ok, delivery} = Deliveries.set_model_catalog(delivery.id, catalog)
+    {:ok, workspace} = Workspace.plan(c.project, delivery.id)
+    intent = Map.new(workspace, fn {k, v} -> {Atom.to_string(k), v} end)
+    {:ok, _} = Workspace.prepare(intent)
+    {:ok, delivery} = Deliveries.set_intent(delivery.id, intent)
+    source = "# one\nCreate result.txt"
+
+    input = %{
+      "specification" => source,
+      "base_commit" => intent["base_commit"],
+      "check_config" => delivery.check_config
+    }
+
+    {:ok, prompt} = Protocol.prompt(:plan, input)
+
+    {:ok, plan} =
+      Deliveries.begin_step(delivery.id, "plan", 0, %{
+        "workspace" => intent,
+        "input_hash" => Protocol.digest(input)
+      })
+
+    receipt =
+      Worker.run_agent(
+        :plan,
+        intent["path"],
+        prompt,
+        &Protocol.plan/1,
+        plan.input["model_profile"]
+      )
+
+    {:ok, plan} = Deliveries.finish_step(plan.id, Map.put(receipt, "workspace", intent))
+    {:ok, workspace} = Workspace.plan(c.project, Ecto.UUID.generate())
+    intent = Map.new(workspace, fn {k, v} -> {Atom.to_string(k), v} end)
+    {:ok, _} = Workspace.prepare(intent)
+
+    input = %{
+      "specification" => source,
+      "plan" => plan.receipt["report"],
+      "cycle" => 1,
+      "base_commit" => intent["base_commit"],
+      "check_config" => delivery.check_config,
+      "previous_feedback" => nil
+    }
+
+    {:ok, prompt} = Protocol.prompt(:implement, input)
+
+    {:ok, step} =
+      Deliveries.begin_step(delivery.id, "implement", 1, %{
+        "workspace" => intent,
+        "plan_step_id" => plan.id,
+        "parent_step_id" => plan.id,
+        "resolution_step_id" => nil,
+        "source_step_id" => nil,
+        "feedback_hash" => Protocol.digest(nil),
+        "input_hash" => Protocol.digest(input)
+      })
+
+    System.put_env("BOSS_AUTOPILOT_MODE", "timeout_source")
+
+    receipt =
+      Worker.run_agent(:implement, intent["path"], prompt, nil, step.input["model_profile"],
+        deadline_ms: System.monotonic_time(:millisecond) + 6000
+      )
+
+    {:ok, failed} = Deliveries.finish_step(step.id, Map.put(receipt, "workspace", intent))
+    {:ok, delivery} = Deliveries.complete(delivery.id, "failed", "Implementation timed out.")
+    {delivery, Repo.get!(Boss.Deliveries.Step, failed.id)}
   end
 
   defp wait_for_implementation(c, name, cycle) do

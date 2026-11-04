@@ -29,7 +29,8 @@ defmodule Boss.MergeIntegrationPersistenceTest do
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
   ]
 
   test "upgrade preserves legacy approval and publication; durable merge intent forbids downgrade and restart replay" do
@@ -265,7 +266,8 @@ defmodule Boss.MergeIntegrationPersistenceTest do
           {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
           {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
           {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-          {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
+          {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
+          {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
         ],
         do: Ecto.Migrator.up(Repo, version, module, log: false)
 

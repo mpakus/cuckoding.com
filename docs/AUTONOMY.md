@@ -101,6 +101,37 @@ Integration still stops on conflicts, candidate/target drift
 or failed publication checks; it does not automatically rewrite the approved
 candidate. These are explicit remaining autonomy work, alongside provider testing.
 
+## Continue retained work after an implementation timeout
+
+`Boss.Deliveries.Retry.start_timeout/4` admits an explicit new request from a
+terminal managed implementation timeout. It pins `execution_recovery_version: 1`,
+the source implementation and terminal task event, original specification and
+acceptance criteria, original Git base, check configuration, reviewer and model
+catalog. Historical and ordinary requests retain version 0. Replaying the same
+command returns the saved request; it never reopens the failed delivery.
+
+The first stage validates and adopts the exact retained plan. Its typed
+`retained_plan` outcome is source provenance, with no invented model, process exit,
+EOF or approval. A saved snapshot intent precedes capture of the retained files
+through a private Git index. A fresh check worktree runs the original command.
+Complete check evidence and the captured commit go to a distinct model for
+resolution before a fresh implementation workspace is created at that commit.
+The first replacement uses a different eligible strong model from the timed-out
+executor. Timeout does not establish that a model is unavailable.
+
+Within this policy, another confirmed implementation timeout can preserve progress
+through the same snapshot/check/resolution path. Five implementation cycles and
+48 stages remain the limit. Stop, unknown cleanup, missing stream closure and
+unverified source identity do not qualify. A check timeout is not a passing check
+or a complete failed-check report. Source files, locked dependencies, full original
+acceptance and original-base review remain required; no generated path or adapter
+is excluded to manufacture a pass.
+
+A retained plan or partial snapshot does not authorize Ready or Done. Independent
+review, exact-commit publication, postchecks and retained checkout verification
+still apply. A direct timeout retry requires explicit integration when Ready;
+it does not restart the old Autopilot batch or authorize subsequent tasks.
+
 ## Acceptance
 
 The acceptance target is an initial question or rejected implementation proceeding
