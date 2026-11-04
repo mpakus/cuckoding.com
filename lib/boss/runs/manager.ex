@@ -93,6 +93,14 @@ defmodule Boss.Runs.Manager do
         state
       )
 
+  def handle_call({:delivery_timeout_retry, project, parent, command}, _from, state),
+    do:
+      launch(
+        Deliveries.admit_timeout_retry(project, parent, command, managed_locked?(state)),
+        state.delivery_worker,
+        state
+      )
+
   def handle_call({:delivery_candidate_retry, project, parent, command, candidate}, _from, state)
       when is_binary(candidate),
       do:
