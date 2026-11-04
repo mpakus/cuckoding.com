@@ -9,6 +9,9 @@ defmodule Boss.Deliveries.Delivery do
     field :retry_review_id, :string
     field :retry_implementation_id, :string
     field :execution_recovery_version, :integer, default: 0
+    field :checkpoint_recovery_version, :integer, default: 0
+    field :retry_source_check_id, :string
+    field :implementation_network_version, :integer, default: 0
     field :retry_candidate_commit, :string
     field :reviewer, :string, default: "codex"
     field :autonomy_version, :integer, default: 0
