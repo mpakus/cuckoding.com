@@ -61,6 +61,7 @@ defmodule Boss.ImplementationNetworkPolicyTest do
           Map.put(policy, "extra", true),
           Map.put(policy, "proxy", false),
           Map.put(policy, "version", "1"),
+          Map.put(policy, "version", 1.0),
           Map.put(policy, "domains", Enum.reverse(@domains))
         ] do
       refute NetworkPolicy.valid?(changed)
