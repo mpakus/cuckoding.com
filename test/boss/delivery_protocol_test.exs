@@ -171,6 +171,27 @@ defmodule Boss.DeliveryProtocolTest do
     assert {:error, :invalid_plan} = Protocol.plan(duplicate)
   end
 
+  test "timeout evidence is unverified partial work and fresh checks require actual dependencies" do
+    input = %{
+      "plan" => @plan,
+      "previous_feedback" => %{
+        "kind" => "implementation_timeout",
+        "implementation_receipt" => %{"outcome" => "timeout"},
+        "check_output" => %{"stdout" => "", "stderr" => "locked dependencies missing"}
+      }
+    }
+
+    for kind <- [:resolve, :implement] do
+      assert {:ok, prompt} = Protocol.prompt(kind, input)
+      assert prompt =~ "unverified partial work"
+      assert prompt =~ "actual locked dependencies"
+      assert prompt =~ "saved check command"
+      assert prompt =~ "Do not copy"
+      [_, serialized] = String.split(prompt, "BOSS delivery input (JSON):\n", parts: 2)
+      assert JSON.decode!(serialized) == input
+    end
+  end
+
   test "review must cover the saved plan criteria exactly" do
     report = %{
       "verdict" => "approved",

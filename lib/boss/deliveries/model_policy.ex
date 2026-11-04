@@ -3,6 +3,25 @@ defmodule Boss.Deliveries.ModelPolicy do
 
   def current, do: 1
   def current_routing, do: 2
+  def current_execution_recovery, do: 1
+
+  def timeout_recoverable?(1, %{kind: "implement", status: "failed", receipt: receipt})
+      when is_map(receipt) do
+    receipt["outcome"] == "timeout" and receipt["cleanup"] == "group_empty" and
+      receipt["eof"] == %{"stdout" => true, "stderr" => true} and
+      case receipt do
+        %{"exit_kind" => "exit", "exit_code" => code, "signal" => nil} ->
+          is_integer(code) and code in 0..2_147_483_647
+
+        %{"exit_kind" => "signal", "exit_code" => nil, "signal" => signal} ->
+          is_integer(signal) and signal in 1..128
+
+        _ ->
+          false
+      end
+  end
+
+  def timeout_recoverable?(_, _), do: false
 
   def max_cycles(1), do: 5
   def max_cycles(version) when version in [nil, 0], do: 3
