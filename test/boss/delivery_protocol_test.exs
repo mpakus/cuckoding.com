@@ -112,6 +112,32 @@ defmodule Boss.DeliveryProtocolTest do
              Protocol.prompt(:resolve, %{"source" => String.duplicate("x", 1_048_576)})
   end
 
+  test "provider checkpoint feedback is explicit authorization with unverified retained work" do
+    feedback = %{
+      "kind" => "provider_checkpoint",
+      "provider_error_class" => "rate_limit",
+      "implementation_receipt" => %{
+        "outcome" => "exited",
+        "summary" => %{"error_class" => "rate_limit"}
+      },
+      "check_output" => %{"stdout" => "complete fresh check", "stderr" => "fresh failure"}
+    }
+
+    for kind <- [:resolve, :implement] do
+      input = %{"previous_feedback" => feedback, "plan" => @plan}
+      assert {:ok, prompt} = Protocol.prompt(kind, input)
+      assert prompt =~ "explicitly authorized new request"
+      assert prompt =~ "not a timeout"
+      assert prompt =~ "unverified partial work"
+      assert prompt =~ "does not prove the provider limit has cleared"
+      [_, serialized] = String.split(prompt, "BOSS delivery input (JSON):\n", parts: 2)
+      assert JSON.decode!(serialized) == input
+    end
+
+    assert {:ok, ordinary} = Protocol.prompt(:resolve, %{"plan" => @plan})
+    refute ordinary =~ "does not prove the provider limit has cleared"
+  end
+
   test "typed file predictions preserve paths; legacy and null scopes are unknown" do
     scopes = [
       %{"path" => "lib/Hello.ex", "kind" => "file"},
