@@ -324,6 +324,326 @@ defmodule Boss.DocumentationConversionTest do
     refute_receive :unexpected_worker, 50
   end
 
+  test "ready approvals and stopped integration intents prevent conversion", c do
+    d = ready_delivery(c)
+    before = history()
+    assert {:error, :busy} = Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
+    assert history() == before
+    {:ok, {:new, d}} = Deliveries.admit_integration(c.project.id, d.id, Ecto.UUID.generate())
+    candidate = Enum.find(Deliveries.steps(d.id), &(&1.kind == "check")).input["workspace"]
+
+    {:ok, _} =
+      Deliveries.set_integration_intent(d.id, %{
+        "delivery_id" => d.id,
+        "candidate" => candidate,
+        "base_commit" => String.duplicate("a", 40),
+        "candidate_commit" => String.duplicate("b", 40),
+        "repo_path" => c.project.root_path,
+        "base_branch" => c.project.base_branch
+      })
+
+    {:ok, _} = Deliveries.complete(d.id, "cancelled", "Stopped at publication boundary")
+    before = history()
+    assert {:error, :busy} = Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
+    assert history() == before
+  end
+
+  test "concurrent identical conversion commands commit one complete snapshot", c do
+    command = Ecto.UUID.generate()
+
+    results =
+      for _ <- 1..2 do
+        Task.async(fn ->
+          Repo.put_dynamic_repo(c.repo)
+          Documentation.admit(c.project.id, command, false)
+        end)
+      end
+      |> Task.await_many(2_000)
+
+    assert [{:ok, first}, {:ok, second}] = results
+    assert first == second
+    assert Repo.query!("SELECT count(*) FROM project_documentation_conversions").rows == [[1]]
+    assert Repo.query!("SELECT count(*) FROM project_documentation_sources").rows == [[1]]
+  end
+
+  test "source count is bounded before any conversion effect", c do
+    for n <- 1..256 do
+      {:ok, _} =
+        Projects.record_spec(c.project.id, %{
+          relative_path: "document-#{n}.md",
+          title: "Document",
+          original_text: "# Document"
+        })
+    end
+
+    before = history()
+
+    assert {:error, :too_many_sources} =
+             Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
+
+    assert Documentation.latest(c.project.id) == nil
+    assert Projects.get_project!(c.project.id).intake_mode == "specs"
+    assert history() == before
+  end
+
+  test "empty metadata migration is independent and new conversion history refuses downgrade",
+       c do
+    assert [%{reference_only: false}] = Projects.list_spec_entries(c.project.id)
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_120_000,
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.up(
+               Repo,
+               20_261_106_120_000,
+               Boss.Repo.Migrations.DocumentationConversionSchema,
+               log: false
+             )
+
+    assert [%{reference_only: false}] = Projects.list_spec_entries(c.project.id)
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_120_000,
+               Boss.Repo.Migrations.DocumentationConversionSchema,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.up(
+               Repo,
+               20_261_106_120_000,
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
+
+    {:ok, _} = Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
+
+    assert_raise RuntimeError, ~r/Refusing to discard documentation conversion history/, fn ->
+      Ecto.Migrator.down(
+        Repo,
+        20_261_106_120_000,
+        Boss.Repo.Migrations.ConvertProjectDocumentation,
+        log: false
+      )
+    end
+
+    assert Projects.get_project!(c.project.id).intake_mode == "documentation"
+    assert [%{reference_only: true}] = Projects.list_spec_entries(c.project.id)
+  end
+
+  test "membership capture closes before generated tasks can be added", c do
+    {:ok, conversion} = Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
+
+    {:ok, %{task: task, spec: spec}} =
+      Projects.record_spec(c.project.id, %{
+        relative_path: "autopilot/intake-new.md",
+        explicit_id: "intake-new",
+        title: "Generated",
+        original_text: "# New implementation"
+      })
+
+    assert [%{reference_only: true}, %{reference_only: false}] =
+             Projects.list_spec_entries(c.project.id)
+
+    assert {:error, _} =
+             Repo.query(
+               """
+               INSERT INTO project_documentation_sources
+                 (conversion_id,spec_id,task_id,spec_revision_id,latest_revision_id,state_version,state,identity_key,relative_path,missing)
+               VALUES(?,?,?,?,?,0,'new',?,?,0)
+               """,
+               [
+                 conversion.id,
+                 spec.id,
+                 task.id,
+                 task.spec_revision_id,
+                 task.spec_revision_id,
+                 spec.identity_key,
+                 spec.relative_path
+               ]
+             )
+
+    assert Documentation.reference_only?(c.task.id)
+    refute Documentation.reference_only?(task.id)
+
+    assert {:error, :already_planned} =
+             Intake.admit(c.project.id, Ecto.UUID.generate(), "true", "codex", false)
+  end
+
+  test "historical schema can add empty reference metadata without later execution tables", c do
+    opts = Keyword.put(c.opts, :database, Path.join(c.project.root_path, "historical.db"))
+
+    repo =
+      start_supervised!(%{id: :historical_documentation_repo, start: {Repo, :start_link, [opts]}})
+
+    Repo.put_dynamic_repo(repo)
+
+    migrations =
+      Enum.take(@migrations, 4) ++
+        [
+          {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
+          {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
+          {20_261_106_120_000, Boss.Repo.Migrations.DocumentationConversionSchema}
+        ]
+
+    Ecto.Migrator.run(Repo, migrations, :up, all: true, log: false)
+
+    project =
+      Repo.insert!(%Projects.Project{
+        name: "Historical",
+        root_path: c.project.root_path,
+        git_common_dir: c.project.git_common_dir,
+        specs_path: c.project.specs_path,
+        base_branch: "main"
+      })
+
+    {:ok, %{task: task}} =
+      Projects.record_spec(project.id, %{
+        relative_path: "one.md",
+        title: "One",
+        original_text: "# One"
+      })
+
+    assert [%{reference_only: false}] = Projects.list_spec_entries(project.id)
+    assert {:ok, %{reference_only: false}} = Tasks.get_details(project.id, task.id)
+
+    assert {:ok, _} =
+             Tasks.transition(task.id, %{
+               command_id: "cancel",
+               expected_version: 0,
+               action: "cancel",
+               reason: "Historical transition"
+             })
+
+    assert Repo.query!("SELECT name FROM sqlite_master WHERE type='table' AND name='deliveries'").rows ==
+             []
+
+    Repo.put_dynamic_repo(c.repo)
+  end
+
+  defp ready_delivery(c) do
+    base = String.duplicate("a", 40)
+    sha = String.duplicate("b", 40)
+    hash = String.duplicate("c", 64)
+
+    {:ok, {:new, d}} =
+      Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true", "codex", false, 0)
+
+    intent = %{
+      "run_id" => d.id,
+      "project_id" => to_string(c.project.id),
+      "repo_path" => c.project.root_path,
+      "git_common_dir" => c.project.git_common_dir,
+      "base_branch" => c.project.base_branch,
+      "base_commit" => base
+    }
+
+    {:ok, d} = Deliveries.set_intent(d.id, intent)
+
+    plan =
+      stage(d, "plan", 0, %{"workspace" => intent}, %{
+        "report" => %{
+          "summary" => "Plan",
+          "steps" => ["Implement"],
+          "acceptance" => ["Criterion"]
+        }
+      })
+
+    implement =
+      stage(d, "implement", 1, %{"plan_step_id" => plan.id}, %{
+        "workspace" => intent,
+        "head_commit" => base
+      })
+
+    id = Ecto.UUID.generate()
+
+    workspace = %{
+      "check_id" => id,
+      "path" => "/checks/" <> id,
+      "ref" => "refs/boss/checks/" <> id,
+      "run_workspace" => intent
+    }
+
+    snapshot =
+      stage(d, "snapshot", 1, %{"implementation_step_id" => implement.id}, %{
+        "workspace" => workspace,
+        "candidate_commit" => sha
+      })
+
+    check =
+      stage(
+        d,
+        "check",
+        1,
+        %{"snapshot_step_id" => snapshot.id, "workspace" => workspace, "candidate_commit" => sha},
+        %{"output_complete" => true, "output_hash" => hash}
+      )
+
+    stage(
+      d,
+      "review",
+      1,
+      %{
+        "plan_step_id" => plan.id,
+        "check_step_id" => check.id,
+        "candidate_commit" => sha,
+        "original_base" => base,
+        "input_hash" => hash
+      },
+      %{
+        "report" => %{
+          "verdict" => "approved",
+          "summary" => "Verified",
+          "acceptance" => [
+            %{"criterion" => "Criterion", "status" => "passed", "evidence" => "Checked"}
+          ],
+          "issues" => []
+        }
+      }
+    )
+
+    {:ok, d} = Deliveries.complete(d.id, "ready_to_merge")
+    d
+  end
+
+  defp stage(d, kind, cycle, input, receipt) do
+    {:ok, step} =
+      Deliveries.begin_step(
+        d.id,
+        kind,
+        cycle,
+        Map.merge(
+          %{"spec_revision_id" => d.spec_revision_id, "config_hash" => d.config_hash},
+          input
+        )
+      )
+
+    {:ok, step} =
+      Deliveries.finish_step(
+        step.id,
+        Map.merge(
+          %{
+            "status" => "finished",
+            "cleanup" => "group_empty",
+            "exit_kind" => "exit",
+            "exit_code" => 0,
+            "eof" => %{"stdout" => true, "stderr" => true}
+          },
+          receipt
+        )
+      )
+
+    step
+  end
+
   defp history do
     for table <-
           ~w(specs spec_revisions tasks task_events agent_runs deliveries delivery_steps delivery_requests autopilots autopilot_items),
