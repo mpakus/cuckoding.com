@@ -128,7 +128,7 @@ defmodule Boss.AutopilotNativeTest do
                 explicit_id: name,
                 title: name,
                 original_text:
-                  "---\nid: #{name}\n#{if name == "two" and !context[:independent], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
+                  "---\nid: #{name}\n#{if name == "two" and !context[:independent] and !context[:convert_documentation], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
               })
 
             record.task
