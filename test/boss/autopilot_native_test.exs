@@ -766,6 +766,7 @@ defmodule Boss.AutopilotNativeTest do
     release(c, "one", 1)
     second = wait_for_implementation(c, "one", 2)
     assert second.id == child.id
+    assert List.last(Deliveries.steps(child.id)).input["model_profile"]["model"] == "gpt-5.6-sol"
     release(c, "one", 2)
     eventually(fn -> Deliveries.get(c.project.id, child.id).status == "ready_to_merge" end, 3000)
     ready = Deliveries.get(c.project.id, child.id)
@@ -782,7 +783,7 @@ defmodule Boss.AutopilotNativeTest do
 
     assert Enum.any?(
              Deliveries.steps(child.id),
-             &(&1.kind == "postcheck" and &1.status == "finished")
+             &(&1.kind == "post_check" and &1.status == "finished")
            )
 
     assert {:ok, replay} = Retry.start_timeout(c.project.id, parent.id, command, manager)
