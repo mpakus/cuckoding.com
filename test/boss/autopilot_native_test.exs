@@ -779,7 +779,7 @@ defmodule Boss.AutopilotNativeTest do
     assert git(c.source, ["rev-parse", "main"]) == done.integration_intent["candidate_commit"]
     assert File.read!(Path.join(failed.input["workspace"]["path"], "result.txt")) == "partial\n"
     assert Deliveries.get(c.project.id, parent.id) == old
-    assert ready.intent["base_commit"] == parent.intent["base_commit"]
+    assert ready.intent["base_commit"] == old.intent["base_commit"]
     assert Enum.count(Deliveries.steps(child.id), &(&1.kind == "review")) == 2
 
     assert Enum.any?(
@@ -832,7 +832,7 @@ defmodule Boss.AutopilotNativeTest do
     steps = Deliveries.steps(child.id)
     implementation = List.last(steps)
     assert implementation.input["model_profile"]["model"] == "gpt-5.6-terra"
-    assert implementation.input["implementation_network_version"] == 1
+    assert implementation.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
     assert Enum.any?(steps, &(&1.kind == "checkpoint_check" and &1.status == "failed"))
     assert Enum.any?(steps, &(&1.kind == "resolve" and &1.status == "finished"))
     assert {:ok, replay} = Retry.start_checkpoint(c.project.id, parent.id, command, manager)
@@ -856,7 +856,7 @@ defmodule Boss.AutopilotNativeTest do
     assert File.read!(Path.join(source_workspace["path"], "result.txt")) == "partial\n"
     assert Deliveries.get(c.project.id, parent.id) == old
     assert Deliveries.steps(parent.id) == parent_steps
-    assert ready.intent["base_commit"] == parent.intent["base_commit"]
+    assert ready.intent["base_commit"] == old.intent["base_commit"]
     assert Enum.count(Deliveries.steps(child.id), &(&1.kind == "review")) == 2
 
     assert Enum.any?(

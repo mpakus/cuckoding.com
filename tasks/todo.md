@@ -952,8 +952,8 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 ## Dependency network and checkpoint repair — 2026-11-04
 
 - [x] Reproduce implementation sandbox DNS and local PostgreSQL denial with finite probes.
-- [ ] Pin a bounded implementation network policy on a new explicit recovery request.
-- [ ] Resume retained code after a failed or known-clean timed-out check; preserve missing output honestly.
-- [ ] Verify model handoff, Stop/unknown/refusal, source pins and exact publication/Done with finite native fixtures.
+- [x] Pin a bounded implementation network policy on a new explicit recovery request.
+- [x] Resume retained code after a failed or known-clean timed-out check; preserve missing output honestly.
+- [x] Verify model handoff, Stop/unknown/refusal, source pins and exact publication/Done with finite native fixtures.
 - [ ] Review, merge locally, rehearse original-data migration and activate a fresh saved checkpoint request.
 - [ ] Verify real task47 checks, independent review, integration and Done.
