@@ -48,6 +48,52 @@ defmodule Boss.AutonomyModelPolicyTest do
     assert ModelPolicy.timeout_recoverable?(1, %{step | receipt: exited})
   end
 
+  test "provider checkpoint requires its explicit policy and a typed natural rate-limit exit" do
+    step = %{
+      kind: "implement",
+      status: "failed",
+      receipt: %{
+        "outcome" => "exited",
+        "cleanup" => "group_empty",
+        "exit_kind" => "exit",
+        "exit_code" => 1,
+        "signal" => nil,
+        "eof" => %{"stdout" => true, "stderr" => true},
+        "summary" => %{"error_class" => "rate_limit"}
+      }
+    }
+
+    assert ModelPolicy.rate_limit_checkpoint?(1, step)
+    for version <- [nil, 0, 2], do: refute(ModelPolicy.rate_limit_checkpoint?(version, step))
+    refute ModelPolicy.rate_limit_checkpoint?(1, %{step | kind: "resolve"})
+    refute ModelPolicy.rate_limit_checkpoint?(1, %{step | status: "cancelled"})
+
+    for receipt <- [nil, [], "rate_limit"],
+        do: refute(ModelPolicy.rate_limit_checkpoint?(1, %{step | receipt: receipt}))
+
+    for changes <- [
+          %{"outcome" => "timeout"},
+          %{"outcome" => "cancelled"},
+          %{"cleanup" => "unknown"},
+          %{"exit_kind" => "signal", "exit_code" => nil, "signal" => 15},
+          %{"signal" => 15},
+          %{"exit_code" => 0},
+          %{"exit_code" => -1},
+          %{"exit_code" => 1.0},
+          %{"exit_code" => 2_147_483_648},
+          %{"eof" => %{"stdout" => true, "stderr" => false}},
+          %{"summary" => %{"error_class" => "unknown"}},
+          %{"summary" => %{"error_class" => "auth"}},
+          %{"summary" => nil},
+          %{"summary" => "rate_limit"}
+        ] do
+      refute ModelPolicy.rate_limit_checkpoint?(1, %{
+               step
+               | receipt: Map.merge(step.receipt, changes)
+             })
+    end
+  end
+
   test "saved legacy policy retains its execution budget and CLI defaults" do
     for version <- [nil, 0] do
       assert ModelPolicy.max_cycles(version) == 3

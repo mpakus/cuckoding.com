@@ -23,6 +23,25 @@ defmodule Boss.Deliveries.ModelPolicy do
 
   def timeout_recoverable?(_, _), do: false
 
+  # Eligibility for a new explicit request; never an in-delivery provider retry.
+  def rate_limit_checkpoint?(1, %{
+        kind: "implement",
+        status: "failed",
+        receipt: %{
+          "outcome" => "exited",
+          "cleanup" => "group_empty",
+          "exit_kind" => "exit",
+          "exit_code" => code,
+          "signal" => nil,
+          "eof" => eof,
+          "summary" => %{"error_class" => "rate_limit"}
+        }
+      })
+      when is_integer(code) and code in 1..2_147_483_647,
+      do: eof == %{"stdout" => true, "stderr" => true}
+
+  def rate_limit_checkpoint?(_, _), do: false
+
   def max_cycles(1), do: 5
   def max_cycles(version) when version in [nil, 0], do: 3
 
