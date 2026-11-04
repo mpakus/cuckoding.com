@@ -9,12 +9,28 @@ blank creates a local BOSS publication branch at the current commit. The project
 page opens the Autopilot panel with that target. Select a trusted check command
 and press **Start Autopilot**. BOSS suggests `mix test` for Mix repositories.
 
-One read-only Codex call compares committed Markdown with the code at the saved
-Git base and returns up to 32 outstanding tasks. BOSS validates the source paths
+A read-only Codex planner compares committed Markdown with the code at the saved
+Git base and returns up to 32 outstanding tasks. New Starts pin planning version 1:
+a rejected plan can pass to another saved model, with at most three attempts under
+one 20-minute deadline. Each attempt is saved before execution, with its exact
+model and source commit; terminal receipts retain fixed validation codes and
+response size, never raw model output. The panel shows this attempt history. BOSS validates the source paths
 and dependency graph, then saves the generated task specifications and batch
 in one transaction. The same Start dispatches the first eligible task. An empty
 plan records that the planner found no outstanding work. Original Markdown stays
 on disk and generated specifications are stored with their source paths and SHA.
+
+The whole response is limited to 32 KiB of UTF-8 JSON, with at most 4,000 bytes per
+task specification. The prompt and schema describe the task, field and list limits.
+Recovery receives the original documents, trusted checks and a fixed diagnosis; it
+cannot truncate a rejected response into acceptance. Only the latest successful
+attempt's validated plan hash can authorize task and batch creation.
+
+Stop, uncertain cleanup, source/target drift, authentication, quota and provider
+protocol errors halt planning. Two distinct models failing during generic startup
+also stop further calls. Historical planning version 0 keeps its single attempt;
+failed historical requests remain immutable. Replaying a Start returns its saved
+request and does not launch another model. A fresh Start is a new request.
 
 Planning runs once per documentation project. Later Starts use remaining eligible
 unfinished cards. Existing task-spec projects keep their Markdown watcher and

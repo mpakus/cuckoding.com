@@ -36,6 +36,76 @@ defmodule BossWeb.DocumentationConversionLiveTest do
     %{conn: conn, project: project, task: Tasks.get_task!(saved.task.id), failed: failed}
   end
 
+  test "planning attempt history refreshes from a rejected report to a different model", c do
+    {:ok, _} = Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
+
+    {:ok, {:new, request}} =
+      Intake.admit(c.project.id, Ecto.UUID.generate(), "true", "codex", false)
+
+    primary = %{"model" => "gpt-5.6-sol", "reasoning_effort" => "high"}
+    resolver = %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"}
+
+    catalog = %{
+      "version" => 2,
+      "primary" => primary,
+      "resolver" => resolver,
+      "small" => %{"model" => "gpt-5.6-luna", "reasoning_effort" => "medium"},
+      "fallbacks" => [%{"model" => "gpt-5.6-sol", "reasoning_effort" => "xhigh"}, resolver]
+    }
+
+    {:ok, _} = Intake.set_model_catalog(request.id, catalog)
+
+    :ok =
+      Intake.pin(request.id, %{
+        "project_id" => to_string(c.project.id),
+        "run_id" => request.id,
+        "repo_path" => c.project.root_path,
+        "git_common_dir" => c.project.git_common_dir,
+        "base_branch" => "main",
+        "base_commit" => String.duplicate("a", 40),
+        "path" => c.project.root_path <> "/work",
+        "branch" => "boss/" <> request.id
+      })
+
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+    settle(view)
+    refute has_element?(view, "#intake-attempt-history")
+    {:ok, first} = Intake.begin_attempt(request.id)
+    settle(view)
+    assert has_element?(view, "#intake-attempt-1", "gpt-5.6-sol")
+    assert has_element?(view, "#intake-attempt-1", "Running")
+
+    receipt = %{
+      "status" => "failed",
+      "cleanup" => "group_empty",
+      "outcome" => "invalid_report",
+      "exit_kind" => "exit",
+      "exit_code" => 0,
+      "signal" => nil,
+      "eof" => %{"stdout" => true, "stderr" => true},
+      "usage" => %{},
+      "error_class" => nil,
+      "report_bytes" => 36_335,
+      "validation_code" => "report_too_large",
+      "plan_hash" => nil
+    }
+
+    {:ok, saved} = Intake.finish_attempt(first.id, receipt)
+    {:ok, second} = Intake.begin_attempt(request.id)
+    settle(view)
+    assert has_element?(view, "#intake-attempt-1", "32 KiB")
+    assert has_element?(view, "#intake-attempt-1", "Failed")
+    assert has_element?(view, "#intake-attempt-2", "gpt-5.6-terra")
+    assert has_element?(view, "#intake-attempt-2", "Running")
+    assert has_element?(view, "#stop-autopilot-intake:not([disabled])")
+    assert {:ok, ^saved} = Intake.finish_attempt(first.id, receipt)
+    settle(view)
+    assert length(Intake.attempts(request.id)) == 2
+    assert second.number == 2
+    refute has_element?(view, "#intake-attempt-3")
+    assert has_element?(view, "#reference-history #task-#{c.task.id}")
+  end
+
   test "conversion moves failed instructions to reference history and preserves their drawer",
        c do
     {:ok, first, _} = live(c.conn, "/projects/#{c.project.id}")

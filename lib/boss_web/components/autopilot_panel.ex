@@ -2,6 +2,8 @@ defmodule BossWeb.AutopilotPanel do
   use BossWeb, :html
 
   def panel(assigns) do
+    assigns = assign_new(assigns, :intake_attempts, fn -> [] end)
+
     ~H"""
     <section
       id={@id}
@@ -84,6 +86,21 @@ defmodule BossWeb.AutopilotPanel do
             disabled={@pending != nil}
             class="app-button-danger px-3 py-2 text-sm disabled:opacity-50"
           >Stop planning</button>
+        </div>
+        <div :if={@intake_attempts != []} id="intake-attempt-history" class="space-y-2">
+          <h3 class="text-sm font-medium text-body">Planning attempts</h3>
+          <ol class="space-y-2 text-sm">
+            <li
+              :for={attempt <- @intake_attempts}
+              id={"intake-attempt-#{attempt.number}"}
+              class="space-y-1"
+            >
+              <p class="break-words text-body">
+                Attempt {attempt.number} · {attempt.model_profile["model"]} · {label(attempt.status)}
+              </p>
+              <p class="text-muted">{attempt_reason(attempt)}</p>
+            </li>
+          </ol>
         </div>
         <p
           :if={match?(%{status: "finished", batch_id: nil}, @intake)}
@@ -240,6 +257,7 @@ defmodule BossWeb.AutopilotPanel do
           >
             <%= if @plans_from_docs do %>
               Start authorizes project planning and execution of the generated tasks.
+              Invalid plans can pass to another model for up to three planning attempts.
             <% else %>
               Start authorizes a new execution of the entire eligible unfinished selection, including retries of failed tasks.
               It does not resume an earlier batch.
@@ -288,6 +306,25 @@ defmodule BossWeb.AutopilotPanel do
     </section>
     """
   end
+
+  defp attempt_reason(%{status: "running"}), do: "Planning from the saved documentation."
+  defp attempt_reason(%{receipt: %{"validation_code" => "valid"}}), do: "Plan validated."
+
+  defp attempt_reason(%{receipt: %{"validation_code" => "report_too_large"}}),
+    do: "Plan exceeded the 32 KiB response limit."
+
+  defp attempt_reason(%{receipt: %{"validation_code" => "task_limit"}}),
+    do: "Plan exceeded the 32-task limit."
+
+  defp attempt_reason(%{receipt: %{"validation_code" => "dependency_cycle"}}),
+    do: "The planned tasks contained a dependency cycle."
+
+  defp attempt_reason(%{receipt: %{"validation_code" => code}}) when is_binary(code),
+    do: "Plan did not meet the required output contract."
+
+  defp attempt_reason(%{status: "cancelled"}), do: "Planning stopped."
+  defp attempt_reason(%{status: "interrupted"}), do: "Process cleanup needs verification."
+  defp attempt_reason(_), do: "The model attempt could not complete."
 
   defp label("ready_to_merge"), do: "Awaiting integration"
   defp label("needs_input"), do: "Needs input"

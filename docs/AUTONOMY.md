@@ -89,8 +89,15 @@ After both opinions, a genuinely unavailable external action is reported precise
 The workflow remains unfinished when intervention is required.
 
 This recovery loop covers managed delivery planning, implementation, checks and
-review. Documentation intake pins the model policy but does not yet run this
-resolver loop itself. Integration still stops on conflicts, candidate/target drift
+review. New documentation intakes separately pin planning version 1: up to three
+read-only attempts under one 20-minute deadline, with persisted model/source pins,
+typed validation receipts and a distinct strong model after a recoverable failure.
+The original documents and fixed failure diagnosis guide the replacement plan.
+The latest valid plan hash binds task creation; historical planning version 0 and
+failed requests are unchanged. Stop, unknown cleanup, drift and shared provider
+failures halt this bounded loop. See [Autopilot](AUTOPILOT.md).
+
+Integration still stops on conflicts, candidate/target drift
 or failed publication checks; it does not automatically rewrite the approved
 candidate. These are explicit remaining autonomy work, alongside provider testing.
 

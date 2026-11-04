@@ -29,7 +29,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
-    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation}
+    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
   ]
 
   setup context do
@@ -349,6 +350,95 @@ defmodule Boss.AutopilotNativeTest do
     assert Projects.list_spec_entries(c.project.id) == []
     assert Repo.aggregate(AutopilotBatch, :count) == 0
     assert Repo.aggregate(Deliveries.Delivery, :count) == 0
+  end
+
+  @tag documentation: true, intake_recovery: true
+  test "an oversized intake hands off to another model before generated tasks publish", c do
+    alias Boss.Projects.Intake
+    System.put_env("BOSS_AUTOPILOT_MODE", "intake_repair")
+    manager = start_manager(c.repo)
+    command = Ecto.UUID.generate()
+
+    assert {:ok, request} =
+             Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
+
+    assert request.planning_version == 1
+    eventually(fn -> Intake.latest(c.project.id).status == "finished" end, 3000)
+    saved = Intake.latest(c.project.id)
+    attempts = Intake.attempts(request.id)
+    assert length(attempts) == 2
+    [rejected, accepted] = attempts
+    assert rejected.status == "failed"
+    assert rejected.receipt["validation_code"] == "report_too_large"
+    assert rejected.receipt["report_bytes"] > 32_768
+    assert rejected.receipt["exit_code"] == 0
+    assert accepted.previous_attempt_id == rejected.id
+    assert accepted.status == "finished"
+    assert accepted.receipt["validation_code"] == "valid"
+    assert saved.accepted_attempt_id == accepted.id
+    entries = Projects.list_spec_entries(c.project.id)
+    assert Enum.sort(Enum.map(entries, & &1.title)) == ~w(one two)
+    c = %{c | tasks: Enum.map(entries, &Repo.get!(Tasks.Task, &1.task_id))}
+    first = wait_for_implementation(c, "one", 1)
+    release(c, "one", 1)
+    second = wait_for_implementation(c, "two", 1)
+    done = Deliveries.get(c.project.id, first.id)
+    assert done.status == "done"
+    assert second.intent["base_commit"] == done.integration_intent["candidate_commit"]
+    release(c, "two", 1)
+    eventually(fn -> Repo.get!(AutopilotBatch, saved.batch_id).status == "completed" end, 3000)
+    assert Enum.all?(c.tasks, &(Repo.get!(Tasks.Task, &1.id).state == "done"))
+
+    calls =
+      File.read!(Path.join(c.root, "calls"))
+      |> String.split("\n", trim: true)
+      |> Enum.map(&Jason.decode!/1)
+
+    intake_calls = Enum.filter(calls, &(&1["kind"] == "intake"))
+    assert Enum.map(intake_calls, & &1["model"]) == ["gpt-5.6-sol", "gpt-5.6-terra"]
+
+    assert {:ok, replay} =
+             Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
+
+    assert replay.id == request.id
+    assert Intake.attempts(request.id) == attempts
+  end
+
+  @tag documentation: true, intake_recovery: true
+  test "three invalid intake reports exhaust the saved budget without partial tasks", c do
+    alias Boss.Projects.Intake
+    System.put_env("BOSS_AUTOPILOT_MODE", "intake_exhausted")
+    manager = start_manager(c.repo)
+    command = Ecto.UUID.generate()
+
+    assert {:ok, request} =
+             Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
+
+    eventually(fn -> Intake.latest(c.project.id).status == "failed" end, 3000)
+    attempts = Intake.attempts(request.id)
+    assert length(attempts) == 3
+
+    assert Enum.all?(
+             attempts,
+             &(&1.status == "failed" and &1.receipt["validation_code"] == "report_too_large")
+           )
+
+    assert Projects.list_spec_entries(c.project.id) == []
+    assert Repo.aggregate(AutopilotBatch, :count) == 0
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 0
+
+    assert {:ok, replay} =
+             Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
+
+    assert replay.id == request.id and replay.status == "failed"
+    assert Intake.attempts(request.id) == attempts
+
+    calls =
+      File.read!(Path.join(c.root, "calls"))
+      |> String.split("\n", trim: true)
+      |> Enum.map(&Jason.decode!/1)
+
+    assert Enum.map(calls, & &1["model"]) == ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-sol"]
   end
 
   @tag convert_documentation: true

@@ -26,8 +26,12 @@ if schema and schema.name == "intake_schema.json":
     assert "result.txt" in intake["documents"]["docs/architecture.md"]
     assert Path("existing.txt").read_text() == "implemented"
     assert Path("result.txt").read_text() == "base"
-    with (Path(os.environ["BOSS_DELIVERY_FIXTURE"]) / "calls").open("a") as log:
-        log.write(json.dumps({"kind": "intake"}) + "\n")
+    calls = Path(os.environ["BOSS_DELIVERY_FIXTURE"]) / "calls"
+    previous = [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
+    attempt = 1 + sum(call["kind"] == "intake" for call in previous)
+    with calls.open("a") as log:
+        log.write(json.dumps({"kind": "intake", "attempt": attempt,
+                             "model": args[args.index("--model") + 1] if "--model" in args else None}) + "\n")
     print(json.dumps({"type": "turn.started"}), flush=True)
     report = {"tasks": [
         {"id": name, "title": name, "specification": "Write the requested output.",
@@ -37,6 +41,14 @@ if schema and schema.name == "intake_schema.json":
     ]}
     if os.environ.get("BOSS_AUTOPILOT_MODE") == "invalid_intake":
         report["tasks"][0]["depends_on"] = ["missing"]
+    mode = os.environ.get("BOSS_AUTOPILOT_MODE")
+    if mode == "intake_exhausted" or mode == "intake_repair" and attempt == 1:
+        report["tasks"] = [
+            {"id": f"oversized_{number}", "title": "A bounded individual task",
+             "specification": "x" * 3900, "acceptance": ["Create result.txt"],
+             "depends_on": [], "sources": ["docs/product.md"]}
+            for number in range(9)
+        ]
     Path(args[args.index("--output-last-message") + 1]).write_text(json.dumps(report))
     print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
     sys.exit(0)

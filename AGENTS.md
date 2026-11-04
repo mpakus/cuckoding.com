@@ -249,6 +249,11 @@
   Pin the selected SHA separately from the old review SHA and prove ancestry
   before provider effects. Keep historical findings distinct from fresh approval.
 - Documentation projects use one explicit persisted intake before Autopilot.
+  New planning_version1 retains at most three immutable model attempts under one
+  absolute deadline. Save model/source intent before effects and sanitized receipt
+  before handoff; bind generated tasks to the latest successful plan hash. Preserve
+  legacy0 and failed requests. Stop, unknown cleanup, source drift and shared
+  provider failures halt; replay never starts another attempt.
   Pin the committed source and target before the read-only planner. Validate the
   full dependency graph and source paths. Save derived tasks and their batch
   together, keep them outside filesystem import reconciliation, and verify the
