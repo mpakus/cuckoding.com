@@ -100,7 +100,9 @@ defmodule Boss.Repo.Migrations.AddProviderRecovery do
       sql <>
         " AND " <>
         implementation_base() <>
-        " AND #{sha("json_extract(d.intent,'$.base_commit')")} AND #{sha("json_extract(s.input,'$.workspace.base_commit')")}"
+        " AND #{sha("json_extract(d.intent,'$.base_commit')")} AND #{sha("json_extract(s.input,'$.workspace.base_commit')")}" <>
+        " AND json_type(s.input,'$.workspace')='object' AND json_type(s.input,'$.workspace.path')='text' AND json_type(s.input,'$.workspace.branch')='text'" <>
+        " AND ((#{transport("p")} AND json_extract(p.receipt,'$.exit_code')=0) OR (d.execution_recovery_version=1 AND p.number=1 AND json_extract(p.receipt,'$.outcome')='retained_plan' AND json_extract(p.receipt,'$.cleanup')='group_empty'))"
     )
   end
 
@@ -151,7 +153,7 @@ defmodule Boss.Repo.Migrations.AddProviderRecovery do
 
   defp transport(s),
     do:
-      "json_extract(#{s}.receipt,'$.cleanup')='group_empty' AND json_extract(#{s}.receipt,'$.exit_kind')='exit' AND json_type(#{s}.receipt,'$.exit_code')='integer' AND json_type(#{s}.receipt,'$.eof.stdout')='true' AND json_type(#{s}.receipt,'$.eof.stderr')='true'"
+      "json_extract(#{s}.receipt,'$.cleanup')='group_empty' AND json_extract(#{s}.receipt,'$.exit_kind')='exit' AND json_type(#{s}.receipt,'$.exit_code')='integer' AND json_type(#{s}.receipt,'$.eof')='object' AND (SELECT count(*) FROM json_each(#{s}.receipt,'$.eof'))=2 AND json_type(#{s}.receipt,'$.eof.stdout')='true' AND json_type(#{s}.receipt,'$.eof.stderr')='true'"
 
   defp uuid(s),
     do:
