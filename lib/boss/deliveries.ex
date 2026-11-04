@@ -243,6 +243,7 @@ defmodule Boss.Deliveries do
 
           nil ->
             task = queued_task!(project, parent.task_id)
+            Boss.Projects.Documentation.ensure_executable!(task.id)
             {:ok, source} = retry_source!(parent, candidate)
 
             unless task.state == source.terminal.to_state and
@@ -360,6 +361,8 @@ defmodule Boss.Deliveries do
          routing_version,
          model_catalog \\ %{}
        ) do
+    Boss.Projects.Documentation.ensure_executable!(task.id)
+
     if replay_only or managed_busy?() or run_busy?() or
          not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
        do: Repo.rollback(:busy)
@@ -430,6 +433,9 @@ defmodule Boss.Deliveries do
 
           delivery.integration_command_id != nil ->
             Repo.rollback(:idempotency_conflict)
+
+          Boss.Projects.Documentation.reference_only?(delivery.task_id) ->
+            Repo.rollback(:reference_only)
 
           replay_only or busy?() or run_busy?() or
               not Boss.Deliveries.Autopilot.integration_allowed?(delivery, command) ->

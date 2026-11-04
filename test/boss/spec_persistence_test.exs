@@ -60,6 +60,14 @@ defmodule Boss.SpecPersistenceTest do
       log: false
     )
 
+    # This independent empty metadata schema does not advance the historical migrations.
+    Ecto.Migrator.up(
+      Repo,
+      20_261_106_120_000,
+      Boss.Repo.Migrations.DocumentationConversionSchema,
+      log: false
+    )
+
     %{repo: repo, opts: opts, project: project}
   end
 

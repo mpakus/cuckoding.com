@@ -898,3 +898,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   HTTP200, migration20261105120000 and all46historicaltasks/receipts preserved.
 - [ ] Observe an explicitly started real-provider recovery batch; metadata and
   finite fixtures do not prove account access or live delivery.
+
+## Recover documentation imported as task cards — 2026-11-03
+
+- [x] Identify wrong intake mode and verify the documentation bundle fits existing
+  planner bounds; no task/source rewrite or provider call during diagnosis.
+- [x] Verify atomic conversion, immutable reference membership and execution guards.
+- [x] Verify conversion UI, historical links and uncertain command replay.
+- [x] Verify generated dependent tasks repair and reach actual Done while preserving
+  old Failed/Blocked/NeedsInput receipts; invalid plans leave no partial batch.
+- [ ] Complete independent review, focused regression and local-main integration.
+- [ ] Rehearse migration on a private data copy and activate the reviewed update.
+- [ ] Authenticate the browser and observe the authorized documentation Start.

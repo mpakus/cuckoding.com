@@ -144,6 +144,7 @@ defmodule Boss.Tasks do
     %{
       task: task,
       spec: spec,
+      reference_only: Boss.Projects.Documentation.reference_only?(task.id),
       pinned_revision: pinned,
       latest_revision: latest,
       selected_revision: selected,
@@ -171,6 +172,7 @@ defmodule Boss.Tasks do
   defp apply_transition(task_id, command) do
     task = Repo.get(Task, task_id) || Repo.rollback(:not_found)
     if command.action == "adopt_revision", do: Revisions.ensure_project!(task, command.project_id)
+    Boss.Projects.Documentation.ensure_executable!(task.id)
     if task.state_version != command.expected_version, do: Repo.rollback(:stale_state)
 
     changes =

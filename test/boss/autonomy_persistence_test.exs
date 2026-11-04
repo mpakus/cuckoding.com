@@ -27,7 +27,8 @@ defmodule Boss.AutonomyPersistenceTest do
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
-    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
+    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation}
   ]
 
   setup do
@@ -312,6 +313,15 @@ defmodule Boss.AutonomyPersistenceTest do
     {:ok, request} =
       Queue.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true", "codex", 0)
 
+    # Remove later cross-workflow guards before exercising the old schema.
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_120_000,
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
+
     # Remove the independent later routing guards before exercising the old schema.
     assert :ok =
              Ecto.Migrator.down(Repo, 20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting,
@@ -326,6 +336,14 @@ defmodule Boss.AutonomyPersistenceTest do
 
     assert :ok =
              Ecto.Migrator.up(Repo, 20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.up(
+               Repo,
+               20_261_106_120_000,
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
                log: false
              )
 

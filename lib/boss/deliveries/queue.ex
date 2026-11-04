@@ -94,6 +94,8 @@ defmodule Boss.Deliveries.Queue do
                   select: t
               ) || Repo.rollback(:not_found)
 
+            Boss.Projects.Documentation.ensure_executable!(task)
+
             if pending?(task), do: Repo.rollback(:task_queued)
 
             unless current.state in ~w(new failed cancelled blocked needs_input interrupted),
@@ -170,7 +172,12 @@ defmodule Boss.Deliveries.Queue do
       from t in Tasks.Task,
         join: s in Spec,
         on: s.id == t.spec_id,
-        where: s.project_id == ^project and not s.missing and t.state == "new",
+        where:
+          s.project_id == ^project and not s.missing and t.state == "new" and
+            fragment(
+              "NOT EXISTS (SELECT 1 FROM project_documentation_sources refs WHERE refs.task_id=?)",
+              t.id
+            ),
         order_by: t.id,
         select: t.id,
         limit: 257

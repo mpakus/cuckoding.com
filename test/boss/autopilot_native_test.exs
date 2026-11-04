@@ -28,7 +28,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
-    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
+    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation}
   ]
 
   setup context do
@@ -58,7 +59,7 @@ defmodule Boss.AutopilotNativeTest do
     File.write!(Path.join(source, "result.txt"), "base")
     File.cp!(Path.expand("../fixtures/delivery_check.py", __DIR__), Path.join(source, "check.py"))
 
-    if context[:documentation] do
+    if context[:documentation] || context[:convert_documentation] do
       File.mkdir!(Path.join(source, "docs"))
 
       File.write!(
@@ -72,6 +73,15 @@ defmodule Boss.AutopilotNativeTest do
       )
 
       File.write!(Path.join(source, "existing.txt"), "implemented")
+    end
+
+    if context[:convert_documentation] do
+      for name <- ~w(one two three) do
+        File.write!(
+          Path.join(source, "docs/#{name}.md"),
+          "---\nid: #{name}\n---\n# #{name}\nGeneral development instructions."
+        )
+      end
     end
 
     for args <- [
@@ -101,19 +111,24 @@ defmodule Boss.AutopilotNativeTest do
             name: "Native Autopilot",
             root_path: source,
             git_common_dir: Path.join(source, ".git"),
-            specs_path: source,
+            specs_path:
+              if(context[:convert_documentation], do: Path.join(source, "docs"), else: source),
             base_branch: "main"
           })
 
         tasks =
-          for name <- if(context[:continue_on_failure], do: ~w(one two three), else: ~w(one two)) do
+          for name <-
+                if(context[:continue_on_failure] || context[:convert_documentation],
+                  do: ~w(one two three),
+                  else: ~w(one two)
+                ) do
             {:ok, record} =
               Projects.record_spec(project.id, %{
                 relative_path: "#{name}.md",
                 explicit_id: name,
                 title: name,
                 original_text:
-                  "---\nid: #{name}\n#{if name == "two" and !context[:independent], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
+                  "---\nid: #{name}\n#{if name == "two" and !context[:independent] and !context[:convert_documentation], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
               })
 
             record.task
@@ -334,6 +349,128 @@ defmodule Boss.AutopilotNativeTest do
     assert Projects.list_spec_entries(c.project.id) == []
     assert Repo.aggregate(AutopilotBatch, :count) == 0
     assert Repo.aggregate(Deliveries.Delivery, :count) == 0
+  end
+
+  @tag convert_documentation: true
+  test "failed instruction imports become history while a fresh dependent plan repairs and publishes",
+       c do
+    alias Boss.Projects.{Documentation, Intake}
+    old_deliveries = fail_instruction_tasks(c.project.id, c.tasks)
+    old_tasks = Enum.map(c.tasks, &Repo.get!(Tasks.Task, &1.id))
+    old_specs = Repo.all(Projects.Spec)
+    old_revisions = Repo.all(Projects.SpecRevision)
+    old_events = Repo.all(Tasks.Event)
+    base = git(c.source, ["rev-parse", "HEAD"])
+    manager = start_manager(c.repo)
+    command = Ecto.UUID.generate()
+    assert {:ok, receipt} = Documentation.convert(c.project.id, command, manager)
+    assert {:ok, ^receipt} = Documentation.convert(c.project.id, command, manager)
+    refute File.exists?(Path.join(c.root, "calls"))
+    assert {:ok, []} = Autopilot.selection(c.project.id)
+    assert Enum.all?(Projects.list_spec_entries(c.project.id), & &1.reference_only)
+    assert {:error, _} = Projects.SpecImporter.sync(c.project.id)
+
+    System.put_env("BOSS_AUTOPILOT_MODE", "repair")
+    start_command = Ecto.UUID.generate()
+
+    assert {:ok, request} =
+             Intake.start(c.project.id, start_command, "python3 check.py", "codex", manager)
+
+    eventually(fn -> Intake.latest(c.project.id).status == "finished" end, 3000)
+    saved = Intake.latest(c.project.id)
+    assert saved.id == request.id
+    assert saved.workspace["base_commit"] == base
+
+    assert {:ok, replay} =
+             Intake.start(c.project.id, start_command, "python3 check.py", "codex", manager)
+
+    assert replay.id == request.id
+    entries = Projects.list_spec_entries(c.project.id)
+    generated = Enum.reject(entries, & &1.reference_only)
+    assert Enum.sort(Enum.map(generated, & &1.title)) == ~w(one two)
+    assert Enum.count(entries, & &1.reference_only) == 3
+    c = %{c | tasks: Enum.map(generated, &Repo.get!(Tasks.Task, &1.task_id))}
+    first = wait_for_implementation(c, "one", 1)
+    release(c, "one", 1)
+    fixed = wait_for_implementation(c, "one", 2)
+    assert fixed.id == first.id
+    assert fixed.integration_command_id == nil
+    implementations = Enum.filter(Deliveries.steps(fixed.id), &(&1.kind == "implement"))
+
+    assert Enum.map(implementations, & &1.input["model_profile"]["model"]) ==
+             ["gpt-5.6-sol", "gpt-5.6-terra"]
+
+    release(c, "one", 2)
+    second = wait_for_implementation(c, "two", 1)
+    done = Deliveries.get(c.project.id, first.id)
+    assert done.status == "done"
+    assert second.intent["base_commit"] == done.integration_intent["candidate_commit"]
+    release(c, "two", 1)
+    eventually(fn -> Repo.get!(AutopilotBatch, saved.batch_id).status == "completed" end, 3000)
+    assert Enum.all?(c.tasks, &(Repo.get!(Tasks.Task, &1.id).state == "done"))
+    assert Enum.map(old_tasks, &Repo.get!(Tasks.Task, &1.id)) == old_tasks
+    assert Enum.map(old_specs, &Repo.get!(Projects.Spec, &1.id)) == old_specs
+    assert Enum.map(old_revisions, &Repo.get!(Projects.SpecRevision, &1.id)) == old_revisions
+    assert Enum.map(old_events, &Repo.get!(Tasks.Event, &1.id)) == old_events
+    assert Enum.map(old_deliveries, &Repo.get!(Deliveries.Delivery, &1.id)) == old_deliveries
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 5
+    assert git(c.source, ["rev-parse", "HEAD"]) == base
+    assert git(c.source, ["status", "--porcelain"]) == ""
+    assert git(c.source, ["show", "main:result.txt"]) == "two-1"
+
+    for delivery <- [first, second] do
+      steps = Deliveries.steps(delivery.id)
+      assert Enum.any?(steps, &(&1.kind == "publish" and &1.status == "finished"))
+      assert Enum.any?(steps, &(&1.kind == "post_check" and &1.status == "finished"))
+    end
+
+    calls =
+      File.read!(Path.join(c.root, "calls"))
+      |> String.split("\n", trim: true)
+      |> Enum.map(&Jason.decode!/1)
+
+    assert Enum.count(calls, &(&1["kind"] == "intake")) == 1
+    refute Enum.any?(calls, &(&1["task"] == "three"))
+  end
+
+  @tag convert_documentation: true
+  test "invalid planning after conversion retains history without partial replacement tasks", c do
+    alias Boss.Projects.{Documentation, Intake}
+    failures = fail_instruction_tasks(c.project.id, c.tasks)
+    old_entries = Projects.list_spec_entries(c.project.id)
+    manager = start_manager(c.repo)
+    assert {:ok, _} = Documentation.convert(c.project.id, Ecto.UUID.generate(), manager)
+    System.put_env("BOSS_AUTOPILOT_MODE", "invalid_intake")
+
+    assert {:ok, _} =
+             Intake.start(
+               c.project.id,
+               Ecto.UUID.generate(),
+               "python3 check.py",
+               "codex",
+               manager
+             )
+
+    eventually(fn -> Intake.latest(c.project.id).status == "failed" end)
+    entries = Projects.list_spec_entries(c.project.id)
+
+    assert Enum.map(entries, &Map.delete(&1, :reference_only)) ==
+             Enum.map(old_entries, &Map.delete(&1, :reference_only))
+
+    assert Enum.all?(entries, & &1.reference_only)
+    assert Repo.aggregate(AutopilotBatch, :count) == 0
+    assert Enum.map(failures, &Repo.get!(Deliveries.Delivery, &1.id)) == failures
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 3
+  end
+
+  defp fail_instruction_tasks(project, tasks) do
+    for {task, status} <- Enum.zip(tasks, ~w(failed blocked needs_input)) do
+      {:ok, {:new, delivery}} =
+        Deliveries.admit(project, task.id, Ecto.UUID.generate(), "python3 check.py")
+
+      {:ok, failed} = Deliveries.complete(delivery.id, status, "Historical instruction import")
+      failed
+    end
   end
 
   test "review rejection returns to implementation and automatic publication waits for the repaired candidate",

@@ -129,6 +129,14 @@ defmodule Boss.Projects do
           state_version: t.state_version,
           attention_reason: t.attention_reason,
           missing: s.missing,
+          reference_only:
+            type(
+              fragment(
+                "EXISTS (SELECT 1 FROM project_documentation_sources refs WHERE refs.task_id=?)",
+                t.id
+              ),
+              :boolean
+            ),
           latest_revision: current.number,
           task_revision: pin.number
         }
