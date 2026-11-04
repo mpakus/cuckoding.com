@@ -73,18 +73,33 @@ with (root / "calls").open("a") as log:
                          "resolution_attempt": data.get("resolution_attempt")}) + "\n")
 print(json.dumps({"type": "turn.started"}), flush=True)
 if kind == "implement":
+    if mode == "timeout_source":
+        Path("partial-only.txt").write_text("retained bootstrap input\n")
+        Path("result.txt").write_text("partial\n")
+        time.sleep(30)
+        sys.exit(2)
     assert args[args.index("--sandbox") + 1] == "workspace-write"
     cycle = data["cycle"]
     gate = Path(os.environ["BOSS_AUTOPILOT_GATES"]) / f"{name}-{cycle}"
     gate.with_suffix(".waiting").write_text(str(os.getpid()))
     while not gate.with_suffix(".release").exists():
         time.sleep(0.02)
-    if cycle > 1:
+    if mode == "timeout_repair":
+        assert Path("partial-only.txt").read_text() == "retained bootstrap input\n"
+        assert data["plan"]["acceptance"] == ["Create result.txt"]
+        assert Path("result.txt").read_text() == ("partial\n" if cycle == 1 else "one-1\n")
+    elif cycle > 1:
         assert data["previous_feedback"]["kind"] == "review"
     Path("result.txt").write_text(f"{name}-{cycle}\n")
 else:
     assert args[args.index("--sandbox") + 1] == "read-only"
     if kind == "resolve":
+        if mode == "timeout_repair":
+            assert Path("partial-only.txt").read_text() == "retained bootstrap input\n"
+            assert data["plan"]["acceptance"] == ["Create result.txt"]
+            assert data["candidate_commit"] != data["base_commit"]
+            if Path("result.txt").read_text() == "partial\n":
+                assert "CHECK_OUTPUT_FOR_TIMEOUT_REPAIR" in json.dumps(data["previous_feedback"])
         report = {"summary": "Use the saved output requirement", "steps": ["Write result.txt as specified"],
                   "assumptions": ["Preserve the existing text format"], "external_action": None}
     elif kind == "plan":
@@ -95,7 +110,9 @@ else:
     else:
         assert data["check_receipt"]["exit_code"] == 0
         assert "result.txt" in data["diff"]
-        reject = mode == "repair" and name == "one" and not data["previous_feedback"]
+        prior = [json.loads(line) for line in (root / "calls").read_text().splitlines()]
+        review_count = sum(call.get("kind") == "review" and call.get("task") == name for call in prior)
+        reject = mode == "repair" and name == "one" and not data["previous_feedback"] or mode == "timeout_repair" and review_count == 1
         report = {"verdict": "changes_requested" if reject else "approved", "summary": "Checked result",
                   "acceptance": [{"criterion": "Create result.txt", "status": "failed" if reject else "passed", "evidence": "Inspected result.txt"}],
                   "issues": [{"criterion": "Create result.txt", "message": "Correct result.txt"}] if reject else []}
