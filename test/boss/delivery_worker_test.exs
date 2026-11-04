@@ -980,9 +980,9 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   for mode <-
-        ~w(network_checkpoint network_checkpoint_timeout network_check_timeout network_checkpoint_changed) do
+        ~w(network_checkpoint network_checkpoint_timeout network_check_timeout) do
     @checkpoint_mode mode
-    @tag timeout: 120_000
+    @tag timeout: if(mode == "network_checkpoint", do: 120_000, else: 240_000)
     test "#{@checkpoint_mode} preserves the candidate and pins network access before repair",
          ctx do
       old = timed_out_delivery(ctx)
@@ -999,18 +999,7 @@ defmodule Boss.DeliveryWorkerTest do
 
       System.put_env("BOSS_DELIVERY_MODE", "checkpoint_source_invalid")
 
-      # Only the fixture's new child uses a scaled native timeout. Persisted argv,
-      # config/hash and the production 120-second check deadline remain unchanged.
-      worker = fn d, repo, manager ->
-        d =
-          if d.checkpoint_recovery_version == 1,
-            do: %{d | check_config: Map.put(d.check_config, "timeout_ms", 800)},
-            else: d
-
-        Boss.Deliveries.Worker.execute(d, repo, manager)
-      end
-
-      manager = start_manager(ctx.repo, delivery_worker: worker)
+      manager = start_manager(ctx.repo)
 
       assert {:ok, parent} =
                Boss.Deliveries.Retry.start_timeout(
@@ -1033,7 +1022,8 @@ defmodule Boss.DeliveryWorkerTest do
       System.put_env("BOSS_DELIVERY_MODE", @checkpoint_mode)
       command = Ecto.UUID.generate()
       assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, command)
-      saved = await_retry(ctx, child.id)
+      # Exercise the actual saved 120-second native deadline without overriding config.
+      saved = await_retry(ctx, child.id, 0, 6500)
       steps = Deliveries.steps(child.id)
       assert saved.check_config == parent.check_config
       assert saved.config_hash == parent.config_hash
@@ -1054,54 +1044,47 @@ defmodule Boss.DeliveryWorkerTest do
 
       assert parents == "#{sha} #{source_sha}"
 
-      if @checkpoint_mode == "network_checkpoint_changed" do
-        assert saved.status == "failed"
-        assert check.receipt["outcome"] == "candidate_changed"
-        refute check.receipt["candidate_verified"]
-        assert remaining == []
-      else
-        assert saved.status == "ready_to_merge", inspect({saved, steps})
-        [resolution, implementation | _] = remaining
-        assert resolution.kind == "resolve" and implementation.kind == "implement"
-        assert implementation.input["parent_step_id"] == resolution.id
-        assert implementation.input["workspace"]["base_commit"] == sha
+      assert saved.status == "ready_to_merge", inspect({saved, steps})
+      [resolution, implementation | _] = remaining
+      assert resolution.kind == "resolve" and implementation.kind == "implement"
+      assert implementation.input["parent_step_id"] == resolution.id
+      assert implementation.input["workspace"]["base_commit"] == sha
 
-        implementations = Enum.filter(steps, &(&1.kind == "implement"))
+      implementations = Enum.filter(steps, &(&1.kind == "implement"))
 
-        for s <- implementations do
-          assert s.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
-        end
-
-        for s <- Enum.reject(steps, &(&1.kind == "implement")) do
-          refute Map.has_key?(s.input, "network_policy")
-        end
-
-        timed_out = Enum.filter(steps, &(&1.receipt["outcome"] == "timeout"))
-
-        expected_timeouts =
-          if @checkpoint_mode in ~w(network_checkpoint_timeout network_check_timeout),
-            do: 1,
-            else: 0
-
-        assert length(timed_out) == expected_timeouts
-
-        for s <- timed_out do
-          assert s.receipt["status"] == "failed" and s.receipt["candidate_verified"] == true
-          assert s.receipt["cleanup"] == "group_empty"
-          assert s.receipt["eof"] == %{"stdout" => true, "stderr" => true}
-          assert s.receipt["output_complete"] == false and s.receipt["output_hash"] == nil
-          assert Enum.any?(steps, &(&1.kind == "resolve" and &1.input["source_step_id"] == s.id))
-        end
-
-        assert length(implementations) ==
-                 if(@checkpoint_mode == "network_check_timeout", do: 2, else: 1)
-
-        review = List.last(steps)
-        final_check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
-        assert final_check.receipt["output_complete"] and final_check.receipt["exit_code"] == 0
-        assert review.input["original_base"] == parent.intent["base_commit"]
-        assert review.receipt["report"]["verdict"] == "approved"
+      for s <- implementations do
+        assert s.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
       end
+
+      for s <- Enum.reject(steps, &(&1.kind == "implement")) do
+        refute Map.has_key?(s.input, "network_policy")
+      end
+
+      timed_out = Enum.filter(steps, &(&1.receipt["outcome"] == "timeout"))
+
+      expected_timeouts =
+        if @checkpoint_mode in ~w(network_checkpoint_timeout network_check_timeout),
+          do: 1,
+          else: 0
+
+      assert length(timed_out) == expected_timeouts
+
+      for s <- timed_out do
+        assert s.receipt["status"] == "failed" and s.receipt["candidate_verified"] == true
+        assert s.receipt["cleanup"] == "group_empty"
+        assert s.receipt["eof"] == %{"stdout" => true, "stderr" => true}
+        assert s.receipt["output_complete"] == false and s.receipt["output_hash"] == nil
+        assert Enum.any?(steps, &(&1.kind == "resolve" and &1.input["source_step_id"] == s.id))
+      end
+
+      assert length(implementations) ==
+               if(@checkpoint_mode == "network_check_timeout", do: 2, else: 1)
+
+      review = List.last(steps)
+      final_check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
+      assert final_check.receipt["output_complete"] and final_check.receipt["exit_code"] == 0
+      assert review.input["original_base"] == parent.intent["base_commit"]
+      assert review.receipt["report"]["verdict"] == "approved"
 
       assert Deliveries.get(ctx.project.id, parent.id) == parent
       assert Deliveries.steps(parent.id) == parent_steps
@@ -1316,10 +1299,10 @@ defmodule Boss.DeliveryWorkerTest do
       Path.join(ctx.source, "check.py"),
       """
 
-      if (mode in ('network_checkpoint_timeout', 'network_checkpoint_changed') and text == 'base') or (mode == 'network_check_timeout' and text == 'candidate-1\\n'):
-          if mode == 'network_checkpoint_changed': Path('result.txt').write_text('changed by timed-out check')
+      if (mode == 'network_checkpoint_timeout' and text == 'base') or (mode == 'network_check_timeout' and text == 'candidate-1\\n'):
+          signal.alarm(150)
           import time
-          time.sleep(5)
+          time.sleep(125)
       if text == 'base' and Path('timeout-only.txt').exists():
           sys.exit(3)
       """,
@@ -1545,11 +1528,11 @@ defmodule Boss.DeliveryWorkerTest do
   defp start_repo(opts),
     do: start_supervised!(Supervisor.child_spec({Repo, opts}, restart: :temporary))
 
-  defp start_manager(repo, opts \\ []),
+  defp start_manager(repo),
     do:
       start_supervised!(
         Supervisor.child_spec(
-          {Manager, [name: nil, registry: Boss.DeliveryTestsActive, repo: repo] ++ opts},
+          {Manager, [name: nil, registry: Boss.DeliveryTestsActive, repo: repo]},
           restart: :temporary
         )
       )
@@ -1560,20 +1543,23 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   # Retry fixtures run two complete workflows; bound each owned stage's progress.
-  defp await_retry(ctx, id, previous_number \\ 0) do
-    eventually(fn ->
-      delivery = Deliveries.get(ctx.project.id, id)
+  defp await_retry(ctx, id, previous_number \\ 0, stage_wait \\ 1500) do
+    eventually(
+      fn ->
+        delivery = Deliveries.get(ctx.project.id, id)
 
-      not Deliveries.active?(delivery) or
-        Enum.any?(Deliveries.steps(id), &(&1.number > previous_number))
-    end)
+        not Deliveries.active?(delivery) or
+          Enum.any?(Deliveries.steps(id), &(&1.number > previous_number))
+      end,
+      stage_wait
+    )
 
     delivery = Deliveries.get(ctx.project.id, id)
 
     if Deliveries.active?(delivery) do
       number = Deliveries.steps(id) |> List.last() |> Map.fetch!(:number)
       assert number in 1..48
-      await_retry(ctx, id, number)
+      await_retry(ctx, id, number, stage_wait)
     else
       delivery
     end

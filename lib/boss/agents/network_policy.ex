@@ -19,7 +19,7 @@ defmodule Boss.Agents.NetworkPolicy do
   def current, do: 1
   def profile(version) when version in [nil, 0], do: nil
   def profile(1), do: @profile
-  def valid?(profile), do: profile == @profile
+  def valid?(profile), do: profile === @profile
 
   def args(profile) do
     unless valid?(profile), do: raise(ArgumentError, "invalid implementation network policy")
