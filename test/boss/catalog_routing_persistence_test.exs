@@ -322,7 +322,13 @@ defmodule Boss.CatalogRoutingPersistenceTest do
   test "migration roundtrip retains historical routing and refuses new authorizations", c do
     {:ok, old} = Queue.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true", "codex", 1, 1)
 
-    assert :ok = Ecto.Migrator.down(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_160_000,
+               Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(
@@ -389,7 +395,10 @@ defmodule Boss.CatalogRoutingPersistenceTest do
                log: false
              )
 
-    assert :ok = Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert Repo.get!(Request, old.id).routing_version == 1
     {:ok, _} = Queue.cancel(c.project.id, old.id)
@@ -403,7 +412,13 @@ defmodule Boss.CatalogRoutingPersistenceTest do
   end
 
   test "independent routing schema preserves an older strict Autopilot guard" do
-    assert :ok = Ecto.Migrator.down(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_160_000,
+               Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(

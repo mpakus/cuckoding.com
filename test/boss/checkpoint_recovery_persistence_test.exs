@@ -272,7 +272,13 @@ defmodule Boss.CheckpointRecoveryPersistenceTest do
     {parent, _, _, _} = failed_parent(c)
     old = Deliveries.steps(parent.id)
 
-    assert :ok = Ecto.Migrator.down(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_160_000,
+               Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(
@@ -290,7 +296,10 @@ defmodule Boss.CheckpointRecoveryPersistenceTest do
                log: false
              )
 
-    assert :ok = Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert Repo.get!(Delivery, parent.id) == parent and Deliveries.steps(parent.id) == old
     assert parent.implementation_network_version == 0 and parent.checkpoint_recovery_version == 0

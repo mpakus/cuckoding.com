@@ -424,7 +424,13 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
     {parent, _, _} = parent(c)
     steps = Deliveries.steps(parent.id)
 
-    assert :ok = Ecto.Migrator.down(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_160_000,
+               Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(
@@ -455,7 +461,10 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
                log: false
              )
 
-    assert :ok = Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert Repo.get!(Delivery, parent.id) == parent and Deliveries.steps(parent.id) == steps
 

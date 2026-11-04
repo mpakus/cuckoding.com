@@ -394,7 +394,13 @@ defmodule Boss.DocumentationConversionTest do
        c do
     assert [%{reference_only: false}] = Projects.list_spec_entries(c.project.id)
 
-    assert :ok = Ecto.Migrator.down(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_160_000,
+               Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(
@@ -469,7 +475,10 @@ defmodule Boss.DocumentationConversionTest do
                log: false
              )
 
-    assert :ok = Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     {:ok, _} = Documentation.admit(c.project.id, Ecto.UUID.generate(), false)
 

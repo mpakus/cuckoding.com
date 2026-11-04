@@ -318,7 +318,13 @@ defmodule Boss.AutonomyPersistenceTest do
       Queue.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true", "codex", 0)
 
     # Remove later cross-workflow guards before exercising the old schema.
-    assert :ok = Ecto.Migrator.down(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_160_000,
+               Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(
@@ -392,7 +398,10 @@ defmodule Boss.AutonomyPersistenceTest do
                log: false
              )
 
-    assert :ok = Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery, log: false)
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery,
+               log: false
+             )
 
     assert Repo.get!(Request, request.id).autonomy_version == 0
     {:ok, _} = Queue.cancel(c.project.id, request.id)
