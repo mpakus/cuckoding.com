@@ -11,6 +11,9 @@ defmodule Boss.Deliveries.Retry do
   def start_timeout(project, parent, command, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:delivery_timeout_retry, project, parent, command}, 10_000)
 
+  def start_checkpoint(project, parent, command, server \\ Boss.Runs.Manager),
+    do: GenServer.call(server, {:delivery_checkpoint_retry, project, parent, command}, 10_000)
+
   def start_candidate(project, parent, command, candidate, server \\ Boss.Runs.Manager),
     do:
       GenServer.call(

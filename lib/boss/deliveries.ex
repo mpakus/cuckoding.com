@@ -15,6 +15,8 @@ defmodule Boss.Deliveries do
     "retry_check" => "planning",
     "timeout_snapshot" => "testing",
     "timeout_check" => "testing",
+    "checkpoint_snapshot" => "testing",
+    "checkpoint_check" => "testing",
     "implement" => "implementing",
     "snapshot" => "testing",
     "check" => "testing",
@@ -25,7 +27,7 @@ defmodule Boss.Deliveries do
     "publish" => "integrating",
     "post_check" => "integrating"
   }
-  @receipt_keys ~w(status cleanup exit_kind exit_code signal eof outcome reason report summary workspace head_commit candidate_commit stdout_bytes stderr_bytes output_hash output_complete input_hash)
+  @receipt_keys ~w(status cleanup exit_kind exit_code signal eof outcome reason report summary workspace head_commit candidate_commit stdout_bytes stderr_bytes output_hash output_complete input_hash candidate_verified)
 
   def active?(%Delivery{status: status}), do: status in @active
 
@@ -311,7 +313,11 @@ defmodule Boss.Deliveries do
         parent = get(project, parent_id) || Repo.rollback(:not_found)
 
         case Repo.get_by(Delivery, task_id: parent.task_id, command_id: command) do
-          %Delivery{execution_recovery_version: 1, retry_implementation_id: source_id} = saved ->
+          %Delivery{
+            execution_recovery_version: 1,
+            checkpoint_recovery_version: 0,
+            retry_implementation_id: source_id
+          } = saved ->
             case Repo.get(Step, source_id) do
               %Step{delivery_id: ^parent_id} -> {:existing, saved}
               _ -> Repo.rollback(:idempotency_conflict)
@@ -321,6 +327,9 @@ defmodule Boss.Deliveries do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
+            if parent.checkpoint_recovery_version == 1,
+              do: Repo.rollback(:checkpoint_retry_required)
+
             task = queued_task!(project, parent.task_id)
             Boss.Projects.Documentation.ensure_executable!(task.id)
 
@@ -356,6 +365,75 @@ defmodule Boss.Deliveries do
                 parent.routing_version,
                 parent.model_catalog,
                 source.implementation.id
+              )
+
+            {:new, child}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_command}
+    end
+  end
+
+  def admit_checkpoint_retry(project, parent_id, command, replay_only \\ false) do
+    with true <- valid_id?(project) and is_boolean(replay_only),
+         {:ok, _} <- Ecto.UUID.cast(parent_id),
+         {:ok, _} <- Ecto.UUID.cast(command) do
+      transaction(fn ->
+        parent = get(project, parent_id) || Repo.rollback(:not_found)
+
+        case Repo.get_by(Delivery, task_id: parent.task_id, command_id: command) do
+          %Delivery{checkpoint_recovery_version: 1, retry_implementation_id: source_id} = saved ->
+            case Repo.get(Step, saved.retry_source_check_id || source_id) do
+              %Step{delivery_id: ^parent_id} -> {:existing, saved}
+              _ -> Repo.rollback(:idempotency_conflict)
+            end
+
+          %Delivery{} ->
+            Repo.rollback(:idempotency_conflict)
+
+          nil ->
+            task = queued_task!(project, parent.task_id)
+            Boss.Projects.Documentation.ensure_executable!(task.id)
+
+            source =
+              case ExecutionRetry.checkpoint_parent(parent) do
+                {:ok, source} -> source
+                {:error, reason} -> Repo.rollback(reason)
+              end
+
+            unless task.state == source.terminal.to_state and
+                     task.state_version == source.terminal.version,
+                   do: Repo.rollback(:execution_retry_unavailable)
+
+            if Boss.Deliveries.Queue.pending?(task.id), do: Repo.rollback(:task_queued)
+
+            if Repo.exists?(
+                 from r in Boss.Deliveries.Request,
+                   where: r.task_id == ^task.id and r.command_id == ^command
+               ),
+               do: Repo.rollback(:idempotency_conflict)
+
+            child =
+              admit_new!(
+                project,
+                task,
+                command,
+                parent.check_config,
+                parent.config_hash,
+                parent.reviewer,
+                replay_only,
+                nil,
+                nil,
+                parent.autonomy_version,
+                parent.routing_version,
+                parent.model_catalog,
+                source.implementation.id,
+                %{
+                  checkpoint_recovery_version: 1,
+                  retry_source_check_id: if(source.check, do: source.check.id),
+                  implementation_network_version: 1
+                }
               )
 
             {:new, child}
@@ -444,7 +522,8 @@ defmodule Boss.Deliveries do
          autonomy_version,
          routing_version,
          model_catalog \\ %{},
-         retry_implementation_id \\ nil
+         retry_implementation_id \\ nil,
+         recovery \\ %{}
        ) do
     Boss.Projects.Documentation.ensure_executable!(task.id)
 
@@ -486,6 +565,9 @@ defmodule Boss.Deliveries do
       command_id: command,
       retry_review_id: retry_review_id,
       retry_implementation_id: retry_implementation_id,
+      checkpoint_recovery_version: Map.get(recovery, :checkpoint_recovery_version, 0),
+      retry_source_check_id: Map.get(recovery, :retry_source_check_id),
+      implementation_network_version: Map.get(recovery, :implementation_network_version, 0),
       execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
@@ -643,6 +725,7 @@ defmodule Boss.Deliveries do
                do: Repo.rollback(:invalid_step)
 
         input = pin_model!(delivery, kind, cycle, input)
+        input = pin_network!(delivery, kind, input)
 
         previous = latest(id)
 
@@ -836,7 +919,12 @@ defmodule Boss.Deliveries do
   defp valid_next?(_, %Step{status: "running"}, _, _, _), do: false
 
   defp valid_next?(d, previous, kind, cycle, i)
-       when kind in ["timeout_snapshot", "timeout_check"],
+       when kind in [
+              "timeout_snapshot",
+              "timeout_check",
+              "checkpoint_snapshot",
+              "checkpoint_check"
+            ],
        do: ExecutionRetry.valid_next?(d, previous, kind, cycle, i)
 
   defp valid_next?(%Delivery{autonomy_version: 1} = d, previous, "resolve", cycle, i),
@@ -866,7 +954,10 @@ defmodule Boss.Deliveries do
     resolution_passed?(previous) and
       (previous.cycle > 0 or
          (d.execution_recovery_version == 1 and
-            match?(%Step{kind: "timeout_check"}, saved_step(previous.input["source_step_id"])))) and
+            match?(
+              %Step{kind: kind} when kind in ["timeout_check", "checkpoint_check"],
+              saved_step(previous.input["source_step_id"])
+            ))) and
       cycle == previous.cycle + 1 and
       cycle <= ModelPolicy.max_cycles(d.autonomy_version) and
       i["parent_step_id"] == previous.id and i["resolution_step_id"] == previous.id and
@@ -1040,11 +1131,15 @@ defmodule Boss.Deliveries do
   defp success_receipt?(%Step{kind: "timeout_snapshot", input: i}, r),
     do: sha?(r["candidate_commit"]) and r["workspace"] == i["workspace"]
 
-  defp success_receipt?(%Step{kind: "timeout_check", input: i}, r),
-    do:
-      process_passed?(r) and is_integer(r["exit_code"]) and
-        r["candidate_commit"] == i["candidate_commit"] and
-        r["output_complete"] == true and hash?(r["output_hash"])
+  defp success_receipt?(%Step{kind: "checkpoint_snapshot", input: i}, r),
+    do: ExecutionRetry.checkpoint_snapshot_receipt?(i, r)
+
+  defp success_receipt?(%Step{kind: kind, input: i}, r)
+       when kind in ["timeout_check", "checkpoint_check"],
+       do:
+         process_passed?(r) and is_integer(r["exit_code"]) and
+           r["candidate_commit"] == i["candidate_commit"] and
+           r["output_complete"] == true and hash?(r["output_hash"])
 
   defp success_receipt?(%Step{kind: "plan"} = step, %{"outcome" => "retained_plan"} = r),
     do: ExecutionRetry.seed_receipt?(step, r)
@@ -1079,6 +1174,18 @@ defmodule Boss.Deliveries do
     do:
       r["exit_kind"] == "exit" and r["exit_code"] == 0 and
         r["eof"] == %{"stdout" => true, "stderr" => true}
+
+  defp pin_network!(d, kind, input) do
+    expected =
+      if kind == "implement",
+        do: Boss.Agents.NetworkPolicy.profile(d.implementation_network_version),
+        else: nil
+
+    unless Map.get(input, "network_policy", expected) === expected,
+      do: Repo.rollback(:invalid_step)
+
+    if expected, do: Map.put(input, "network_policy", expected), else: input
+  end
 
   defp pin_model!(%Delivery{execution_recovery_version: 1} = d, "plan", 0, input) do
     if is_nil(latest(d.id)) and ExecutionRetry.seed_input?(d, input),
@@ -1155,10 +1262,20 @@ defmodule Boss.Deliveries do
     end
   end
 
+  defp recoverable_source?(%Delivery{checkpoint_recovery_version: 1} = d, %Step{kind: kind} = s)
+       when kind in ~w(check checkpoint_check timeout_check),
+       do:
+         (ExecutionRetry.check_timeout?(s) and s.receipt["candidate_verified"] === true) or
+           if(kind == "check",
+             do: recoverable_source?(%{d | checkpoint_recovery_version: 0}, s),
+             else: ExecutionRetry.check?(s)
+           )
+
   defp recoverable_source?(
          %Delivery{execution_recovery_version: 1},
-         %Step{kind: "timeout_check"} = s
-       ),
+         %Step{kind: kind} = s
+       )
+       when kind in ["timeout_check", "checkpoint_check"],
        do: ExecutionRetry.check?(s)
 
   defp recoverable_source?(%Delivery{routing_version: 2}, %Step{kind: "implement"} = source),
