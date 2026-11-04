@@ -118,6 +118,11 @@ defmodule Boss.Runs.Manager do
   def handle_call({:queue_resume, project, id}, _from, state),
     do: queue_reply(Queue.resume_saved(project, id), state)
 
+  def handle_call({:project_documentation_convert, project, command}, _from, state),
+    do:
+      {:reply, Boss.Projects.Documentation.admit(project, command, map_size(state.active) > 0),
+       state}
+
   def handle_call({:project_intake_start, project, command, text, reviewer}, _from, state),
     do:
       launch(

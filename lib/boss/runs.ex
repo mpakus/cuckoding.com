@@ -109,6 +109,8 @@ defmodule Boss.Runs do
                   select: {t, s}
               ) || Repo.rollback(:not_found)
 
+            Boss.Projects.Documentation.ensure_executable!(task.id)
+
             unless task.state in ~w(new ready failed interrupted cancelled blocked needs_input),
               do: Repo.rollback(:task_unavailable)
 
@@ -168,6 +170,8 @@ defmodule Boss.Runs do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
+            Boss.Projects.Documentation.ensure_executable!(parent.task_id)
+
             unless parent.adapter == "codex" and parent.status == "finished" and
                      parent.cleanup == "group_empty" and map_size(parent.workspace) > 0,
                    do: Repo.rollback(:source_unavailable)
@@ -226,6 +230,8 @@ defmodule Boss.Runs do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
+            Boss.Projects.Documentation.ensure_executable!(parent.task_id)
+
             unless parent.adapter == "check" and parent.status == "finished" and
                      parent.cleanup == "group_empty" and is_binary(parent.candidate_commit) and
                      map_size(parent.workspace) > 0,

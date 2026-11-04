@@ -53,6 +53,9 @@ defmodule Boss.Tasks.Revisions do
 
   defp validate(task, spec, pinned, target) do
     cond do
+      Boss.Projects.Documentation.reference_only?(task.id) ->
+        {:error, :reference_only}
+
       target.spec_id != task.spec_id or target.number <= pinned.number ->
         {:error, :revision_unavailable}
 
