@@ -907,6 +907,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify conversion UI, historical links and uncertain command replay.
 - [x] Verify generated dependent tasks repair and reach actual Done while preserving
   old Failed/Blocked/NeedsInput receipts; invalid plans leave no partial batch.
-- [ ] Complete independent review, focused regression and local-main integration.
-- [ ] Rehearse migration on a private data copy and activate the reviewed update.
-- [ ] Authenticate the browser and observe the authorized documentation Start.
+- [x] Complete independent review, focused regression and local-main integration.
+- [x] Rehearse migration on a private data copy and activate the reviewed update.
+- [x] Admit the authorized documentation Start through public Manager APIs and
+  verify its exact saved request, source and model catalog on local4001.
+- [ ] Observe real-provider task generation, implementation and checks; admission
+  and finite fixtures do not establish completed live delivery.
