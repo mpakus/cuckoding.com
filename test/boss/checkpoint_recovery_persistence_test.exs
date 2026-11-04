@@ -275,13 +275,17 @@ defmodule Boss.CheckpointRecoveryPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_150_000,
-               Boss.Repo.Migrations.AddCheckpointRecovery, log: false)
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.up(
                Repo,
                20_261_106_150_000,
-               Boss.Repo.Migrations.AddCheckpointRecovery, log: false)
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
 
     assert Repo.get!(Delivery, parent.id) == parent and Deliveries.steps(parent.id) == old
     assert parent.implementation_network_version == 0 and parent.checkpoint_recovery_version == 0
@@ -294,6 +298,193 @@ defmodule Boss.CheckpointRecoveryPersistenceTest do
         log: false
       )
     end
+  end
+
+  test "later ordinary timeout repairs with different model and retains network version", c do
+    {parent, _, _, _} = failed_parent(c)
+    {d, p} = checkpoint(c, parent)
+    first = resolve(d, p, checkpoint_check(d, p, %{}))
+    input = implementation_input(d, p, first)
+
+    impl =
+      finish(d, "implement", 1, input, %{"workspace" => input["workspace"], "head_commit" => @sha})
+
+    check = normal_check(d, p, impl, Map.put(check_timeout(), "candidate_verified", true))
+    assert check.status == "failed" and check.receipt["output_complete"] == false
+    r = resolve(d, p, check)
+    assert r.input["model_profile"] == hd(@catalog["fallbacks"])
+    {:ok, next} = Deliveries.begin_step(d.id, "implement", 2, implementation_input(d, p, r))
+    assert next.input["model_profile"] == hd(@catalog["fallbacks"])
+    assert next.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
+  end
+
+  test "old timeout policy cannot use new reverified-timeout diagnosis", c do
+    {d, p, source} = child(c)
+    check = timeout_check(d, p, source, 0, Map.put(check_timeout(), "candidate_verified", true))
+    assert d.checkpoint_recovery_version == 0 and d.implementation_network_version == 0
+    input = resolution_input(d, p, check)
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "resolve", 0, input)
+
+    assert {:error, _} =
+             raw_step(d, "resolve", 0, Map.put(input, "model_profile", @catalog["resolver"]))
+  end
+
+  test "raw SQL cannot forge checkpoint source policy or copied configuration", c do
+    {parent, plan, check, implementation} = failed_parent(c)
+
+    for changes <- [
+          %{retry_source_check_id: plan.id},
+          %{retry_source_check_id: nil},
+          %{retry_implementation_id: plan.id},
+          %{checkpoint_recovery_version: 0},
+          %{implementation_network_version: 0},
+          %{execution_recovery_version: 0},
+          %{config_hash: @hash},
+          %{reviewer: "claude"},
+          %{admitted_version: parent.task_version}
+        ] do
+      assert {:error, _} = raw_checkpoint(parent, check, implementation, changes)
+    end
+
+    assert {:ok, {:new, _}} =
+             Deliveries.admit_checkpoint_retry(c.project.id, parent.id, Ecto.UUID.generate())
+  end
+
+  test "checkpoint retained plan and snapshot cannot select different source or base", c do
+    {parent, source_plan, check, implementation} = failed_parent(c)
+
+    {:ok, {:new, d}} =
+      Deliveries.admit_checkpoint_retry(c.project.id, parent.id, Ecto.UUID.generate())
+
+    {:ok, d} = Deliveries.set_intent(d.id, workspace(c, d.id))
+
+    input =
+      pins(d, %{
+        "workspace" => d.intent,
+        "source_implementation_id" => implementation.id,
+        "source_plan_id" => source_plan.id,
+        "source_check_id" => source_plan.id
+      })
+
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "plan", 0, input)
+    assert {:error, _} = raw_step(d, "plan", 0, input)
+    {:ok, p} = Deliveries.begin_step(d.id, "plan", 0, Map.put(input, "source_check_id", check.id))
+
+    valid = %{
+      "status" => "finished",
+      "cleanup" => "group_empty",
+      "outcome" => "retained_plan",
+      "report" => source_plan.receipt["report"],
+      "workspace" => d.intent
+    }
+
+    changed = put_in(valid, ["report", "acceptance"], ["Less work"])
+    assert {:error, :invalid_receipt} = Deliveries.finish_step(p.id, changed)
+
+    assert {:error, _} =
+             Repo.query("UPDATE delivery_steps SET status='finished',receipt=? WHERE id=?", [
+               JSON.encode!(changed),
+               p.id
+             ])
+
+    {:ok, p} = Deliveries.finish_step(p.id, valid)
+    id = Ecto.UUID.generate()
+    run = Map.put(fresh(d.intent), "base_commit", String.duplicate("f", 40))
+
+    i =
+      pins(d, %{
+        "run_workspace" => run,
+        "check_id" => id,
+        "source_check_id" => check.id,
+        "implementation_step_id" => implementation.id,
+        "source_candidate_commit" => @sha,
+        "plan_step_id" => p.id
+      })
+
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "checkpoint_snapshot", 0, i)
+    assert {:error, _} = raw_step(d, "checkpoint_snapshot", 0, i)
+  end
+
+  test "non-timeout incomplete check cannot acquire timeout eligibility through flag", c do
+    {parent, _, _, _} = failed_parent(c)
+    {d, p} = checkpoint(c, parent)
+
+    check =
+      checkpoint_check(d, p, %{
+        "status" => "failed",
+        "outcome" => "output_limit",
+        "exit_kind" => "signal",
+        "signal" => 9,
+        "exit_code" => nil,
+        "output_complete" => false,
+        "output_hash" => nil,
+        "candidate_verified" => true
+      })
+
+    i = resolution_input(d, p, check)
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "resolve", 0, i)
+
+    assert {:error, _} =
+             raw_step(d, "resolve", 0, Map.put(i, "model_profile", @catalog["resolver"]))
+  end
+
+  for {label, changed} <- [
+        {"numeric verification flag", %{"candidate_verified" => 1}},
+        {"numeric EOF", %{"eof" => %{"stdout" => 1, "stderr" => true}}},
+        {"contradictory signal and exit", %{"exit_code" => 0}},
+        {"boolean exit", %{"exit_kind" => "exit", "exit_code" => false, "signal" => nil}}
+      ] do
+    test "#{label} cannot authorize timeout diagnosis through context or SQL", c do
+      {parent, _, _, _} = failed_parent(c)
+      {d, p} = checkpoint(c, parent)
+
+      attrs =
+        check_timeout()
+        |> Map.put("candidate_verified", true)
+        |> Map.merge(unquote(Macro.escape(changed)))
+
+      check = checkpoint_check(d, p, attrs)
+      input = resolution_input(d, p, check)
+      assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "resolve", 0, input)
+
+      assert {:error, _} =
+               raw_step(d, "resolve", 0, Map.put(input, "model_profile", @catalog["resolver"]))
+    end
+  end
+
+  defp raw_checkpoint(parent, check, implementation, changes) do
+    attrs =
+      %{
+        id: Ecto.UUID.generate(),
+        project_id: parent.project_id,
+        task_id: parent.task_id,
+        spec_revision_id: parent.spec_revision_id,
+        command_id: Ecto.UUID.generate(),
+        admitted_version: parent.task_version + 1,
+        task_version: parent.task_version + 1,
+        check_config: JSON.encode!(parent.check_config),
+        config_hash: parent.config_hash,
+        reviewer: parent.reviewer,
+        autonomy_version: parent.autonomy_version,
+        routing_version: parent.routing_version,
+        model_catalog: JSON.encode!(parent.model_catalog),
+        execution_recovery_version: 1,
+        checkpoint_recovery_version: 1,
+        implementation_network_version: 1,
+        retry_implementation_id: implementation.id,
+        retry_source_check_id: check.id
+      }
+      |> Map.merge(changes)
+
+    keys = Map.keys(attrs)
+
+    Repo.query(
+      "INSERT INTO deliveries (" <>
+        Enum.map_join(keys, ",", &to_string/1) <>
+        ",inserted_at,updated_at) VALUES(" <>
+        Enum.map_join(keys, ",", fn _ -> "?" end) <> ",CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+      Enum.map(keys, &Map.fetch!(attrs, &1))
+    )
   end
 
   defp failed_parent(c, attrs \\ nil) do
