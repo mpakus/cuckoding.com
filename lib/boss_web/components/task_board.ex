@@ -82,6 +82,40 @@ defmodule BossWeb.TaskBoard do
   attr :entries, :list, required: true
   attr :project_id, :integer, required: true
 
+  def references(assigns) do
+    ~H"""
+    <section
+      :if={@entries != []}
+      id="reference-history"
+      aria-labelledby="reference-history-heading"
+      class="mt-6 min-w-0 border-t border-line pt-5"
+    >
+      <h2 id="reference-history-heading" class="app-panel-heading">Reference history</h2>
+      <p class="mt-2 max-w-3xl text-sm text-muted">
+        These documents now provide planning context. Their original task states, source revisions and attempts remain available here.
+      </p>
+      <ul class="mt-3 max-h-80 space-y-2 overflow-y-auto">
+        <li
+          :for={entry <- @entries}
+          id={"reference-#{entry.task_id}"}
+          class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm"
+        >
+          <.link
+            id={"task-#{entry.task_id}"}
+            patch={~p"/projects/#{@project_id}/tasks/#{entry.task_id}"}
+            class="min-w-0 break-words text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+          >{entry.title}</.link>
+          <span class="text-muted">{state_label(entry.state)} · reference only</span>
+          <span class="break-all font-mono text-xs text-muted">{entry.relative_path}</span>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
+  attr :entries, :list, required: true
+  attr :project_id, :integer, required: true
+
   def notices(assigns) do
     ~H"""
     <div id="task-notifications" role="status">
@@ -109,6 +143,7 @@ defmodule BossWeb.TaskBoard do
   attr :details, :any, default: nil
   attr :loading, :boolean, default: false
   attr :error, :any, default: nil
+  attr :reference_only, :boolean, default: false
   slot :run_panel
   slot :source_actions
 
@@ -178,6 +213,14 @@ defmodule BossWeb.TaskBoard do
             else: "Task details could not be refreshed. Try opening this task again."}
         </p>
         <div :if={@details} class="space-y-6">
+          <p
+            :if={@reference_only}
+            id="task-reference-only"
+            role="status"
+            class="rounded-sm border border-line bg-sage/50 px-3 py-2 text-sm text-body"
+          >
+            Reference only. This document is planning context; its saved task and attempt history remain unchanged. New implementation work starts from the documentation plan.
+          </p>
           <div class="flex flex-wrap gap-2 text-sm">
             <span class="app-badge">{state_label(@details.task.state)}</span>
             <span :if={@details.spec.missing} class="rounded bg-warning-soft px-2 py-1 text-warning">File missing</span>

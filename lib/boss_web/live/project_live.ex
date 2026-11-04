@@ -1,7 +1,7 @@
 defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
-  alias Boss.Projects.{Intake, SpecImporter, SpecWatcher}
+  alias Boss.Projects.{Documentation, Intake, SpecImporter, SpecWatcher}
   alias Boss.Deliveries.{Queue, Scheduling}
 
   alias BossWeb.{
@@ -19,16 +19,15 @@ defmodule BossWeb.ProjectLive do
     project = find_project(id)
 
     if project && connected?(socket) do
-      if project.intake_mode == "documentation" do
-        Phoenix.PubSub.subscribe(Boss.PubSub, Intake.topic(project.id))
-      else
-        SpecWatcher.subscribe(project.id)
-      end
-
+      Phoenix.PubSub.subscribe(Boss.PubSub, Documentation.topic(project.id))
+      Phoenix.PubSub.subscribe(Boss.PubSub, Intake.topic(project.id))
+      SpecWatcher.subscribe(project.id)
       Runs.subscribe(project.id)
       Tasks.subscribe(project.id)
       Scheduling.subscribe()
     end
+
+    project = if project && connected?(socket), do: find_project(id), else: project
 
     {:ok,
      socket
@@ -605,13 +604,13 @@ defmodule BossWeb.ProjectLive do
      |> refresh(:interrupted)}
   end
 
-  def handle_async(:refresh, {:ok, {entries, result}}, socket) do
+  def handle_async(:refresh, {:ok, {project, entries, result}}, socket) do
     result = if socket.assigns.refresh_pending == :interrupted, do: :interrupted, else: result
 
     {:noreply,
      socket
      |> refresh_task_notices(entries)
-     |> assign(entries: entries)
+     |> assign(project: project, entries: entries)
      |> show_result(result)
      |> refresh_details()
      |> finish_refresh()}
@@ -704,6 +703,11 @@ defmodule BossWeb.ProjectLive do
   end
 
   def handle_info({:project_intake, _}, socket), do: {:noreply, socket}
+
+  def handle_info({:project_documentation, id}, %{assigns: %{project: %{id: id}}} = socket),
+    do: {:noreply, refresh(socket, :delivery_update)}
+
+  def handle_info({:project_documentation, _}, socket), do: {:noreply, socket}
 
   def handle_info({:spec_sync, id, result}, %{assigns: %{project: %{id: id}}} = socket),
     do: {:noreply, refresh(socket, result)}
@@ -835,7 +839,7 @@ defmodule BossWeb.ProjectLive do
          request when not is_nil(request) <- assigns.adoption_requests[task] do
       selected = revision || details.pinned_revision.number
 
-      !assigns.detail_loading && is_nil(assigns.detail_error) &&
+      !reference_only?(assigns) && !assigns.detail_loading && is_nil(assigns.detail_error) &&
         selected == details.selected_revision.number && is_nil(assigns.adoption_starting) &&
         (request.locked ||
            (details.adoption.available? && !adoption_pending?(assigns) &&
@@ -1011,7 +1015,8 @@ defmodule BossWeb.ProjectLive do
         end)
 
   defp delivery_integrate_available?(assigns) do
-    assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
+    !reference_only?(assigns) && assigns.run_supported && assigns.details != nil &&
+      assigns.detail_error == nil &&
       !assigns.detail_loading && is_nil(assigns.run_starting) && !delivery_busy?(assigns) &&
       map_size(assigns.manual_pending) == 0 && !verification_uncertain?(assigns) &&
       !adoption_pending?(assigns) &&
@@ -1046,7 +1051,8 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp queue_controls_available?(assigns) do
-    assigns.details != nil && !assigns.detail_loading && is_nil(assigns.detail_error) &&
+    !reference_only?(assigns) && assigns.details != nil && !assigns.detail_loading &&
+      is_nil(assigns.detail_error) &&
       is_nil(assigns.delivery_starting) && is_nil(assigns.run_starting) &&
       !adoption_pending?(assigns) && !verification_uncertain?(assigns) &&
       map_size(assigns.manual_pending) == 0
@@ -1113,6 +1119,7 @@ defmodule BossWeb.ProjectLive do
         :invalid_reviewer,
         :invalid_command,
         :not_found,
+        :reference_only,
         :task_unavailable,
         :source_unavailable,
         :not_ready,
@@ -1124,6 +1131,7 @@ defmodule BossWeb.ProjectLive do
   defp delivery_input_resolved?(_), do: false
 
   defp delivery_error({:ok, _}), do: nil
+  defp delivery_error({:error, :reference_only}), do: reference_error()
 
   defp delivery_error({:error, :busy}),
     do: "Workflow capacity is occupied, an exclusive run is active, or cleanup needs attention."
@@ -1168,7 +1176,8 @@ defmodule BossWeb.ProjectLive do
       "The workflow request outcome could not be confirmed. Retry the same saved request before starting other work."
 
   defp run_available?(assigns) do
-    assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
+    !reference_only?(assigns) && assigns.run_supported && assigns.details != nil &&
+      assigns.detail_error == nil &&
       !assigns.detail_loading && is_nil(assigns.run_starting) &&
       !delivery_busy?(assigns) && !delivery_uncertain?(assigns) && !adoption_pending?(assigns) &&
       assigns.details.task.state in ~w(new ready failed interrupted cancelled blocked needs_input) &&
@@ -1305,6 +1314,7 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp check_input_resolved?({:ok, _}), do: true
+  defp check_input_resolved?({:error, :reference_only}), do: true
   defp check_input_resolved?({:error, {:dependencies_blocked, _}}), do: true
 
   defp check_input_resolved?({:error, reason}),
@@ -1330,6 +1340,7 @@ defmodule BossWeb.ProjectLive do
     do: checks_uncertain?(assigns) || reviews_uncertain?(assigns)
 
   defp review_error({:ok, _}), do: nil
+  defp review_error({:error, :reference_only}), do: reference_error()
   defp review_error({:error, :busy}), do: run_error({:error, :busy})
   defp review_error({:error, :task_queued}), do: delivery_error({:error, :task_queued})
 
@@ -1345,6 +1356,7 @@ defmodule BossWeb.ProjectLive do
       "The review start outcome could not be confirmed. Retry the same saved request before starting another review."
 
   defp check_error({:ok, _}), do: nil
+  defp check_error({:error, :reference_only}), do: reference_error()
   defp check_error({:error, :busy}), do: run_error({:error, :busy})
   defp check_error({:error, :task_queued}), do: delivery_error({:error, :task_queued})
 
@@ -1372,6 +1384,7 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp run_error({:ok, _}), do: nil
+  defp run_error({:error, :reference_only}), do: reference_error()
   defp run_error({:error, :task_queued}), do: delivery_error({:error, :task_queued})
 
   defp run_error({:error, :busy}),
@@ -1390,6 +1403,9 @@ defmodule BossWeb.ProjectLive do
   defp dependency_error,
     do: "Dependencies are not ready. Review the Dependencies section before starting again."
 
+  defp reference_error,
+    do: "This document is reference only. Start Autopilot to plan new implementation tasks."
+
   defp finish_details(socket) do
     pending = socket.assigns.detail_pending
     socket = assign(socket, detail_loading: false, detail_pending: false)
@@ -1407,13 +1423,20 @@ defmodule BossWeb.ProjectLive do
     socket
     |> assign(refreshing: true)
     |> start_async(:refresh, fn ->
+      project = Projects.get_project!(id)
       entries = Projects.list_spec_entries(id)
-      result = if fallback == :interrupted, do: fallback, else: SpecWatcher.status(id) || fallback
-      {entries, result}
+
+      result =
+        if fallback == :interrupted or project.intake_mode == "documentation",
+          do: fallback,
+          else: SpecWatcher.status(id) || fallback
+
+      {project, entries, result}
     end)
   end
 
   defp refresh_task_notices(socket, entries) do
+    entries = Enum.reject(entries, &Map.get(&1, :reference_only, false))
     current = Map.new(entries, &{&1.task_id, Map.get(&1, :state_version)})
     previous = Map.new(socket.assigns.entries, &{&1.task_id, Map.get(&1, :state_version)})
 
@@ -1471,6 +1494,15 @@ defmodule BossWeb.ProjectLive do
 
   defp positive_id(_), do: nil
 
+  defp reference_only?(%{details: %{task: %{id: id}} = details} = assigns) do
+    Map.get(details, :reference_only, false) or
+      Enum.any?(Map.get(assigns, :entries, []), fn entry ->
+        entry.task_id == id and Map.get(entry, :reference_only, false)
+      end)
+  end
+
+  defp reference_only?(_), do: false
+
   @impl true
   def render(assigns) do
     assigns =
@@ -1483,6 +1515,12 @@ defmodule BossWeb.ProjectLive do
       |> assign(:queue_controls_available, queue_controls_available?(assigns))
       |> assign(:delivery_integrate_available, delivery_integrate_available?(assigns))
       |> assign(:delivery_uncertain, delivery_uncertain?(assigns))
+      |> assign(:reference_only, reference_only?(assigns))
+      |> assign(:task_entries, Enum.reject(assigns.entries, &Map.get(&1, :reference_only, false)))
+      |> assign(
+        :reference_entries,
+        Enum.filter(assigns.entries, &Map.get(&1, :reference_only, false))
+      )
 
     ~H"""
     <.link
@@ -1563,18 +1601,23 @@ defmodule BossWeb.ProjectLive do
       </div>
       <section aria-labelledby="task-board-heading" aria-busy={@syncing} class="mt-6 min-w-0">
         <p
-          :if={@entries == []}
+          :if={@task_entries == []}
           class="app-empty-state mt-4"
         >
-          No specs imported yet. Add .md files to the specs folder.
-          <%= if @auto_sync do %>
-            They will appear after the next automatic refresh.
+          <%= if @project.intake_mode == "documentation" do %>
+            No implementation tasks yet. Start Autopilot to plan from the project documentation.
           <% else %>
-            Then choose Sync specs.
+            No specs imported yet. Add .md files to the specs folder.
+            <%= if @auto_sync do %>
+              They will appear after the next automatic refresh.
+            <% else %>
+              Then choose Sync specs.
+            <% end %>
           <% end %>
         </p>
-        <TaskBoard.board entries={@entries} project_id={@project.id} />
+        <TaskBoard.board entries={@task_entries} project_id={@project.id} />
       </section>
+      <TaskBoard.references entries={@reference_entries} project_id={@project.id} />
       <TaskBoard.drawer
         :if={@drawer_open}
         project_id={@project.id}
@@ -1582,6 +1625,7 @@ defmodule BossWeb.ProjectLive do
         details={@details}
         loading={@detail_loading}
         error={@detail_error}
+        reference_only={@reference_only}
       >
         <:source_actions>
           <TaskRevision.panel

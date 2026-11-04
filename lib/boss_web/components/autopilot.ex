@@ -1,7 +1,7 @@
 defmodule BossWeb.Autopilot do
   use BossWeb, :live_component
   alias Boss.Deliveries.Autopilot, as: Engine
-  alias Boss.Projects.Intake
+  alias Boss.Projects.{Documentation, Intake}
 
   @impl true
   def mount(socket) do
@@ -33,17 +33,25 @@ defmodule BossWeb.Autopilot do
 
   def update(assigns, socket) do
     first = is_nil(socket.assigns.project)
-    changed = Map.get(assigns, :entries, socket.assigns.entries) != socket.assigns.entries
+
+    converted =
+      !documentation?(socket.assigns.project) and
+        documentation?(Map.get(assigns, :project, socket.assigns.project))
+
+    changed =
+      Map.get(assigns, :entries, socket.assigns.entries) != socket.assigns.entries or
+        Map.get(assigns, :project, socket.assigns.project) != socket.assigns.project
+
     socket = assign(socket, Map.take(assigns, [:id, :project, :entries, :supported]))
 
     socket =
-      if first and documentation?(socket.assigns.project) do
+      if (first or converted) and documentation?(socket.assigns.project) do
         text =
           if File.regular?(Path.join(socket.assigns.project.root_path, "mix.exs")),
             do: "mix test",
             else: ""
 
-        assign(socket, open: true, text: text)
+        assign(socket, open: true, text: if(first, do: text, else: socket.assigns.text))
       else
         socket
       end
@@ -66,6 +74,14 @@ defmodule BossWeb.Autopilot do
 
   def handle_event("edit", _, socket), do: {:noreply, socket}
   def handle_event("reload", _, socket), do: {:noreply, load(socket)}
+
+  def handle_event("plan_from_documentation", %{"command-id" => id}, socket) do
+    if id == socket.assigns.command and conversion_ready?(socket.assigns) do
+      {:noreply, act(socket, %{kind: :documentation_convert, id: id})}
+    else
+      {:noreply, socket}
+    end
+  end
 
   def handle_event("retry", _, %{assigns: %{pending: request, acting: false}} = socket)
       when is_map(request),
@@ -146,6 +162,9 @@ defmodule BossWeb.Autopilot do
     )
     |> start_async({:action, request.id}, fn ->
       case request.kind do
+        :documentation_convert ->
+          Documentation.convert(project, request.id)
+
         :intake_start ->
           Intake.start(project, request.id, request.text, request.reviewer)
 
@@ -174,20 +193,13 @@ defmodule BossWeb.Autopilot do
   def handle_async({:load, generation}, result, %{assigns: %{generation: generation}} = socket) do
     socket =
       case result do
+        {:ok, {batch, intake, selection, conversion}} ->
+          socket
+          |> confirm_conversion(conversion)
+          |> apply_selection(batch, intake, selection)
+
         {:ok, {{:ok, batch}, intake, selection}} ->
-          socket = apply_load(socket, batch, intake)
-
-          case selection do
-            {:ok, ids} ->
-              assign(socket, eligible_task_ids: ids)
-
-            _ ->
-              assign(socket,
-                eligible_task_ids: [],
-                loaded: false,
-                error: "Could not load eligible tasks. Retry loading."
-              )
-          end
+          apply_selection(socket, {:ok, batch}, intake, selection)
 
         {:ok, {:ok, batch}} ->
           apply_load(socket, batch, nil)
@@ -230,6 +242,36 @@ defmodule BossWeb.Autopilot do
   end
 
   def handle_async(_, _, socket), do: {:noreply, socket}
+
+  defp apply_selection(socket, {:ok, batch}, intake, selection) do
+    socket = apply_load(socket, batch, intake)
+
+    case selection do
+      {:ok, ids} ->
+        assign(socket, eligible_task_ids: ids)
+
+      _ ->
+        assign(socket,
+          eligible_task_ids: [],
+          loaded: false,
+          error: "Could not load eligible tasks. Retry loading."
+        )
+    end
+  end
+
+  defp apply_selection(socket, _, _, _),
+    do: assign(socket, loaded: false, error: "Could not load Autopilot. Retry loading.")
+
+  defp confirm_conversion(socket, receipt) do
+    with %{kind: :documentation_convert, id: id} <- socket.assigns.pending,
+         %{id: project} <- socket.assigns.project,
+         %{project_id: ^project, command_id: ^id} <- receipt do
+      send(self(), {:project_documentation, project})
+      assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
+    else
+      _ -> socket
+    end
+  end
 
   defp apply_load(socket, batch, intake) do
     reveal =
@@ -294,13 +336,21 @@ defmodule BossWeb.Autopilot do
     project = socket.assigns.project.id
     generation = socket.assigns.generation + 1
     documentation? = documentation?(socket.assigns.project)
+    pending = socket.assigns.pending
 
     socket
     |> assign(loading: true, generation: generation, load_again: false)
     |> start_async({:load, generation}, fn ->
       batch = Engine.current(project)
       intake = if documentation?, do: Intake.latest(project)
-      {batch, intake, Engine.selection(project)}
+
+      conversion =
+        case pending do
+          %{kind: :documentation_convert, id: id} -> Documentation.get(project, id)
+          _ -> nil
+        end
+
+      {batch, intake, Engine.selection(project), conversion}
     end)
   end
 
@@ -315,7 +365,8 @@ defmodule BossWeb.Autopilot do
     eligible = MapSet.new(Map.get(assigns, :eligible_task_ids, []))
 
     Enum.filter(assigns.entries, fn entry ->
-      !entry.missing and entry.state in ~w(new failed blocked needs_input) and
+      !Map.get(entry, :reference_only, false) and !entry.missing and
+        entry.state in ~w(new failed blocked needs_input) and
         MapSet.member?(eligible, entry.task_id)
     end)
   end
@@ -333,6 +384,18 @@ defmodule BossWeb.Autopilot do
         !match?(%{status: "planning"}, assigns.intake) and
         !match?(%{cleanup: "unknown"}, assigns.intake) and
         (is_nil(assigns.batch) or assigns.batch.status in ~w(blocked completed cancelled))
+
+  defp conversion_ready?(assigns),
+    do:
+      !documentation?(assigns.project) and assigns.loaded and !assigns.loading and
+        !assigns.acting and is_nil(assigns.pending) and
+        (is_nil(assigns.batch) or assigns.batch.status in ~w(blocked completed cancelled))
+
+  defp error(:already_documentation), do: "This project already plans from documentation."
+  defp error(:too_many_sources), do: "This project has too many source documents to convert."
+
+  defp error(:invalid_sources),
+    do: "The saved sources could not be converted. Refresh the project."
 
   defp error(:busy),
     do:
@@ -371,6 +434,7 @@ defmodule BossWeb.Autopilot do
     assigns =
       assign(assigns,
         choices: choices(assigns),
+        conversion_ready: conversion_ready?(assigns),
         ready: ready?(assigns),
         documentation: documentation?(assigns.project),
         plans_from_docs: plans_from_docs?(assigns)
