@@ -134,7 +134,7 @@ defmodule Boss.Deliveries.Worker do
         end
       )
 
-    if Map.get(source, :check) do
+    if Map.get(source, :check) || Map.get(source, :source_kind) == :rate_limit do
       recover_checkpoint(delivery, project, revision.original_text, plan_step, plan, source)
     else
       recover_timeout(
@@ -154,8 +154,19 @@ defmodule Boss.Deliveries.Worker do
   defp recover_checkpoint(delivery, project, specification, plan_step, plan, source) do
     continue!()
     ok!(ExecutionRetry.verify(source))
-    seed = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
-    seed = Map.put(seed, "base_commit", source.candidate_commit)
+
+    seed =
+      if Map.get(source, :source_kind) == :rate_limit do
+        source.implementation.input["workspace"]
+      else
+        project
+        |> Workspace.plan(Ecto.UUID.generate())
+        |> ok!()
+        |> string_keys()
+        |> Map.put("base_commit", source.candidate_commit)
+      end
+
+    source_check_id = if source.check, do: source.check.id
     check_id = Ecto.UUID.generate()
 
     {snapshot, {candidate, sha}} =
@@ -166,7 +177,7 @@ defmodule Boss.Deliveries.Worker do
         %{
           "run_workspace" => seed,
           "check_id" => check_id,
-          "source_check_id" => source.check.id,
+          "source_check_id" => source_check_id,
           "implementation_step_id" => source.implementation.id,
           "source_candidate_commit" => source.candidate_commit,
           "plan_step_id" => plan_step.id
@@ -174,7 +185,14 @@ defmodule Boss.Deliveries.Worker do
         fn ->
           continue!()
           ok!(ExecutionRetry.verify(source))
-          {candidate, saved} = prepare_retry_snapshot(seed, check_id, source.candidate_commit)
+
+          {candidate, saved} =
+            if Map.get(source, :source_kind) == :rate_limit do
+              candidate = ok!(Candidate.plan(seed, check_id))
+              {candidate, ok!(Candidate.prepare(candidate))}
+            else
+              prepare_retry_snapshot(seed, check_id, source.candidate_commit)
+            end
 
           {%{
              "status" => "finished",
@@ -192,7 +210,7 @@ defmodule Boss.Deliveries.Worker do
         0,
         %{
           "snapshot_step_id" => snapshot.id,
-          "source_check_id" => source.check.id,
+          "source_check_id" => source_check_id,
           "implementation_step_id" => source.implementation.id,
           "plan_step_id" => plan_step.id,
           "workspace" => candidate,
@@ -218,16 +236,26 @@ defmodule Boss.Deliveries.Worker do
 
     feedback = %{
       "kind" => "checkpoint",
-      "source_check_id" => source.check.id,
+      "source_check_id" => source_check_id,
       "source_implementation_id" => source.implementation.id,
       "prepared_candidate_commit" => source.candidate_commit,
       "implementation_receipt" => source.implementation.receipt,
-      "source_check_receipt" => source.check.receipt,
+      "source_check_receipt" => if(source.check, do: source.check.receipt),
       "check_receipt" => check.receipt,
       "check_output" => if(checkpoint_timeout?(delivery, check), do: nil, else: output),
       "check_output_available" => not checkpoint_timeout?(delivery, check),
       "check_output_limitation" => timeout_limitation(check)
     }
+
+    feedback =
+      if Map.get(source, :source_kind) == :rate_limit do
+        Map.merge(feedback, %{
+          "kind" => "provider_checkpoint",
+          "provider_error_class" => "rate_limit"
+        })
+      else
+        feedback
+      end
 
     {resolution, advice} =
       resolve(delivery, plan_step, plan, check, candidate, sha, feedback, specification)
