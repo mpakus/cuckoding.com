@@ -100,7 +100,15 @@ defmodule Boss.Projects.Intake do
             if Repo.exists?(
                  from r in Request, where: r.project_id == ^project and r.status == "finished"
                ) or
-                 Repo.exists?(from s in Spec, where: s.project_id == ^project),
+                 Repo.exists?(
+                   from s in Spec,
+                     where:
+                       s.project_id == ^project and
+                         fragment(
+                           "NOT EXISTS (SELECT 1 FROM project_documentation_sources refs WHERE refs.spec_id=?)",
+                           s.id
+                         )
+                 ),
                do: Repo.rollback(:already_planned)
 
             {:new,
@@ -258,7 +266,12 @@ defmodule Boss.Projects.Intake do
 
       if request.stop_requested, do: Repo.rollback(:cancelled)
 
-      ids = Enum.map(tasks, &record_task!(request.project_id, workspace, &1))
+      namespace =
+        if Boss.Projects.Documentation.latest(request.project_id),
+          do: "intake-#{request.id}-",
+          else: ""
+
+      ids = Enum.map(tasks, &record_task!(request.project_id, workspace, &1, namespace))
 
       case ids do
         [] ->
@@ -283,9 +296,9 @@ defmodule Boss.Projects.Intake do
     end)
   end
 
-  defp record_task!(project, workspace, task) do
-    id = task["id"]
-    deps = JSON.encode!(task["depends_on"])
+  defp record_task!(project, workspace, task, namespace) do
+    id = namespace <> task["id"]
+    deps = JSON.encode!(Enum.map(task["depends_on"], &(namespace <> &1)))
     acceptance = Enum.map_join(task["acceptance"], "\n", &("- " <> &1))
     sources = Enum.map_join(task["sources"], "\n", &("- " <> &1))
 
