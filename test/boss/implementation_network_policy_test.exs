@@ -79,7 +79,8 @@ defmodule Boss.ImplementationNetworkPolicyTest do
       assert prompt =~ "historical network-denial notes"
       assert prompt =~ "not evidence that installation"
       assert prompt =~ "exact locked revision"
-      assert prompt =~ "does not grant networking or execution permission"
+      assert prompt =~ "Only implementation commands receive this capability"
+      assert prompt =~ "read-only resolution keeps its existing permissions"
       assert prompt =~ JSON.encode!(policy)
       assert {:ok, legacy} = Boss.Deliveries.Protocol.prompt(kind, %{})
       refute legacy =~ "BOSS has pinned implementation_network_policy"

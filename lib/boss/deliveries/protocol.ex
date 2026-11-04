@@ -280,8 +280,8 @@ defmodule Boss.Deliveries.Protocol do
           its commands can access the listed public package hosts and broader local/private
           networking. The implementation may fetch actual locked dependencies and connect
           to an available local database. This capability is not evidence that installation,
-          a database or tests succeeded. It does not grant networking or execution permission
-          to this read-only resolver. Treat historical network-denial notes as evidence of
+          a database or tests succeeded. Only implementation commands receive this capability;
+          read-only resolution keeps its existing permissions. Treat historical network-denial notes as evidence of
           that older attempt, not proof that the new implementation has the same restriction.
           A timeout with check_output_available false has no complete output; do not invent
           an error message or call it a passing check. Inspect cold dependency setup as one
