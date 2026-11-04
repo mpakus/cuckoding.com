@@ -112,6 +112,40 @@ defmodule Boss.DeliveryProtocolTest do
              Protocol.prompt(:resolve, %{"source" => String.duplicate("x", 1_048_576)})
   end
 
+  test "repair advice cannot add acceptance gates or waive explicit security requirements" do
+    input = %{
+      "specification" => "Keep the required security audit passing",
+      "plan" => @plan,
+      "check_config" => %{"argv" => ["mix", "test"]},
+      "previous_feedback" => %{
+        "resolution" => %{"steps" => ["Block all work until the lock is advisory-free"]}
+      }
+    }
+
+    for kind <- [:resolve, :implement] do
+      assert {:ok, prompt} = Protocol.prompt(kind, input)
+      [instructions, serialized] = String.split(prompt, "BOSS delivery input (JSON):\n", parts: 2)
+      assert JSON.decode!(serialized) == input
+      assert instructions =~ "not additional acceptance criteria"
+      assert instructions =~ "explicit project and security requirements"
+      assert instructions =~ "affected version, configuration and reachable code path"
+      assert instructions =~ "Test-only use alone does not establish safety"
+      assert instructions =~ "verified mitigation and remaining risk"
+      assert instructions =~ "cannot waive an explicit security gate or a failing required check"
+      assert instructions =~ "Never hide advisories, suppress scanners"
+      assert instructions =~ "same-task repair commits"
+      assert instructions =~ "task/source provenance, relevant diff"
+      assert instructions =~ "fresh required verification"
+      assert instructions =~ "Never inherit old check or approval evidence"
+    end
+
+    for kind <- [:review, :claude_review, :merge_review, :claude_merge_review] do
+      assert {:ok, prompt} = Protocol.prompt(kind, input)
+      refute prompt =~ "not additional acceptance criteria"
+      assert prompt =~ "every plan acceptance criterion exactly once"
+    end
+  end
+
   test "provider checkpoint feedback is explicit authorization with unverified retained work" do
     feedback = %{
       "kind" => "provider_checkpoint",
