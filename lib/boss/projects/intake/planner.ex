@@ -16,7 +16,7 @@ defmodule Boss.Projects.Intake.Planner do
   def run(project, request_id) do
     request = Boss.Repo.get!(Intake.Request, request_id)
     deadline = if Map.get(request, :planning_version, 0) == 1, do: now() + @planning_ms
-    timer = if deadline, do: Process.send_after(self(), :stop, @planning_ms - @cleanup_ms)
+    timer = deadline_timer(deadline)
     opts = git_options(deadline)
 
     try do
@@ -33,6 +33,7 @@ defmodule Boss.Projects.Intake.Planner do
            :ok <- verify_current(project, workspace, intent, deadline) do
         {:ok, %{workspace: intent, tasks: tasks, deadline_ms: deadline}}
       end
+      |> deadline_result(deadline)
     catch
       :throw, {:halt, reason} -> {:error, reason}
     after
@@ -60,16 +61,23 @@ defmodule Boss.Projects.Intake.Planner do
       ) do
     deadline = Map.get(result, :deadline_ms)
     opts = git_options(deadline)
+    timer = deadline_timer(deadline)
 
-    with :ok <- continue(deadline),
-         {:ok, workspace} <- Workspace.plan(project, id, opts),
-         true <- intent == Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end),
-         :ok <- Integration.preflight(project, id, base, opts),
-         :ok <- continue(deadline) do
-      :ok
-    else
-      false -> {:error, :target_changed}
-      {:error, _} = error -> error
+    try do
+      with :ok <- continue(deadline),
+           {:ok, workspace} <- Workspace.plan(project, id, opts),
+           true <-
+             intent == Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end),
+           :ok <- Integration.preflight(project, id, base, opts),
+           :ok <- continue(deadline) do
+        :ok
+      else
+        false -> {:error, :target_changed}
+        {:error, _} = error -> error
+      end
+      |> deadline_result(deadline)
+    after
+      if timer, do: Process.cancel_timer(timer)
     end
   end
 
@@ -280,26 +288,45 @@ defmodule Boss.Projects.Intake.Planner do
   defp expired?(nil), do: false
   defp expired?(deadline), do: now() >= deadline - @cleanup_ms
   defp now, do: System.monotonic_time(:millisecond)
+  defp deadline_timer(nil), do: nil
+
+  defp deadline_timer(deadline),
+    do: Process.send_after(self(), :stop, max(deadline - now() - @cleanup_ms, 0))
+
+  defp deadline_result({:error, reason} = result, deadline)
+       when reason in [:cancelled, :git_failed],
+       do: if(expired?(deadline), do: {:error, :planning_deadline}, else: result)
+
+  defp deadline_result(result, _), do: result
+
   defp git_options(nil), do: []
 
   defp git_options(deadline) do
-    [
-      runner: fn executable, args, opts ->
-        case continue(deadline) do
-          :ok ->
-            timeout = min(Keyword.get(opts, :timeout_ms, 15_000), deadline - now() - @cleanup_ms)
+    [runner: &run_git(&1, &2, &3, deadline)]
+  end
 
-            Boss.Agents.Process.run(
-              executable,
-              args,
-              Keyword.put(opts, :timeout_ms, max(timeout, 1))
-            )
+  @doc false
+  def run_git(executable, args, opts, deadline) do
+    case continue(deadline) do
+      :ok ->
+        timeout = min(Keyword.get(opts, :timeout_ms, 15_000), deadline - now() - @cleanup_ms)
+        Boss.Agents.Process.run(executable, args, Keyword.put(opts, :timeout_ms, max(timeout, 1)))
 
-          {:error, reason} ->
-            throw({:halt, reason})
-        end
-      end
-    ]
+      {:error, reason} ->
+        # No child was launched. Return the known cancellation through Workspace's
+        # runner boundary; exceptions there deliberately mean unknown ownership.
+        %{
+          outcome: :cancelled,
+          reason: reason,
+          cleanup: :group_empty,
+          eof: %{stdout: false, stderr: false},
+          exit_kind: nil,
+          exit_code: nil,
+          signal: nil,
+          stdout_bytes: 0,
+          stderr_bytes: 0
+        }
+    end
   end
 
   defp documents(project, workspace, opts) do
