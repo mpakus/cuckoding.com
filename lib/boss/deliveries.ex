@@ -398,8 +398,14 @@ defmodule Boss.Deliveries do
 
             source =
               case ExecutionRetry.checkpoint_parent(parent) do
-                {:ok, source} -> source
-                {:error, reason} -> Repo.rollback(reason)
+                {:ok, source} ->
+                  source
+
+                {:error, _} ->
+                  case ExecutionRetry.provider_parent(parent) do
+                    {:ok, source} -> source
+                    {:error, reason} -> Repo.rollback(reason)
+                  end
               end
 
             unless task.state == source.terminal.to_state and
@@ -431,6 +437,8 @@ defmodule Boss.Deliveries do
                 source.implementation.id,
                 %{
                   checkpoint_recovery_version: 1,
+                  provider_recovery_version:
+                    if(Map.get(source, :source_kind) == :rate_limit, do: 1, else: 0),
                   retry_source_check_id: if(source.check, do: source.check.id),
                   implementation_network_version: 1
                 }
@@ -566,6 +574,7 @@ defmodule Boss.Deliveries do
       retry_review_id: retry_review_id,
       retry_implementation_id: retry_implementation_id,
       checkpoint_recovery_version: Map.get(recovery, :checkpoint_recovery_version, 0),
+      provider_recovery_version: Map.get(recovery, :provider_recovery_version, 0),
       retry_source_check_id: Map.get(recovery, :retry_source_check_id),
       implementation_network_version: Map.get(recovery, :implementation_network_version, 0),
       execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
@@ -1131,8 +1140,8 @@ defmodule Boss.Deliveries do
   defp success_receipt?(%Step{kind: "timeout_snapshot", input: i}, r),
     do: sha?(r["candidate_commit"]) and r["workspace"] == i["workspace"]
 
-  defp success_receipt?(%Step{kind: "checkpoint_snapshot", input: i}, r),
-    do: ExecutionRetry.checkpoint_snapshot_receipt?(i, r)
+  defp success_receipt?(%Step{kind: "checkpoint_snapshot"} = step, r),
+    do: ExecutionRetry.checkpoint_snapshot_receipt?(step, r)
 
   defp success_receipt?(%Step{kind: kind, input: i}, r)
        when kind in ["timeout_check", "checkpoint_check"],
