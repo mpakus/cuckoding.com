@@ -3,6 +3,48 @@ defmodule Boss.AutonomyModelPolicyTest do
   alias Boss.Agents.Codex
   alias Boss.Deliveries.ModelPolicy
 
+  test "timeout recovery requires its new policy and an actual known-clean timeout receipt" do
+    step = %{
+      kind: "implement",
+      status: "failed",
+      receipt: %{
+        "outcome" => "timeout",
+        "cleanup" => "group_empty",
+        "exit_kind" => "signal",
+        "exit_code" => nil,
+        "signal" => 15,
+        "eof" => %{"stdout" => true, "stderr" => true}
+      }
+    }
+
+    assert ModelPolicy.current_execution_recovery() == 1
+    assert ModelPolicy.timeout_recoverable?(1, step)
+    refute ModelPolicy.timeout_recoverable?(0, step)
+    refute ModelPolicy.timeout_recoverable?(nil, step)
+    refute ModelPolicy.timeout_recoverable?(1, %{step | kind: "plan"})
+    refute ModelPolicy.timeout_recoverable?(1, %{step | status: "cancelled"})
+
+    for changes <- [
+          %{"outcome" => "cancelled"},
+          %{"outcome" => "exited"},
+          %{"cleanup" => "unknown"},
+          %{"eof" => %{"stdout" => true, "stderr" => false}},
+          %{"exit_kind" => nil},
+          %{"signal" => nil},
+          %{"signal" => 129},
+          %{"exit_code" => 0},
+          %{"exit_kind" => "exit", "exit_code" => 0}
+        ] do
+      refute ModelPolicy.timeout_recoverable?(1, %{
+               step
+               | receipt: Map.merge(step.receipt, changes)
+             })
+    end
+
+    exited = Map.merge(step.receipt, %{"exit_kind" => "exit", "exit_code" => 0, "signal" => nil})
+    assert ModelPolicy.timeout_recoverable?(1, %{step | receipt: exited})
+  end
+
   test "saved legacy policy retains its execution budget and CLI defaults" do
     for version <- [nil, 0] do
       assert ModelPolicy.max_cycles(version) == 3
