@@ -957,3 +957,9 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 - [x] Verify model handoff, Stop/unknown/refusal, source pins and exact publication/Done with finite native fixtures.
 - [x] Review, merge locally, rehearse original-data migration and activate a fresh saved checkpoint request (main f72f68e4, 53 tests7110, child69596842).
 - [ ] Verify real task47 checks, independent review, integration and Done.
+
+## Project child environment — 2026-11-04
+
+- [x] Reproduce inherited launcher settings with finite production-runner tests (seed7201, two expected failures).
+- [ ] Isolate launcher defaults, preserve explicit child overrides and verify real Mix test selection plus native lifecycle checks.
+- [ ] Independently review, merge locally, activate safely and resume real task47 through exact Done.

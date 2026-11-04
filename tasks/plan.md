@@ -631,3 +631,11 @@ before local integration and live activation.
 попытки реализации. Повторный запуск использует её сохранённый checkpoint; таймаут
 проверки остаётся неполным свидетельством и служит только диагностике. Старые
 Failed, лимиты, исходные критерии и требования публикации не переписываются.
+
+### Project child environment — 2026-11-04
+
+Isolate launcher-owned MIX_ENV/PORT/PHX_SERVER/BOSS_DATA_DIR from project child
+processes while preserving explicit child environment overrides and host PATH.
+Reproduce with the production process runner and a dependency-free Mix project;
+verify Stop/cleanup, checks and model runners. Activate only after independent
+review and a safe idle-instance restart, then continue the retained task47 code.

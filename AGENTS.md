@@ -60,6 +60,9 @@
   private ERTS directory, restore it before tool discovery/worker startup and
   consume the handoff marker. Child overrides must not inherit a stale snapshot.
   Do not substitute the BOSS runtime for a project's selected CLI/toolchain.
+  Project children must not inherit BOSS-owned MIX_ENV, PORT, PHX_SERVER or
+  BOSS_DATA_DIR defaults. Preserve explicit child overrides and incoming PATH;
+  never force test mode or mutate the running VM environment to repair a project.
 - Release candidates must bundle and verify native library closure, notices and
   build provenance; test the extracted archive with private fresh data. Keep
   distribution disabled for the local launcher. A local package/smoke is not
