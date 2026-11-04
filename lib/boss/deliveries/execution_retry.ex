@@ -3,7 +3,19 @@ defmodule Boss.Deliveries.ExecutionRetry do
   alias Boss.{Deliveries, Projects, Repo, Tasks}
   alias Boss.Deliveries.{Delivery, Protocol, Step}
 
-  def parent(parent) do
+  def parent(parent), do: implementation_parent(parent, :timeout)
+
+  def provider_parent(parent) do
+    case implementation_parent(parent, :rate_limit) do
+      {:ok, source} ->
+        {:ok, Map.merge(source, %{source_kind: :rate_limit, check: nil, candidate_commit: nil})}
+
+      _ ->
+        {:error, :checkpoint_retry_unavailable}
+    end
+  end
+
+  defp implementation_parent(parent, cause) do
     all = Deliveries.steps(parent.id)
     implementation = List.last(all)
     plan = if implementation, do: Enum.find(all, &(&1.id == implementation.input["plan_step_id"]))
@@ -26,7 +38,7 @@ defmodule Boss.Deliveries.ExecutionRetry do
            terminal.version == parent.task_version + 1 and
              terminal.spec_revision_id == parent.spec_revision_id,
          %Step{kind: "implement", cycle: cycle} <- implementation,
-         true <- cycle == parent.cycle and timeout?(implementation),
+         true <- cycle == parent.cycle and implementation_failure?(parent, implementation, cause),
          true <- Deliveries.implementation_base?(parent, implementation),
          %Step{kind: "plan", status: "finished"} <- plan,
          {:ok, report} <- Protocol.plan(JSON.encode!(plan.receipt["report"])),
@@ -45,6 +57,13 @@ defmodule Boss.Deliveries.ExecutionRetry do
       _ -> {:error, :execution_retry_unavailable}
     end
   end
+
+  defp implementation_failure?(_, step, :timeout), do: timeout?(step)
+
+  defp implementation_failure?(parent, step, :rate_limit),
+    do:
+      parent.failure_code == "provider_rate_limit" and
+        Boss.Deliveries.ModelPolicy.rate_limit_checkpoint?(1, step)
 
   def checkpoint_parent(parent) do
     case parent(parent) do
@@ -178,14 +197,16 @@ defmodule Boss.Deliveries.ExecutionRetry do
     with %Step{} = implementation <- Repo.get(Step, child.retry_implementation_id),
          %Delivery{} = parent <- Repo.get(Delivery, source_parent_id(child, implementation)),
          {:ok, source} <-
-           if(child.checkpoint_recovery_version == 1,
-             do: checkpoint_parent(parent),
-             else: parent(parent)
-           ),
+           (cond do
+              child.provider_recovery_version == 1 -> provider_parent(parent)
+              child.checkpoint_recovery_version == 1 -> checkpoint_parent(parent)
+              true -> parent(parent)
+            end),
          true <-
            source.implementation.id == child.retry_implementation_id and
              child.execution_recovery_version == 1,
          true <- child.admitted_version == source.terminal.version,
+         true <- child.provider_recovery_version == 0 or child.checkpoint_recovery_version == 1,
          true <-
            child.checkpoint_recovery_version == 0 or
              (child.implementation_network_version == 1 and
@@ -294,6 +315,23 @@ defmodule Boss.Deliveries.ExecutionRetry do
   end
 
   def valid_next?(
+        %Delivery{checkpoint_recovery_version: 1, provider_recovery_version: 1} = d,
+        %Step{kind: "plan", number: 1, status: "finished"} = p,
+        "checkpoint_snapshot",
+        0,
+        i
+      ) do
+    with {:ok, %{source_kind: :rate_limit} = source} <- source(d),
+         {:ok, _} <- Ecto.UUID.cast(i["check_id"]) do
+      i["run_workspace"] == source.implementation.input["workspace"] and
+        i["implementation_step_id"] == source.implementation.id and i["plan_step_id"] == p.id and
+        is_nil(i["source_check_id"]) and is_nil(i["source_candidate_commit"])
+    else
+      _ -> false
+    end
+  end
+
+  def valid_next?(
         %Delivery{checkpoint_recovery_version: 1} = d,
         %Step{kind: "plan", number: 1, status: "finished"} = p,
         "checkpoint_snapshot",
@@ -386,13 +424,15 @@ defmodule Boss.Deliveries.ExecutionRetry do
 
   def valid_next?(_, _, _, _, _), do: false
 
-  def checkpoint_snapshot_receipt?(i, r) do
+  def checkpoint_snapshot_receipt?(%Step{input: i, delivery_id: id}, r) do
     w = r["workspace"]
+    d = Repo.get!(Delivery, id)
 
     is_map(w) and map_size(w) == 4 and w["run_workspace"] == i["run_workspace"] and
       w["check_id"] == i["check_id"] and
       w["ref"] == "refs/boss/checks/" <> i["check_id"] and is_binary(w["path"]) and
-      sha?(r["candidate_commit"])
+      sha?(r["candidate_commit"]) and
+      (d.provider_recovery_version == 0 or w["path"] != i["run_workspace"]["path"])
   end
 
   def check_timeout?(%Step{kind: kind} = step)
