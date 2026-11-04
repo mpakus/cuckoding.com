@@ -2,7 +2,7 @@ defmodule Boss.Deliveries do
   @moduledoc "Explicit managed delivery, with immutable stage receipts and manual publication."
   import Ecto.Query
   alias Boss.{Repo, Runs, Tasks}
-  alias Boss.Deliveries.{Delivery, ModelPolicy, Scheduling, Step}
+  alias Boss.Deliveries.{Delivery, ExecutionRetry, ModelPolicy, Scheduling, Step}
   alias Boss.Agents.ModelCatalog
   alias Boss.Projects.{Project, Spec, SpecRevision}
   @active ~w(planning implementing testing reviewing integrating)
@@ -13,6 +13,8 @@ defmodule Boss.Deliveries do
     "resolve" => "planning",
     "retry_snapshot" => "planning",
     "retry_check" => "planning",
+    "timeout_snapshot" => "testing",
+    "timeout_check" => "testing",
     "implement" => "implementing",
     "snapshot" => "testing",
     "check" => "testing",
@@ -84,6 +86,16 @@ defmodule Boss.Deliveries do
           end
 
         saved_steps = steps(d.id)
+        repair_model = ExecutionRetry.repair_model(d, kind, saved_steps)
+
+        preferred =
+          if repair_model && not (kind == "resolve" and cycle == 2) do
+            if repair_model == resolver_model(d),
+              do: hd(d.model_catalog["fallbacks"]),
+              else: d.model_catalog["resolver"]
+          else
+            preferred
+          end
 
         excluded =
           saved_steps
@@ -99,6 +111,11 @@ defmodule Boss.Deliveries do
             _ ->
               excluded
           end
+
+        excluded =
+          if repair_model && not (kind == "resolve" and cycle == 2),
+            do: [repair_model | excluded],
+            else: excluded
 
         if d.routing_version == 1,
           do: ModelPolicy.select(preferred, excluded),
@@ -181,7 +198,8 @@ defmodule Boss.Deliveries do
             check_config: ^config,
             config_hash: ^hash,
             reviewer: ^reviewer,
-            retry_review_id: nil
+            retry_review_id: nil,
+            retry_implementation_id: nil
           } = saved ->
             {:existing, saved}
 
@@ -242,6 +260,9 @@ defmodule Boss.Deliveries do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
+            if parent.execution_recovery_version == 1,
+              do: Repo.rollback(:execution_retry_unavailable)
+
             task = queued_task!(project, parent.task_id)
             Boss.Projects.Documentation.ensure_executable!(task.id)
             {:ok, source} = retry_source!(parent, candidate)
@@ -275,6 +296,69 @@ defmodule Boss.Deliveries do
               )
 
             {:new, delivery}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_command}
+    end
+  end
+
+  def admit_timeout_retry(project, parent_id, command, replay_only \\ false) do
+    with true <- valid_id?(project) and is_boolean(replay_only),
+         {:ok, _} <- Ecto.UUID.cast(parent_id),
+         {:ok, _} <- Ecto.UUID.cast(command) do
+      transaction(fn ->
+        parent = get(project, parent_id) || Repo.rollback(:not_found)
+
+        case Repo.get_by(Delivery, task_id: parent.task_id, command_id: command) do
+          %Delivery{execution_recovery_version: 1, retry_implementation_id: source_id} = saved ->
+            case Repo.get(Step, source_id) do
+              %Step{delivery_id: ^parent_id} -> {:existing, saved}
+              _ -> Repo.rollback(:idempotency_conflict)
+            end
+
+          %Delivery{} ->
+            Repo.rollback(:idempotency_conflict)
+
+          nil ->
+            task = queued_task!(project, parent.task_id)
+            Boss.Projects.Documentation.ensure_executable!(task.id)
+
+            source =
+              case ExecutionRetry.parent(parent) do
+                {:ok, source} -> source
+                {:error, reason} -> Repo.rollback(reason)
+              end
+
+            unless task.state == "failed" and task.state_version == source.terminal.version,
+              do: Repo.rollback(:execution_retry_unavailable)
+
+            if Boss.Deliveries.Queue.pending?(task.id), do: Repo.rollback(:task_queued)
+
+            if Repo.exists?(
+                 from r in Boss.Deliveries.Request,
+                   where: r.task_id == ^task.id and r.command_id == ^command
+               ),
+               do: Repo.rollback(:idempotency_conflict)
+
+            child =
+              admit_new!(
+                project,
+                task,
+                command,
+                parent.check_config,
+                parent.config_hash,
+                parent.reviewer,
+                replay_only,
+                nil,
+                nil,
+                parent.autonomy_version,
+                parent.routing_version,
+                parent.model_catalog,
+                source.implementation.id
+              )
+
+            {:new, child}
         end
       end)
     else
@@ -359,7 +443,8 @@ defmodule Boss.Deliveries do
          retry_candidate_commit,
          autonomy_version,
          routing_version,
-         model_catalog \\ %{}
+         model_catalog \\ %{},
+         retry_implementation_id \\ nil
        ) do
     Boss.Projects.Documentation.ensure_executable!(task.id)
 
@@ -400,6 +485,8 @@ defmodule Boss.Deliveries do
       task_version: task.state_version,
       command_id: command,
       retry_review_id: retry_review_id,
+      retry_implementation_id: retry_implementation_id,
+      execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
       autonomy_version: autonomy_version,
@@ -510,6 +597,13 @@ defmodule Boss.Deliveries do
                 {:ok, source} -> source
                 {:error, reason} -> Repo.rollback(reason)
               end
+
+            unless value["base_commit"] == source.parent.intent["base_commit"],
+              do: Repo.rollback(:invalid_intent)
+          end
+
+          if delivery.retry_implementation_id do
+            {:ok, source} = ExecutionRetry.source(delivery)
 
             unless value["base_commit"] == source.parent.intent["base_commit"],
               do: Repo.rollback(:invalid_intent)
@@ -731,12 +825,19 @@ defmodule Boss.Deliveries do
     end
   end
 
+  defp valid_next?(%Delivery{execution_recovery_version: 1} = d, nil, "plan", 0, i),
+    do: d.status == "planning" and d.intent != %{} and ExecutionRetry.seed_input?(d, i)
+
   defp valid_next?(d, nil, "plan", 0, i),
     do:
       d.status == "planning" and d.intent != %{} and i["workspace"] == d.intent and
         (is_nil(d.retry_review_id) or i["source_review_id"] == d.retry_review_id)
 
   defp valid_next?(_, %Step{status: "running"}, _, _, _), do: false
+
+  defp valid_next?(d, previous, kind, cycle, i)
+       when kind in ["timeout_snapshot", "timeout_check"],
+       do: ExecutionRetry.valid_next?(d, previous, kind, cycle, i)
 
   defp valid_next?(%Delivery{autonomy_version: 1} = d, previous, "resolve", cycle, i),
     do: resolution_input?(d, previous, cycle, i)
@@ -762,7 +863,11 @@ defmodule Boss.Deliveries do
          cycle,
          i
        ) do
-    resolution_passed?(previous) and previous.cycle > 0 and cycle == previous.cycle + 1 and
+    resolution_passed?(previous) and
+      (previous.cycle > 0 or
+         (d.execution_recovery_version == 1 and
+            match?(%Step{kind: "timeout_check"}, saved_step(previous.input["source_step_id"])))) and
+      cycle == previous.cycle + 1 and
       cycle <= ModelPolicy.max_cycles(d.autonomy_version) and
       i["parent_step_id"] == previous.id and i["resolution_step_id"] == previous.id and
       i["source_step_id"] == previous.input["source_step_id"] and
@@ -778,7 +883,8 @@ defmodule Boss.Deliveries do
          i
        ),
        do:
-         is_nil(d.retry_review_id) and i["plan_step_id"] == id and
+         is_nil(d.retry_review_id) and is_nil(d.retry_implementation_id) and
+           i["plan_step_id"] == id and
            (d.autonomy_version == 0 or
               (is_nil(r["report"]["clarification"]) and r["report"]["acceptance"] != []))
 
@@ -931,6 +1037,17 @@ defmodule Boss.Deliveries do
       process_passed?(r) and r["candidate_commit"] == input["candidate_commit"] and
         r["output_complete"] == true and hash?(r["output_hash"])
 
+  defp success_receipt?(%Step{kind: "timeout_snapshot", input: i}, r),
+    do: sha?(r["candidate_commit"]) and r["workspace"] == i["workspace"]
+
+  defp success_receipt?(%Step{kind: "timeout_check", input: i}, r),
+    do:
+      process_passed?(r) and r["candidate_commit"] == i["candidate_commit"] and
+        r["output_complete"] == true and hash?(r["output_hash"])
+
+  defp success_receipt?(%Step{kind: "plan"} = step, %{"outcome" => "retained_plan"} = r),
+    do: ExecutionRetry.seed_receipt?(step, r)
+
   defp success_receipt?(%Step{kind: "plan"} = step, r),
     do:
       process_passed?(r) and valid_plan?(r["report"]) and
@@ -961,6 +1078,12 @@ defmodule Boss.Deliveries do
     do:
       r["exit_kind"] == "exit" and r["exit_code"] == 0 and
         r["eof"] == %{"stdout" => true, "stderr" => true}
+
+  defp pin_model!(%Delivery{execution_recovery_version: 1} = d, "plan", 0, input) do
+    if is_nil(latest(d.id)) and ExecutionRetry.seed_input?(d, input),
+      do: input,
+      else: Repo.rollback(:invalid_step)
+  end
 
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
@@ -1030,6 +1153,12 @@ defmodule Boss.Deliveries do
       _ -> false
     end
   end
+
+  defp recoverable_source?(
+         %Delivery{execution_recovery_version: 1},
+         %Step{kind: "timeout_check"} = s
+       ),
+       do: ExecutionRetry.check?(s)
 
   defp recoverable_source?(%Delivery{routing_version: 2}, %Step{kind: "implement"} = source),
     do:
@@ -1106,7 +1235,8 @@ defmodule Boss.Deliveries do
 
   defp shared_provider_failure?(_, _), do: false
 
-  defp implementation_base?(d, source) do
+  @doc false
+  def implementation_base?(d, source) do
     base = get_in(source.input, ["workspace", "base_commit"])
 
     with %Step{delivery_id: id} = parent <- saved_step(source.input["parent_step_id"]),
@@ -1121,7 +1251,8 @@ defmodule Boss.Deliveries do
             base == parent.input["candidate_commit"] and
             Boss.Deliveries.Retry.valid_next?(d, parent, "implement", 1, source.input)
 
-        {cycle, _, "resolve"} when cycle > 1 ->
+        {cycle, _, "resolve"}
+        when cycle > 1 or (cycle == 1 and d.execution_recovery_version == 1) ->
           parent.cycle == cycle - 1 and resolution_passed?(parent) and
             parent.input["plan_step_id"] == source.input["plan_step_id"] and
             base == parent.input["candidate_commit"]
@@ -1214,7 +1345,7 @@ defmodule Boss.Deliveries do
              plan.kind == "plan" and plan.status == "finished" and
              valid_plan?(plan.receipt["report"]) and
              process_passed?(review.receipt) and process_passed?(check.receipt) and
-             process_passed?(plan.receipt) and
+             (process_passed?(plan.receipt) or ExecutionRetry.seed_receipt?(plan, plan.receipt)) and
              review.receipt["cleanup"] == "group_empty" and
              check.receipt["cleanup"] == "group_empty" and
              report["verdict"] == "approved" and
