@@ -260,6 +260,39 @@ defmodule Boss.Deliveries.Protocol do
       end
 
     role =
+      if kind in [:review, :merge_review, :claude_review, :claude_merge_review] do
+        role <>
+          """
+
+          Return one complete JSON object with exactly four keys: verdict, summary, acceptance, issues.
+          No extra or duplicate keys, wrapper object, Markdown fences or surrounding prose.
+          The entire report must fit 32768 UTF-8 bytes total, including keys, punctuation,
+          escaping and whitespace. Keep evidence concise; never truncate JSON or criteria.
+          summary: a nonblank string of 1–2000 UTF-8 bytes.
+          acceptance: 1–20 objects, each with exactly criterion, status, evidence.
+          Copy every saved plan criterion exactly once, verbatim, including punctuation and whitespace;
+          do not add, paraphrase, shorten or duplicate criteria.
+          criterion 1–1000 UTF-8 bytes; evidence 1–2000 UTF-8 bytes, both nonblank strings.
+          status must be the string passed, failed or unclear.
+          issues: 0–20 objects, each with exactly criterion, message. Use the exact saved
+          criterion string (1–1000 UTF-8 bytes); message 1–2000 UTF-8 bytes, nonblank.
+          Every failed or unclear criterion must have at least one matching issue.
+          No issue may name a passed or undeclared criterion.
+          verdict must be the string approved, changes_requested or needs_spec_revision:
+          approved requires all criteria passed and explicit issues: [];
+          changes_requested requires at least one failed criterion and nonempty issues;
+          needs_spec_revision requires at least one unclear criterion and nonempty issues.
+          Individual field limits do not replace the total byte budget.
+          Use top-level candidate_commit, check_receipt and check_output as the current
+          candidate's check evidence. Previous feedback is historical: re-evaluate its
+          findings against this exact candidate, without substituting an older failure,
+          passing check or approval for the current evidence.
+          """
+      else
+        role
+      end
+
+    role =
       if kind in [:resolve, :implement] do
         role <>
           """

@@ -252,6 +252,47 @@ defmodule Boss.DeliveryProtocolTest do
     end
   end
 
+  test "every reviewer prompt states the exact bounded report and current-evidence contract" do
+    input = %{
+      "plan" => @plan,
+      "candidate_commit" => String.duplicate("c", 40),
+      "check_receipt" => %{"exit_code" => 0, "output_complete" => true},
+      "check_output" => %{"stdout" => "Current candidate passed", "stderr" => ""},
+      "previous_feedback" => %{"check_receipt" => %{"exit_code" => 1}}
+    }
+
+    for kind <- [:review, :merge_review, :claude_review, :claude_merge_review] do
+      assert {:ok, prompt} = Protocol.prompt(kind, input)
+      [instructions, serialized] = String.split(prompt, "BOSS delivery input (JSON):\n", parts: 2)
+      assert JSON.decode!(serialized) == input
+      assert instructions =~ "exactly four keys: verdict, summary, acceptance, issues"
+      assert instructions =~ "32768 UTF-8 bytes total"
+      assert instructions =~ "summary: a nonblank string of 1–2000 UTF-8 bytes"
+
+      assert instructions =~
+               "acceptance: 1–20 objects, each with exactly criterion, status, evidence"
+
+      assert instructions =~ "verbatim, including punctuation and whitespace"
+      assert instructions =~ "criterion 1–1000 UTF-8 bytes; evidence 1–2000 UTF-8 bytes"
+      assert instructions =~ "issues: 0–20 objects, each with exactly criterion, message"
+      assert instructions =~ "message 1–2000 UTF-8 bytes"
+
+      assert instructions =~
+               "Every failed or unclear criterion must have at least one matching issue"
+
+      assert instructions =~ "No issue may name a passed or undeclared criterion"
+      assert instructions =~ "approved requires all criteria passed and explicit issues: []"
+      assert instructions =~ "changes_requested requires at least one failed criterion"
+      assert instructions =~ "needs_spec_revision requires at least one unclear criterion"
+
+      assert instructions =~
+               "No extra or duplicate keys, wrapper object, Markdown fences or surrounding prose"
+
+      assert instructions =~ "top-level candidate_commit, check_receipt and check_output"
+      assert instructions =~ "Previous feedback is historical"
+    end
+  end
+
   test "review must cover the saved plan criteria exactly" do
     report = %{
       "verdict" => "approved",
