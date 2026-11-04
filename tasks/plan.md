@@ -640,3 +640,12 @@ Reproduce with the production process runner and a dependency-free Mix project;
 verify Stop/cleanup, checks and model runners. Activate only after independent
 review and a verified single dev reload or safe idle-instance restart, then continue
 the retained task47 code.
+
+### Explicit provider-capacity continuation
+
+Keep the shared provider stop. An explicitly requested retry can preserve work
+from a clean, typed rate-limit failure during implementation. Pin the new policy,
+original task event, plan, implementation workspace and source receipt before
+capturing it. Run the saved check and model diagnosis before repair and retain
+the original review, publication and postcheck gates. Prove the native sequence
+through Done with finite fixtures before continuing the real task.

@@ -964,3 +964,9 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 - [x] Isolate launcher defaults, preserve explicit child overrides and verify real Mix test selection plus native lifecycle checks (32 passed7202, full native Done7203).
 - [x] Independently review, merge locally and activate with a verified single dev reload (edb70e7, oldworker cleanup preserved).
 - [ ] Verify real task47 through passing checks, review, publication, postchecks and exact Done.
+
+### Explicit provider-capacity continuation
+
+- [x] Identify the typed terminal rate limit and verify the retained application source on a fresh PostgreSQL test copy.
+- [ ] Verify immutable admission, migration preservation, fresh captured checks and the complete native flow to Done.
+- [ ] Continue the real task with its pinned criteria and verify its approved and published commit.
