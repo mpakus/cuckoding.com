@@ -1128,7 +1128,7 @@ defmodule Boss.Deliveries.Worker do
   end
 
   @doc false
-  def run_agent(kind, path, prompt, decode, profile \\ nil) do
+  def run_agent(kind, path, prompt, decode, profile \\ nil, opts \\ []) do
     continue!()
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
 
@@ -1138,7 +1138,8 @@ defmodule Boss.Deliveries.Worker do
         Codex.args(:implement, nil, profile),
         path,
         prompt,
-        not is_nil(profile)
+        not is_nil(profile),
+        opts
       )
     else
       case ReportFile.with_file(fn output, file ->
@@ -1148,27 +1149,74 @@ defmodule Boss.Deliveries.Worker do
                  Codex.args(kind, output, profile),
                  path,
                  prompt,
-                 not is_nil(profile)
+                 not is_nil(profile),
+                 opts
                )
 
-             if receipt["status"] == "finished" do
-               with {:ok, text} <- ReportFile.read(output, file),
-                    {:ok, report} <- decode.(text) do
-                 Map.put(receipt, "report", report)
-               else
-                 _ -> Map.merge(receipt, failure(:invalid_report))
-               end
+             if Keyword.get(opts, :report_diagnostics, false) do
+               decode_report(receipt, output, file, decode)
              else
-               receipt
+               if receipt["status"] == "finished" do
+                 with {:ok, text} <- ReportFile.read(output, file),
+                      {:ok, report} <- decode.(text) do
+                   Map.put(receipt, "report", report)
+                 else
+                   _ -> Map.merge(receipt, failure(:invalid_report))
+                 end
+               else
+                 receipt
+               end
              end
            end) do
-        {:error, reason} -> failure(reason)
-        receipt -> receipt
+        {:error, reason} ->
+          if Keyword.get(opts, :report_diagnostics, false),
+            do: %{
+              "status" => "failed",
+              "cleanup" => "not_started",
+              "outcome" => "failed",
+              "validation_code" => "report_unavailable",
+              "report_bytes" => nil
+            },
+            else: failure(reason)
+
+        receipt ->
+          receipt
       end
     end
   end
 
-  defp agent_process(executable, args, path, prompt, drain_model_errors?) do
+  defp decode_report(receipt, output, file, decode) do
+    receipt =
+      Map.merge(receipt, %{"report_bytes" => ReportFile.size(file), "validation_code" => nil})
+
+    if receipt["status"] == "finished" do
+      case ReportFile.read_checked(output, file) do
+        {:ok, text, bytes} ->
+          case decode.(text) do
+            {:ok, report} ->
+              Map.merge(receipt, %{
+                "report" => report,
+                "report_bytes" => bytes,
+                "validation_code" => "valid"
+              })
+
+            {:error, code} when is_atom(code) ->
+              receipt
+              |> Map.merge(failure(:invalid_report))
+              |> Map.put("validation_code", Atom.to_string(code))
+          end
+
+        {:error, code, bytes} ->
+          receipt
+          |> Map.merge(failure(:invalid_report))
+          |> Map.merge(%{"report_bytes" => bytes, "validation_code" => Atom.to_string(code)})
+      end
+    else
+      receipt
+    end
+  end
+
+  defp agent_process(executable, args, path, prompt, drain_model_errors?, opts) do
     continue!()
     parser = :ets.new(:delivery_codex, [:set, :public])
     :ets.insert(parser, {:state, Codex.new()})
@@ -1189,7 +1237,7 @@ defmodule Boss.Deliveries.Worker do
         Runner.run(executable, args,
           cd: path,
           input: prompt,
-          timeout_ms: 1_200_000,
+          timeout_ms: agent_timeout(opts),
           output_limit: 8_388_608,
           on_event: callback
         )
@@ -1201,6 +1249,17 @@ defmodule Boss.Deliveries.Worker do
       |> Map.put("summary", Codex.summary(state))
     after
       :ets.delete(parser)
+    end
+  end
+
+  defp agent_timeout(opts) do
+    case Keyword.get(opts, :deadline_ms) do
+      nil ->
+        1_200_000
+
+      deadline when is_integer(deadline) ->
+        remaining = deadline - System.monotonic_time(:millisecond) - 5_000
+        if remaining > 0, do: min(remaining, 1_200_000), else: throw({:halt, :planning_deadline})
     end
   end
 
