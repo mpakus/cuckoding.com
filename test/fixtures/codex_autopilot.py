@@ -73,12 +73,15 @@ with (root / "calls").open("a") as log:
                          "resolution_attempt": data.get("resolution_attempt")}) + "\n")
 print(json.dumps({"type": "turn.started"}), flush=True)
 if kind == "implement":
-    if mode in ("timeout_source", "network_source"):
+    if mode in ("timeout_source", "network_source", "provider_source"):
         Path("partial-only.txt").write_text("retained bootstrap input\n")
         Path("result.txt").write_text("partial\n")
         if mode == "timeout_source":
             time.sleep(30)
             sys.exit(2)
+        if mode == "provider_source":
+            print(json.dumps({"type": "error", "code": "rate_limit_exceeded"}), flush=True)
+            sys.exit(1)
         assert not any("sandbox_workspace_write.network_access" in arg for arg in args)
         print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
         sys.exit(0)
