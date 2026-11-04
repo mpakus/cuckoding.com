@@ -247,7 +247,7 @@ defmodule Boss.Repo.Migrations.AddExecutionRecovery do
 
   defp transport(s),
     do:
-      "json_extract(#{s}.receipt,'$.cleanup')='group_empty' AND json_extract(#{s}.receipt,'$.exit_kind')='exit' AND json_type(#{s}.receipt,'$.eof.stdout')='true' AND json_type(#{s}.receipt,'$.eof.stderr')='true'"
+      "json_extract(#{s}.receipt,'$.cleanup')='group_empty' AND json_extract(#{s}.receipt,'$.exit_kind')='exit' AND json_type(#{s}.receipt,'$.exit_code')='integer' AND json_type(#{s}.receipt,'$.eof.stdout')='true' AND json_type(#{s}.receipt,'$.eof.stderr')='true'"
 
   defp passed(s), do: "(#{transport(s)} AND json_extract(#{s}.receipt,'$.exit_code')=0)"
 

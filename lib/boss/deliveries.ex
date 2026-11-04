@@ -1042,7 +1042,8 @@ defmodule Boss.Deliveries do
 
   defp success_receipt?(%Step{kind: "timeout_check", input: i}, r),
     do:
-      process_passed?(r) and r["candidate_commit"] == i["candidate_commit"] and
+      process_passed?(r) and is_integer(r["exit_code"]) and
+        r["candidate_commit"] == i["candidate_commit"] and
         r["output_complete"] == true and hash?(r["output_hash"])
 
   defp success_receipt?(%Step{kind: "plan"} = step, %{"outcome" => "retained_plan"} = r),

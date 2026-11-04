@@ -180,7 +180,7 @@ defmodule Boss.Deliveries.ExecutionRetry do
   def valid_next?(_, _, _, _, _), do: false
 
   def check?(%Step{kind: "timeout_check", status: status, input: i, receipt: r}) do
-    r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
+    r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and is_integer(r["exit_code"]) and
       r["eof"] == %{"stdout" => true, "stderr" => true} and
       r["output_complete"] == true and hash?(r["output_hash"]) and
       r["candidate_commit"] == i["candidate_commit"] and
@@ -244,7 +244,8 @@ defmodule Boss.Deliveries.ExecutionRetry do
 
   defp passed?(r),
     do:
-      r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and r["exit_code"] == 0 and
+      r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and is_integer(r["exit_code"]) and
+        r["exit_code"] == 0 and
         r["eof"] == %{"stdout" => true, "stderr" => true}
 
   defp sha?(s), do: is_binary(s) and Regex.match?(~r/\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/, s)

@@ -426,7 +426,9 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_140_000,
-               Boss.Repo.Migrations.AddExecutionRecovery, log: false)
+               Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.up(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery,
@@ -508,6 +510,8 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
 
     for r <- [
           Map.put(valid, "output_complete", 1),
+          Map.put(valid, "exit_code", false),
+          Map.put(valid, "exit_code", 0.0),
           Map.put(valid, "output_hash", String.duplicate("z", 64)),
           put_in(valid, ["eof", "stdout"], 1),
           Map.put(valid, "candidate_commit", String.duplicate("d", 40))
