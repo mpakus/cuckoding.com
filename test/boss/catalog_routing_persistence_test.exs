@@ -322,7 +322,9 @@ defmodule Boss.CatalogRoutingPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_120_000,
-               Boss.Repo.Migrations.ConvertProjectDocumentation, log: false)
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(Repo, 20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting,
@@ -338,7 +340,9 @@ defmodule Boss.CatalogRoutingPersistenceTest do
              Ecto.Migrator.up(
                Repo,
                20_261_106_120_000,
-               Boss.Repo.Migrations.ConvertProjectDocumentation, log: false)
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
 
     assert Repo.get!(Request, old.id).routing_version == 1
     {:ok, _} = Queue.cancel(c.project.id, old.id)
@@ -356,7 +360,9 @@ defmodule Boss.CatalogRoutingPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_120_000,
-               Boss.Repo.Migrations.ConvertProjectDocumentation, log: false)
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
 
     routing = Boss.Repo.Migrations.AddCatalogRouting
     continuation = Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure

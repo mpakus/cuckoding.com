@@ -318,7 +318,9 @@ defmodule Boss.AutonomyPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_120_000,
-               Boss.Repo.Migrations.ConvertProjectDocumentation, log: false)
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
 
     # Remove the independent later routing guards before exercising the old schema.
     assert :ok =
@@ -341,7 +343,9 @@ defmodule Boss.AutonomyPersistenceTest do
              Ecto.Migrator.up(
                Repo,
                20_261_106_120_000,
-               Boss.Repo.Migrations.ConvertProjectDocumentation, log: false)
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
 
     assert Repo.get!(Request, request.id).autonomy_version == 0
     {:ok, _} = Queue.cancel(c.project.id, request.id)

@@ -903,9 +903,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
 - [x] Identify wrong intake mode and verify the documentation bundle fits existing
   planner bounds; no task/source rewrite or provider call during diagnosis.
-- [ ] Verify atomic conversion, immutable reference membership and execution guards.
-- [ ] Verify conversion UI, historical links and uncertain command replay.
-- [ ] Verify generated dependent tasks repair and reach actual Done while preserving
+- [x] Verify atomic conversion, immutable reference membership and execution guards.
+- [x] Verify conversion UI, historical links and uncertain command replay.
+- [x] Verify generated dependent tasks repair and reach actual Done while preserving
   old Failed/Blocked/NeedsInput receipts; invalid plans leave no partial batch.
 - [ ] Complete independent review, focused regression and local-main integration.
 - [ ] Rehearse migration on a private data copy and activate the reviewed update.

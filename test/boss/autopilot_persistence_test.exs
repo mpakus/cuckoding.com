@@ -256,7 +256,9 @@ defmodule Boss.AutopilotPersistenceTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_120_000,
-               Boss.Repo.Migrations.ConvertProjectDocumentation, log: false)
+               Boss.Repo.Migrations.ConvertProjectDocumentation,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(Repo, 20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting,
