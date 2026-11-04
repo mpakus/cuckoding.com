@@ -454,6 +454,32 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
     assert {:error, _} = raw_attempt(r, 3, b.id, hd(@catalog["fallbacks"]))
   end
 
+  test "legacy planning cannot acquire another request's acceptance lineage", c do
+    r = request(c)
+    {:ok, attempt} = Intake.begin_attempt(r.id)
+    {:ok, _} = Intake.finish_attempt(attempt.id, success([]))
+
+    Repo.query!(
+      "UPDATE project_intakes SET status='finished',cleanup='group_empty',accepted_attempt_id=? WHERE id=?",
+      [attempt.id, r.id]
+    )
+
+    old = legacy(c)
+
+    assert {:error, _} =
+             Repo.query("UPDATE project_intakes SET accepted_attempt_id=? WHERE id=?", [
+               attempt.id,
+               old.id
+             ])
+
+    assert Repo.get!(Request, old.id) == old
+    assert old.planning_version == 0 and old.accepted_attempt_id == nil
+    assert Intake.attempts(old.id) == []
+
+    assert {:ok, {:existing, ^old}} =
+             Intake.admit(c.project.id, old.command_id, "true", "codex", true)
+  end
+
   defp request(c) do
     {:ok, {:new, r}} = Intake.admit(c.project.id, Ecto.UUID.generate(), "true", "codex", false)
     {:ok, r} = Intake.set_model_catalog(r.id, @catalog)
