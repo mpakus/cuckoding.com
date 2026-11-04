@@ -969,4 +969,5 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 
 - [x] Identify the typed terminal rate limit and verify the retained application source on a fresh PostgreSQL test copy.
 - [x] Verify immutable admission, migration preservation, fresh captured checks and the complete native flow to Done (7313, 7316, 7317).
+- [x] Review and activate the exact report contract for managed review and merge review (a2c8087, 22 tests7456).
 - [ ] Continue the real task with its pinned criteria and verify its approved and published commit.

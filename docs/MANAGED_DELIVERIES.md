@@ -106,6 +106,9 @@ plus the configured checks; its coverage is limited by the actual command and
 criteria, not a general proof that arbitrary code is correct.
 Codex can inspect the candidate through its read-only sandbox. Claude assesses
 only supplied evidence, without model filesystem or shell tools.
+Both prompts specify the exact JSON fields, UTF-8 byte limits, and the required
+relationship between criteria, issues and verdict. The top-level check receipt
+and output apply to the current candidate. Previous feedback remains historical.
 
 Check text is transient and sent to the selected reviewer and Codex fixer; it is not stored in SQLite or browser
 history. Persisted receipts contain sanitized counts/hashes, typed plan/review

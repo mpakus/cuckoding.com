@@ -439,6 +439,8 @@
   artifact only after protocol completion, EOF and known cleanup.
 - Bound review input/report size without truncation. Preserve JSON object pairs
   until duplicate/unknown keys are rejected; require criterion/issue consistency.
+  Give every managed reviewer the exact report keys, byte limits and verdict
+  rules. Identify the current candidate's check evidence separately from history.
   Keep execution status separate from model verdict and task approval/Done.
 - Hold the exclusively created report file descriptor and reject replacement paths.
   One monitor owns cleanup and atomically invalidates the CLI path before unlinking;
