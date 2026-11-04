@@ -39,7 +39,8 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
-    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
   ]
 
   setup do
@@ -399,6 +400,14 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
     assert :ok =
              Ecto.Migrator.down(
                Repo,
+               20_261_106_150_000,
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
                20_261_106_140_000,
                Boss.Repo.Migrations.AddExecutionRecovery,
                log: false
@@ -420,6 +429,14 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
              )
 
     request(c)
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_150_000,
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(

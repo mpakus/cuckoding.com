@@ -73,18 +73,28 @@ with (root / "calls").open("a") as log:
                          "resolution_attempt": data.get("resolution_attempt")}) + "\n")
 print(json.dumps({"type": "turn.started"}), flush=True)
 if kind == "implement":
-    if mode == "timeout_source":
+    if mode in ("timeout_source", "network_source"):
         Path("partial-only.txt").write_text("retained bootstrap input\n")
         Path("result.txt").write_text("partial\n")
-        time.sleep(30)
-        sys.exit(2)
+        if mode == "timeout_source":
+            time.sleep(30)
+            sys.exit(2)
+        assert not any("sandbox_workspace_write.network_access" in arg for arg in args)
+        print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
+        sys.exit(0)
     assert args[args.index("--sandbox") + 1] == "workspace-write"
+    if mode == "network_repair":
+        assert "sandbox_workspace_write.network_access=true" in args
+        assert "features.network_proxy.enabled=true" in args
+        assert "features.network_proxy.allow_local_binding=true" in args
+        domains = next(arg for arg in args if arg.startswith("features.network_proxy.domains="))
+        assert "github.com" in domains and "repo.hex.pm" in domains and "*" not in domains
     cycle = data["cycle"]
     gate = Path(os.environ["BOSS_AUTOPILOT_GATES"]) / f"{name}-{cycle}"
     gate.with_suffix(".waiting").write_text(str(os.getpid()))
     while not gate.with_suffix(".release").exists():
         time.sleep(0.02)
-    if mode == "timeout_repair":
+    if mode in ("timeout_repair", "network_repair"):
         assert Path("partial-only.txt").read_text() == "retained bootstrap input\n"
         assert data["plan"]["acceptance"] == ["Create result.txt"]
         assert Path("result.txt").read_text() == ("partial\n" if cycle == 1 else "one-1\n")
@@ -93,15 +103,17 @@ if kind == "implement":
     Path("result.txt").write_text(f"{name}-{cycle}\n")
 else:
     assert args[args.index("--sandbox") + 1] == "read-only"
+    if mode in ("network_source", "network_repair"):
+        assert not any("sandbox_workspace_write.network_access" in arg for arg in args)
     if kind == "resolve":
-        if mode == "timeout_repair":
+        if mode in ("timeout_repair", "network_repair"):
             assert Path("partial-only.txt").read_text() == "retained bootstrap input\n"
             assert data["plan"]["acceptance"] == ["Create result.txt"]
             assert data["candidate_commit"] != data["base_commit"]
             if Path("result.txt").read_text() == "partial\n":
                 assert "CHECK_OUTPUT_FOR_TIMEOUT_REPAIR" in json.dumps(data["previous_feedback"])
         report = {"summary": "Use the saved output requirement", "steps": ["Write result.txt as specified"],
-                  "assumptions": ["Preserve the existing text format"], "external_action": None}
+                  "assumptions": ["Preserve the existing text format"], "external_action": "The implementation runner needs dependency network access." if mode == "network_source" else None}
     elif kind == "plan":
         report = {"summary": "Write result", "steps": ["Write result.txt"],
                   "acceptance": [] if mode == "invalid_first" and name == "one" else ["Create result.txt"], "file_scopes": None}
@@ -112,7 +124,7 @@ else:
         assert "result.txt" in data["diff"]
         prior = [json.loads(line) for line in (root / "calls").read_text().splitlines()]
         review_count = sum(call.get("kind") == "review" and call.get("task") == name for call in prior)
-        reject = mode == "repair" and name == "one" and not data["previous_feedback"] or mode == "timeout_repair" and review_count == 1
+        reject = mode == "repair" and name == "one" and not data["previous_feedback"] or mode in ("timeout_repair", "network_repair") and review_count == 1
         report = {"verdict": "changes_requested" if reject else "approved", "summary": "Checked result",
                   "acceptance": [{"criterion": "Create result.txt", "status": "failed" if reject else "passed", "evidence": "Inspected result.txt"}],
                   "issues": [{"criterion": "Create result.txt", "message": "Correct result.txt"}] if reject else []}
