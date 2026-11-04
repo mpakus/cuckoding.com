@@ -38,6 +38,12 @@ defmodule Boss.MergeIntegrationPersistenceTest do
 
     {legacy, original} = ready(project, "legacy")
     saved_steps = Deliveries.steps(legacy.id)
+
+    Ecto.Migrator.down(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecoverySchema,
+      log: false
+    )
+
+    Ecto.Migrator.run(Repo, @migrations, :down, to: @version + 1, log: false)
     Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
     assert Deliveries.get(project.id, legacy.id) == legacy
     assert Deliveries.steps(legacy.id) == saved_steps
@@ -266,10 +272,17 @@ defmodule Boss.MergeIntegrationPersistenceTest do
           {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
           {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
           {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-          {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
-          {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
+          {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
         ],
         do: Ecto.Migrator.up(Repo, version, module, log: false)
+
+    # Add current columns without advancing the merge schema under test.
+    execution_module =
+      if version < @version,
+        do: Boss.Repo.Migrations.AddExecutionRecoverySchema,
+        else: Boss.Repo.Migrations.AddExecutionRecovery
+
+    Ecto.Migrator.up(Repo, 20_261_106_140_000, execution_module, log: false)
 
     project =
       Repo.insert!(%Projects.Project{

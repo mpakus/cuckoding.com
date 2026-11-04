@@ -396,7 +396,9 @@ defmodule Boss.DocumentationConversionTest do
              Ecto.Migrator.down(
                Repo,
                20_261_106_140_000,
-               Boss.Repo.Migrations.AddExecutionRecovery, log: false)
+               Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
 
     assert :ok =
              Ecto.Migrator.down(Repo, 20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery,

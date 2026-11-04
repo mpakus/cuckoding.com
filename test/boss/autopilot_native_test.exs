@@ -826,6 +826,8 @@ defmodule Boss.AutopilotNativeTest do
     {:ok, plan} =
       Deliveries.begin_step(delivery.id, "plan", 0, %{
         "workspace" => intent,
+        "spec_revision_id" => delivery.spec_revision_id,
+        "config_hash" => delivery.config_hash,
         "input_hash" => Protocol.digest(input)
       })
 
@@ -857,6 +859,8 @@ defmodule Boss.AutopilotNativeTest do
     {:ok, step} =
       Deliveries.begin_step(delivery.id, "implement", 1, %{
         "workspace" => intent,
+        "spec_revision_id" => delivery.spec_revision_id,
+        "config_hash" => delivery.config_hash,
         "plan_step_id" => plan.id,
         "parent_step_id" => plan.id,
         "resolution_step_id" => nil,

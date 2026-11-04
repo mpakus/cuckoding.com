@@ -938,8 +938,8 @@ No claim of real application completion follows from the finite CLI tests.
 
 ## First real bootstrap Done after timeout — 2026-11-04
 
-- [ ] New explicit timeout retry preserves original plan, source, checks and history.
-- [ ] Capture retained partial work, run fresh checks, resolve with another model,
+- [x] New explicit timeout retry preserves original plan, source, checks and history.
+- [x] Capture retained partial work, run fresh checks, resolve with another model,
   implement again, and verify rejected review recovery through exact Done.
 - [ ] Guard Stop, unknown cleanup, replay, source drift and historical policy in SQL
   and context tests; review and merge locally before activating.
