@@ -11,6 +11,8 @@ defmodule Boss.Projects.Intake.Request do
     field :reviewer, :string
     field :autonomy_version, :integer, default: 0
     field :routing_version, :integer, default: 1
+    field :planning_version, :integer, default: 0
+    field :accepted_attempt_id, :string
     field :model_catalog, :map, default: %{}
     field :workspace, :map, default: %{}
     field :status, :string, default: "planning"
