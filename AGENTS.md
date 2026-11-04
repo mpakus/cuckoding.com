@@ -244,6 +244,15 @@
   and check must supply complete transient output before fixes; never manufacture
   old output or inherit approval. Preserve the parent's saved autonomy policy:
   legacy has three cycles/twenty stages; version 1 has five cycles/forty-eight stages.
+- Explicit implementation-timeout retry pins a new execution_recovery_version1
+  and source implementation/terminal event before effects. Preserve old policy0,
+  original plan/criteria/spec/base/checks/reviewer/catalog and immutable failures.
+  Retained-plan adoption is typed provenance, never invented CLI/approval evidence.
+  Save partial-snapshot intent before Git, then fresh checks and a distinct-model
+  resolver before replacement implementation. Only confirmed timeout with known
+  cleanup/EOF qualifies; Stop and unknown stay closed. Keep five cycles/48 stages,
+  full original-base review and exact publication/postcheck gates. No old batch
+  or task is reopened by replay. See docs/AUTONOMY.md.
 - Candidate retry after Failed requires an explicit full commit SHA, the latest
   historical rejection, a later passing final check and a matching terminal event.
   Pin the selected SHA separately from the old review SHA and prove ancestry

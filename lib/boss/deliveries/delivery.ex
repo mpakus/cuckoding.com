@@ -7,6 +7,8 @@ defmodule Boss.Deliveries.Delivery do
     belongs_to :spec_revision, Boss.Projects.SpecRevision
     field :command_id, :string
     field :retry_review_id, :string
+    field :retry_implementation_id, :string
+    field :execution_recovery_version, :integer, default: 0
     field :retry_candidate_commit, :string
     field :reviewer, :string, default: "codex"
     field :autonomy_version, :integer, default: 0

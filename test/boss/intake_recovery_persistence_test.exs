@@ -38,7 +38,8 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
   ]
 
   setup do
@@ -396,6 +397,14 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
 
   test "empty recovery migration roundtrips but pinned policy refuses downgrade", c do
     assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_140_000,
+               Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
+
+    assert :ok =
              Ecto.Migrator.down(Repo, 20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery,
                log: false
              )
@@ -405,7 +414,20 @@ defmodule Boss.IntakeRecoveryPersistenceTest do
                log: false
              )
 
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
+
     request(c)
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_140_000,
+               Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
 
     assert_raise RuntimeError, ~r/Refusing to discard intake recovery/, fn ->
       Ecto.Migrator.down(Repo, 20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery,

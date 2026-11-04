@@ -27,7 +27,8 @@ defmodule Boss.DocumentationConversionTest do
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
   ]
 
   setup do
@@ -392,6 +393,14 @@ defmodule Boss.DocumentationConversionTest do
     assert [%{reference_only: false}] = Projects.list_spec_entries(c.project.id)
 
     assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_140_000,
+               Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
+
+    assert :ok =
              Ecto.Migrator.down(Repo, 20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery,
                log: false
              )
@@ -432,6 +441,11 @@ defmodule Boss.DocumentationConversionTest do
 
     assert :ok =
              Ecto.Migrator.up(Repo, 20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery,
                log: false
              )
 

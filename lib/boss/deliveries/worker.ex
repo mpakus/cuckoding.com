@@ -4,7 +4,7 @@ defmodule Boss.Deliveries.Worker do
   alias Boss.Agents.{Claude, Codex, ModelCatalog, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
-  alias Boss.Deliveries.{Diagnostics, ModelPolicy, Protocol, Retry}
+  alias Boss.Deliveries.{Diagnostics, ExecutionRetry, ModelPolicy, Protocol, Retry}
 
   def execute(delivery, repo, manager) do
     Repo.put_dynamic_repo(repo)
@@ -25,6 +25,14 @@ defmodule Boss.Deliveries.Worker do
   defp perform(delivery) do
     delivery = prepare_models(delivery)
     {project, revision} = Deliveries.inputs(delivery)
+
+    case ok!(ExecutionRetry.source(delivery)) do
+      nil -> perform_standard(delivery, project, revision)
+      source -> perform_timeout_retry(delivery, project, revision, source)
+    end
+  end
+
+  defp perform_standard(delivery, project, revision) do
     source = ok!(Retry.source(delivery))
     continue!()
 
@@ -68,6 +76,67 @@ defmodule Boss.Deliveries.Worker do
       previous,
       feedback,
       failures
+    )
+  end
+
+  defp perform_timeout_retry(delivery, project, revision, source) do
+    continue!()
+
+    if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
+      do: throw({:halt, :claude_unavailable})
+
+    ok!(ExecutionRetry.verify(source))
+
+    intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
+
+    expected =
+      Boss.Projects.Intake.expected_delivery_base(delivery) ||
+        Boss.Projects.Intake.expected_delivery_base(source.parent)
+
+    if expected do
+      unless intent["base_commit"] == expected, do: throw({:halt, :target_changed})
+      ok!(Boss.Deliveries.Integration.preflight(project, delivery.id, expected))
+    end
+
+    intent = Map.put(intent, "base_commit", source.parent.intent["base_commit"])
+
+    delivery = stored!(Deliveries.set_intent(delivery.id, intent))
+    plan = source.plan.receipt["report"]
+
+    {plan_step, ^plan} =
+      step(
+        delivery,
+        "plan",
+        0,
+        %{
+          "workspace" => intent,
+          "source_implementation_id" => source.implementation.id,
+          "source_plan_id" => source.plan.id
+        },
+        fn ->
+          ok!(ExecutionRetry.verify(source))
+          ok!(Protocol.plan(JSON.encode!(plan)))
+
+          {%{
+             "status" => "finished",
+             "cleanup" => "group_empty",
+             "outcome" => "retained_plan",
+             "report" => plan,
+             "workspace" => intent
+           }, plan}
+        end
+      )
+
+    recover_timeout(
+      delivery,
+      project,
+      revision.original_text,
+      plan_step,
+      plan,
+      0,
+      source.implementation,
+      nil,
+      MapSet.new()
     )
   end
 
@@ -398,34 +467,170 @@ defmodule Boss.Deliveries.Worker do
         end
       )
 
-    if autonomous?(delivery) and failed_execution?(delivery, implementation) do
-      recover_implementation(
-        delivery,
-        project,
-        source,
-        plan_step,
-        plan,
-        cycle,
-        implementation,
-        feedback,
-        failures
+    cond do
+      ModelPolicy.timeout_recoverable?(
+        Map.get(delivery, :execution_recovery_version, 0),
+        implementation
+      ) ->
+        recover_timeout(
+          delivery,
+          project,
+          source,
+          plan_step,
+          plan,
+          cycle,
+          implementation,
+          feedback,
+          failures
+        )
+
+      autonomous?(delivery) and failed_execution?(delivery, implementation) ->
+        recover_implementation(
+          delivery,
+          project,
+          source,
+          plan_step,
+          plan,
+          cycle,
+          implementation,
+          feedback,
+          failures
+        )
+
+      true ->
+        successful!(implementation)
+
+        check_implementation(
+          delivery,
+          project,
+          source,
+          plan_step,
+          plan,
+          cycle,
+          workspace,
+          implementation,
+          feedback,
+          failures
+        )
+    end
+  end
+
+  defp recover_timeout(
+         delivery,
+         project,
+         source,
+         plan_step,
+         plan,
+         cycle,
+         implementation,
+         previous_feedback,
+         failures
+       ) do
+    continue!()
+
+    if cycle >= ModelPolicy.max_cycles(version(delivery)) do
+      Deliveries.complete(
+        delivery.id,
+        "blocked",
+        "The five-cycle implementation budget is exhausted. Timed-out workspaces remain retained."
       )
     else
-      successful!(implementation)
+      {candidate, sha, check, output} =
+        timeout_snapshot(delivery, plan_step, implementation, cycle)
 
-      check_implementation(
+      feedback = %{
+        "kind" => "implementation_timeout",
+        "source_implementation_id" => implementation.id,
+        "implementation_receipt" => implementation.receipt,
+        "check_receipt" => check.receipt,
+        "check_output" => output,
+        "previous_feedback" => previous_feedback
+      }
+
+      {resolution, advice} =
+        resolve(delivery, plan_step, plan, check, candidate, sha, feedback, source)
+
+      cycle(
         delivery,
         project,
         source,
         plan_step,
         plan,
-        cycle,
-        workspace,
-        implementation,
-        feedback,
+        cycle + 1,
+        %{
+          candidate_commit: sha,
+          step_id: resolution.id,
+          resolution_step_id: resolution.id,
+          source_step_id: check.id
+        },
+        Map.put(feedback, "resolution", advice),
         failures
       )
     end
+  end
+
+  defp timeout_snapshot(delivery, plan, implementation, cycle) do
+    continue!()
+    candidate = ok!(Candidate.plan(implementation.input["workspace"], Ecto.UUID.generate()))
+
+    {snapshot, sha} =
+      step(
+        delivery,
+        "timeout_snapshot",
+        cycle,
+        %{
+          "workspace" => candidate,
+          "implementation_step_id" => implementation.id,
+          "plan_step_id" => plan.id
+        },
+        fn ->
+          continue!()
+          saved = ok!(Candidate.prepare(candidate))
+
+          {%{
+             "status" => "finished",
+             "cleanup" => "group_empty",
+             "candidate_commit" => saved.candidate_commit,
+             "workspace" => candidate
+           }, saved.candidate_commit}
+        end
+      )
+
+    {check, output} =
+      step(
+        delivery,
+        "timeout_check",
+        cycle,
+        %{
+          "snapshot_step_id" => snapshot.id,
+          "implementation_step_id" => implementation.id,
+          "plan_step_id" => plan.id,
+          "workspace" => candidate,
+          "candidate_commit" => sha,
+          "config_hash" => delivery.config_hash
+        },
+        fn ->
+          {receipt, output} =
+            run_check(candidate["path"], delivery.check_config, fn ->
+              Candidate.verify(candidate, sha)
+            end)
+
+          {Map.put(receipt, "candidate_commit", sha), output}
+        end
+      )
+
+    case check.receipt do
+      %{"status" => "finished", "output_complete" => true} ->
+        :ok
+
+      %{"outcome" => "checks_failed", "output_complete" => true, "cleanup" => "group_empty"} ->
+        :ok
+
+      _ ->
+        successful!(check)
+    end
+
+    {candidate, sha, check, output}
   end
 
   defp recover_implementation(

@@ -8,6 +8,9 @@ defmodule Boss.Deliveries.Retry do
   def start(project, parent, command, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:delivery_retry, project, parent, command}, 10_000)
 
+  def start_timeout(project, parent, command, server \\ Boss.Runs.Manager),
+    do: GenServer.call(server, {:delivery_timeout_retry, project, parent, command}, 10_000)
+
   def start_candidate(project, parent, command, candidate, server \\ Boss.Runs.Manager),
     do:
       GenServer.call(
@@ -36,7 +39,8 @@ defmodule Boss.Deliveries.Retry do
         command_id: parent.id <> ":complete:" <> status
       )
 
-    with true <- parent.status == status and parent.cleanup == "group_empty",
+    with true <- parent.execution_recovery_version == 0,
+         true <- parent.status == status and parent.cleanup == "group_empty",
          true <- parent.integration_intent == %{} and is_nil(parent.integration_command_id),
          %{version: version, action: "delivery_progress", to_state: ^status} <- terminal,
          true <-

@@ -935,3 +935,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 The earlier real request719ff7c4 failed before task creation with a generic reason;
 the exact provider cause was not retained and is not inferred from fixture results.
 No claim of real application completion follows from the finite CLI tests.
+
+## First real bootstrap Done after timeout — 2026-11-04
+
+- [x] New explicit timeout retry preserves original plan, source, checks and history.
+- [x] Capture retained partial work, run fresh checks, resolve with another model,
+  implement again, and verify rejected review recovery through exact Done.
+- [ ] Guard Stop, unknown cleanup, replay, source drift and historical policy in SQL
+  and context tests; review and merge locally before activating.
+- [ ] Verify real task47 checks, independent review, publication and postchecks.
+
+The first real implementation timed out at 16:08 UTC after productive bootstrap
+work. Its signal/EOF/group cleanup receipt is retained; it is not completed work.

@@ -26,7 +26,8 @@ defmodule Boss.DeliveryIntegrationWorkerTest do
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
-    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
   ]
 
   setup do
