@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Finite local provider fixture for sequential task publication and review repair."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -29,8 +30,14 @@ if schema and schema.name == "intake_schema.json":
     calls = Path(os.environ["BOSS_DELIVERY_FIXTURE"]) / "calls"
     previous = [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
     attempt = 1 + sum(call["kind"] == "intake" for call in previous)
+    mode = os.environ.get("BOSS_AUTOPILOT_MODE")
+    if mode in ("intake_repair", "intake_exhausted"):
+        assert intake["check_config"]["argv"] == ["python3", "check.py"]
+        assert intake["previous_failure"] is None if attempt == 1 else intake["previous_failure"]["validation_code"] == "report_too_large"
+    original = {key: intake[key] for key in ("base_commit", "documents", "check_config")}
+    input_hash = hashlib.sha256(json.dumps(original, sort_keys=True).encode()).hexdigest()
     with calls.open("a") as log:
-        log.write(json.dumps({"kind": "intake", "attempt": attempt,
+        log.write(json.dumps({"kind": "intake", "attempt": attempt, "input_hash": input_hash,
                              "model": args[args.index("--model") + 1] if "--model" in args else None}) + "\n")
     print(json.dumps({"type": "turn.started"}), flush=True)
     report = {"tasks": [

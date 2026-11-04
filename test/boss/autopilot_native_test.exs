@@ -396,6 +396,7 @@ defmodule Boss.AutopilotNativeTest do
 
     intake_calls = Enum.filter(calls, &(&1["kind"] == "intake"))
     assert Enum.map(intake_calls, & &1["model"]) == ["gpt-5.6-sol", "gpt-5.6-terra"]
+    assert intake_calls |> Enum.map(& &1["input_hash"]) |> Enum.uniq() |> length() == 1
 
     assert {:ok, replay} =
              Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
