@@ -180,3 +180,9 @@ loss. Before routing version 2, the complete macOS application regression passed
 660 tests with one Linux-only skip (seed 1208). Current catalog-routing and recovery
 results are recorded in the November3 worklog. Real account availability, cost
 and delivery speed remain unverified.
+
+Project commands run without the four launcher-owned defaults `MIX_ENV`, `PORT`,
+`PHX_SERVER` and `BOSS_DATA_DIR`. Explicit per-child environment overrides still
+win; PATH and the project's CLI/toolchain remain unchanged. This prevents a local
+BOSS launch from making `mix test` select development mode or bind BOSS's port.
+It does not select test mode for arbitrary commands or rewrite earlier receipts.

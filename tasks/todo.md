@@ -961,5 +961,5 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 ## Project child environment — 2026-11-04
 
 - [x] Reproduce inherited launcher settings with finite production-runner tests (seed7201, two expected failures).
-- [ ] Isolate launcher defaults, preserve explicit child overrides and verify real Mix test selection plus native lifecycle checks.
+- [x] Isolate launcher defaults, preserve explicit child overrides and verify real Mix test selection plus native lifecycle checks (32 passed7202, full native Done7203).
 - [ ] Independently review, merge locally, activate safely and resume real task47 through exact Done.
