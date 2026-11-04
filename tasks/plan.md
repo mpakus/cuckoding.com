@@ -624,3 +624,10 @@ has no model effects; a separate authorized Start uses the existing planner and
 sequential managed execution. Verify pooled SQL constraints, UI unknown-outcome
 replay, native generation/repair/publication and historical migration compatibility
 before local integration and live activation.
+
+
+Текущий приоритет: задача47 должна дойти до проверенного Done. После подтверждённого
+запрета сети в sandbox вводится сохранённая политика доступа только для новой
+попытки реализации. Повторный запуск использует её сохранённый checkpoint; таймаут
+проверки остаётся неполным свидетельством и служит только диагностике. Старые
+Failed, лимиты, исходные критерии и требования публикации не переписываются.

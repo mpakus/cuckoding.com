@@ -29,7 +29,8 @@ defmodule Boss.CatalogRoutingPersistenceTest do
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
-    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
   ]
 
   setup do
@@ -323,6 +324,14 @@ defmodule Boss.CatalogRoutingPersistenceTest do
     assert :ok =
              Ecto.Migrator.down(
                Repo,
+               20_261_106_150_000,
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
                20_261_106_140_000,
                Boss.Repo.Migrations.AddExecutionRecovery,
                log: false
@@ -369,6 +378,14 @@ defmodule Boss.CatalogRoutingPersistenceTest do
                log: false
              )
 
+    assert :ok =
+             Ecto.Migrator.up(
+               Repo,
+               20_261_106_150_000,
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
+
     assert Repo.get!(Request, old.id).routing_version == 1
     {:ok, _} = Queue.cancel(c.project.id, old.id)
     {:ok, {:new, _}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
@@ -381,6 +398,14 @@ defmodule Boss.CatalogRoutingPersistenceTest do
   end
 
   test "independent routing schema preserves an older strict Autopilot guard" do
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_150_000,
+               Boss.Repo.Migrations.AddCheckpointRecovery,
+               log: false
+             )
+
     assert :ok =
              Ecto.Migrator.down(
                Repo,

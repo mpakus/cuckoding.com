@@ -31,7 +31,8 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
-    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
   ]
 
   setup context do
@@ -61,7 +62,7 @@ defmodule Boss.AutopilotNativeTest do
     File.write!(Path.join(source, "result.txt"), "base")
     File.cp!(Path.expand("../fixtures/delivery_check.py", __DIR__), Path.join(source, "check.py"))
 
-    if context[:timeout_recovery] do
+    if context[:timeout_recovery] || context[:network_recovery] do
       File.write!(Path.join(source, "check.py"), ~S"""
       from pathlib import Path
       import sys
@@ -778,7 +779,7 @@ defmodule Boss.AutopilotNativeTest do
     assert git(c.source, ["rev-parse", "main"]) == done.integration_intent["candidate_commit"]
     assert File.read!(Path.join(failed.input["workspace"]["path"], "result.txt")) == "partial\n"
     assert Deliveries.get(c.project.id, parent.id) == old
-    assert ready.intent["base_commit"] == parent.intent["base_commit"]
+    assert ready.intent["base_commit"] == old.intent["base_commit"]
     assert Enum.count(Deliveries.steps(child.id), &(&1.kind == "review")) == 2
 
     assert Enum.any?(
@@ -787,6 +788,83 @@ defmodule Boss.AutopilotNativeTest do
            )
 
     assert {:ok, replay} = Retry.start_timeout(c.project.id, parent.id, command, manager)
+    assert replay.id == child.id
+  end
+
+  @tag network_recovery: true
+  test "explicit checkpoint resumes network-blocked native work through model repair to exact Done",
+       c do
+    alias Boss.Deliveries.{Retry, Step}
+    System.put_env("BOSS_AUTOPILOT_MODE", "network_source")
+    manager = start_manager(c.repo)
+
+    {:ok, parent} =
+      Deliveries.start(
+        c.project.id,
+        hd(c.tasks).id,
+        Ecto.UUID.generate(),
+        "python3 check.py",
+        manager
+      )
+
+    eventually(fn -> Deliveries.get(c.project.id, parent.id).status == "needs_input" end, 3000)
+    parent_steps = Deliveries.steps(parent.id)
+    failed = Enum.find(parent_steps, &(&1.kind == "check" and &1.status == "failed"))
+    source_implementation = Enum.find(parent_steps, &(&1.kind == "implement"))
+    source_workspace = source_implementation.input["workspace"]
+    assert failed.receipt["outcome"] == "checks_failed"
+    assert failed.receipt["exit_code"] == 7
+    assert source_implementation.status == "finished"
+    assert Enum.count(parent_steps, &(&1.kind == "resolve")) == 2
+    old = Deliveries.get(c.project.id, parent.id)
+    old_task = Repo.get!(Tasks.Task, parent.task_id)
+    assert old.status == "needs_input" and old.cleanup == "group_empty"
+    assert failed.receipt["eof"] == %{"stdout" => true, "stderr" => true}
+    assert File.read!(Path.join(source_workspace["path"], "result.txt")) == "partial\n"
+    System.put_env("BOSS_AUTOPILOT_MODE", "network_repair")
+    command = Ecto.UUID.generate()
+    {:ok, child} = Retry.start_checkpoint(c.project.id, parent.id, command, manager)
+    assert child.implementation_network_version == 1
+    assert child.checkpoint_recovery_version == 1
+    assert child.retry_source_check_id == failed.id
+    first = wait_for_implementation(c, "one", 1)
+    assert first.id == child.id
+    steps = Deliveries.steps(child.id)
+    implementation = List.last(steps)
+    assert implementation.input["model_profile"]["model"] == "gpt-5.6-terra"
+    assert implementation.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
+    assert Enum.any?(steps, &(&1.kind == "checkpoint_check" and &1.status == "failed"))
+    assert Enum.any?(steps, &(&1.kind == "resolve" and &1.status == "finished"))
+    assert {:ok, replay} = Retry.start_checkpoint(c.project.id, parent.id, command, manager)
+    assert replay.id == child.id
+    assert Repo.get!(Step, failed.id).receipt == failed.receipt
+    assert Deliveries.get(c.project.id, parent.id) == old
+    assert Repo.get!(Tasks.Task, old_task.id).spec_revision_id == old_task.spec_revision_id
+    release(c, "one", 1)
+    second = wait_for_implementation(c, "one", 2)
+    assert second.id == child.id
+    assert List.last(Deliveries.steps(child.id)).input["model_profile"]["model"] == "gpt-5.6-sol"
+    release(c, "one", 2)
+    eventually(fn -> Deliveries.get(c.project.id, child.id).status == "ready_to_merge" end, 3000)
+    ready = Deliveries.get(c.project.id, child.id)
+    integration = Ecto.UUID.generate()
+    {:ok, _} = Deliveries.integrate(c.project.id, child.id, integration, manager)
+    eventually(fn -> Deliveries.get(c.project.id, child.id).status == "done" end, 3000)
+    done = Deliveries.get(c.project.id, child.id)
+    assert Repo.get!(Tasks.Task, parent.task_id).state == "done"
+    assert git(c.source, ["rev-parse", "main"]) == done.integration_intent["candidate_commit"]
+    assert File.read!(Path.join(source_workspace["path"], "result.txt")) == "partial\n"
+    assert Deliveries.get(c.project.id, parent.id) == old
+    assert Deliveries.steps(parent.id) == parent_steps
+    assert ready.intent["base_commit"] == old.intent["base_commit"]
+    assert Enum.count(Deliveries.steps(child.id), &(&1.kind == "review")) == 2
+
+    assert Enum.any?(
+             Deliveries.steps(child.id),
+             &(&1.kind == "post_check" and &1.status == "finished")
+           )
+
+    assert {:ok, replay} = Retry.start_checkpoint(c.project.id, parent.id, command, manager)
     assert replay.id == child.id
   end
 

@@ -257,6 +257,19 @@
   historical rejection, a later passing final check and a matching terminal event.
   Pin the selected SHA separately from the old review SHA and prove ancestry
   before provider effects. Keep historical findings distinct from fresh approval.
+- Explicit checkpoint recovery pins a new checkpoint/source-check and implementation
+  network policy before effects; retain original spec/criteria/base/checks/reviewer.
+  Preserve old terminal attempts and policy0. Capture the exact retained candidate,
+  run fresh checks, and resolve before replacement implementation. A known-clean
+  actual check timeout may feed diagnosis only after fresh candidate verification:
+  preserve timeout/incomplete-output evidence, use no invented output/hash or approval.
+  Stop, unknown cleanup, output-limit failures and changed candidates remain closed.
+  Final review/publication/postchecks still require complete passing checks.
+  Implementation network policy1 keeps workspace-write, uses an immutable explicit
+  package-host proxy policy and local-binding support; the latter permits broader
+  local/private access, not only one PostgreSQL port. Read-only stages and old
+  requests retain their prior policy. Never let model-written files expand hosts,
+  change host settings or replace the sandbox with full access.
 - Documentation projects use one explicit persisted intake before Autopilot.
   New planning_version1 retains at most three immutable model attempts under one
   absolute deadline. Save model/source intent before effects and sanitized receipt

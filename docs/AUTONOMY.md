@@ -132,6 +132,36 @@ review, exact-commit publication, postchecks and retained checkout verification
 still apply. A direct timeout retry requires explicit integration when Ready;
 it does not restart the old Autopilot batch or authorize subsequent tasks.
 
+## Checkpoint recovery and dependency access
+
+`Boss.Deliveries.Retry.start_checkpoint/4` creates a fresh, explicit recovery
+request from an eligible terminal retained implementation/checkpoint. It saves
+`checkpoint_recovery_version: 1`, the immutable source check when present, and
+`implementation_network_version: 1`. Historical requests remain unchanged. The
+same command UUID replays the saved child without another execution.
+
+The source candidate is revalidated, captured into a fresh worktree, and checked
+again before a distinct model diagnoses it. A check timeout is eligible only with
+actual termination, both stream closures, known process-group cleanup and a fresh
+unchanged-candidate verification. Its receipt stays a timeout with incomplete
+output. Diagnosis receives no fabricated output or hash. This new policy also
+permits diagnosis of such later check timeouts within its existing cycle/stage
+budget. Changed candidates, Stop, unknown cleanup and output-limit failures remain
+closed. A diagnostic timeout never satisfies review, publication or Done gates.
+
+Only implementation receives the saved network policy: workspace-write remains in
+force, public traffic uses a fixed package-host allowlist, and local binding is
+enabled for local development services. The local option permits broader local
+and private network access; it is not a PostgreSQL-port-specific exception. No host
+settings are modified. Read-only planning, resolution and review retain their
+existing network policy. The model receives the implementation policy as context,
+but this capability is not evidence that dependency installation or tests passed.
+
+Resolution reports retain the 32,768-byte total and decoded UTF-8 field limits.
+The schema and prompt now state both budgets; invalid output is never truncated.
+A rejected report records only a fixed validation code and byte count in its
+summary, which the next resolver receives without raw private output.
+
 ## Acceptance
 
 The acceptance target is an initial question or rejected implementation proceeding

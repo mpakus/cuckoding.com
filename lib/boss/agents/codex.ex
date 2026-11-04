@@ -64,6 +64,15 @@ defmodule Boss.Agents.Codex do
       ["--model", model, "--config", "model_reasoning_effort=\"#{effort}\"", "-"]
   end
 
+  def args(kind, output_path, profile, nil), do: args(kind, output_path, profile)
+
+  def args(:implement, nil, profile, network_policy) do
+    argv = args(:implement, nil, profile)
+    Enum.drop(argv, -1) ++ Boss.Agents.NetworkPolicy.args(network_policy) ++ ["-"]
+  end
+
+  def args(_, _, _, _), do: raise(ArgumentError, "network policy requires an implementation")
+
   defp command_args(sandbox, extra),
     do:
       [

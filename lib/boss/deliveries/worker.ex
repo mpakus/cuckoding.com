@@ -1,7 +1,7 @@
 defmodule Boss.Deliveries.Worker do
   @moduledoc false
   alias Boss.{Deliveries, Repo}
-  alias Boss.Agents.{Claude, Codex, ModelCatalog, ReportFile, Workspace}
+  alias Boss.Agents.{Claude, Codex, ModelCatalog, NetworkPolicy, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
   alias Boss.Deliveries.{Diagnostics, ExecutionRetry, ModelPolicy, Protocol, Retry}
@@ -28,7 +28,7 @@ defmodule Boss.Deliveries.Worker do
 
     case ok!(ExecutionRetry.source(delivery)) do
       nil -> perform_standard(delivery, project, revision)
-      source -> perform_timeout_retry(delivery, project, revision, source)
+      source -> perform_execution_retry(delivery, project, revision, source)
     end
   end
 
@@ -79,7 +79,7 @@ defmodule Boss.Deliveries.Worker do
     )
   end
 
-  defp perform_timeout_retry(delivery, project, revision, source) do
+  defp perform_execution_retry(delivery, project, revision, source) do
     continue!()
 
     if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
@@ -103,16 +103,23 @@ defmodule Boss.Deliveries.Worker do
     delivery = stored!(Deliveries.set_intent(delivery.id, intent))
     plan = source.plan.receipt["report"]
 
+    input = %{
+      "workspace" => intent,
+      "source_implementation_id" => source.implementation.id,
+      "source_plan_id" => source.plan.id
+    }
+
+    input =
+      if check = Map.get(source, :check),
+        do: Map.put(input, "source_check_id", check.id),
+        else: input
+
     {plan_step, ^plan} =
       step(
         delivery,
         "plan",
         0,
-        %{
-          "workspace" => intent,
-          "source_implementation_id" => source.implementation.id,
-          "source_plan_id" => source.plan.id
-        },
+        input,
         fn ->
           ok!(ExecutionRetry.verify(source))
           ok!(Protocol.plan(JSON.encode!(plan)))
@@ -127,15 +134,118 @@ defmodule Boss.Deliveries.Worker do
         end
       )
 
-    recover_timeout(
+    if Map.get(source, :check) do
+      recover_checkpoint(delivery, project, revision.original_text, plan_step, plan, source)
+    else
+      recover_timeout(
+        delivery,
+        project,
+        revision.original_text,
+        plan_step,
+        plan,
+        0,
+        source.implementation,
+        nil,
+        MapSet.new()
+      )
+    end
+  end
+
+  defp recover_checkpoint(delivery, project, specification, plan_step, plan, source) do
+    continue!()
+    ok!(ExecutionRetry.verify(source))
+    seed = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
+    seed = Map.put(seed, "base_commit", source.candidate_commit)
+    check_id = Ecto.UUID.generate()
+
+    {snapshot, {candidate, sha}} =
+      step(
+        delivery,
+        "checkpoint_snapshot",
+        0,
+        %{
+          "run_workspace" => seed,
+          "check_id" => check_id,
+          "source_check_id" => source.check.id,
+          "implementation_step_id" => source.implementation.id,
+          "source_candidate_commit" => source.candidate_commit,
+          "plan_step_id" => plan_step.id
+        },
+        fn ->
+          continue!()
+          ok!(ExecutionRetry.verify(source))
+          {candidate, saved} = prepare_retry_snapshot(seed, check_id, source.candidate_commit)
+
+          {%{
+             "status" => "finished",
+             "cleanup" => "group_empty",
+             "candidate_commit" => saved.candidate_commit,
+             "workspace" => candidate
+           }, {candidate, saved.candidate_commit}}
+        end
+      )
+
+    {check, output} =
+      step(
+        delivery,
+        "checkpoint_check",
+        0,
+        %{
+          "snapshot_step_id" => snapshot.id,
+          "source_check_id" => source.check.id,
+          "implementation_step_id" => source.implementation.id,
+          "plan_step_id" => plan_step.id,
+          "workspace" => candidate,
+          "candidate_commit" => sha,
+          "config_hash" => delivery.config_hash
+        },
+        fn ->
+          {receipt, output} =
+            run_check(
+              candidate["path"],
+              delivery.check_config,
+              fn ->
+                with :ok <- Candidate.verify(candidate, sha), do: ExecutionRetry.verify(source)
+              end,
+              verify_timeout: true
+            )
+
+          {Map.put(receipt, "candidate_commit", sha), output}
+        end
+      )
+
+    unless checkpoint_timeout?(delivery, check), do: complete_recovery_check!(check)
+
+    feedback = %{
+      "kind" => "checkpoint",
+      "source_check_id" => source.check.id,
+      "source_implementation_id" => source.implementation.id,
+      "prepared_candidate_commit" => source.candidate_commit,
+      "implementation_receipt" => source.implementation.receipt,
+      "source_check_receipt" => source.check.receipt,
+      "check_receipt" => check.receipt,
+      "check_output" => if(checkpoint_timeout?(delivery, check), do: nil, else: output),
+      "check_output_available" => not checkpoint_timeout?(delivery, check),
+      "check_output_limitation" => timeout_limitation(check)
+    }
+
+    {resolution, advice} =
+      resolve(delivery, plan_step, plan, check, candidate, sha, feedback, specification)
+
+    cycle(
       delivery,
       project,
-      revision.original_text,
+      specification,
       plan_step,
       plan,
-      0,
-      source.implementation,
-      nil,
+      1,
+      %{
+        candidate_commit: sha,
+        step_id: resolution.id,
+        resolution_step_id: resolution.id,
+        source_step_id: check.id
+      },
+      Map.put(feedback, "resolution", advice),
       MapSet.new()
     )
   end
@@ -417,6 +527,7 @@ defmodule Boss.Deliveries.Worker do
     workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
     workspace = Map.put(workspace, "base_commit", base)
     profile = profile(delivery, :implement, cycle, plan_step)
+    network_policy = NetworkPolicy.profile(Map.get(delivery, :implementation_network_version, 0))
 
     input = %{
       "specification" => source,
@@ -426,6 +537,8 @@ defmodule Boss.Deliveries.Worker do
       "check_config" => delivery.check_config,
       "previous_feedback" => feedback
     }
+
+    input = implementation_network_prompt(input, network_policy)
 
     prompt = ok!(Protocol.prompt(:implement, input))
 
@@ -444,14 +557,19 @@ defmodule Boss.Deliveries.Worker do
             "model_profile" => profile,
             "feedback_hash" => Protocol.digest(feedback),
             "input_hash" => Protocol.digest(input)
-          },
+          }
+          |> implementation_network_input(network_policy),
           delivery
         ),
         fn ->
           continue!()
           ok!(Workspace.prepare(workspace))
           if cycle == 1, do: ok!(Retry.verify(ok!(Retry.source(delivery))))
-          receipt = run_agent(:implement, workspace["path"], prompt, nil, profile)
+
+          receipt =
+            run_agent(:implement, workspace["path"], prompt, nil, profile,
+              network_policy: network_policy
+            )
 
           receipt =
             if receipt["status"] == "finished" do
@@ -515,6 +633,14 @@ defmodule Boss.Deliveries.Worker do
     end
   end
 
+  defp implementation_network_input(input, nil), do: input
+  defp implementation_network_input(input, policy), do: Map.put(input, "network_policy", policy)
+
+  defp implementation_network_prompt(input, nil), do: input
+
+  defp implementation_network_prompt(input, policy),
+    do: Map.put(input, "implementation_network_policy", policy)
+
   defp recover_timeout(
          delivery,
          project,
@@ -546,6 +672,16 @@ defmodule Boss.Deliveries.Worker do
         "check_output" => output,
         "previous_feedback" => previous_feedback
       }
+
+      feedback =
+        if checkpoint_timeout?(delivery, check),
+          do:
+            Map.merge(feedback, %{
+              "check_output" => nil,
+              "check_output_available" => false,
+              "check_output_limitation" => timeout_limitation(check)
+            }),
+          else: feedback
 
       {resolution, advice} =
         resolve(delivery, plan_step, plan, check, candidate, sha, feedback, source)
@@ -611,14 +747,22 @@ defmodule Boss.Deliveries.Worker do
         },
         fn ->
           {receipt, output} =
-            run_check(candidate["path"], delivery.check_config, fn ->
-              Candidate.verify(candidate, sha)
-            end)
+            run_check(
+              candidate["path"],
+              delivery.check_config,
+              fn -> Candidate.verify(candidate, sha) end,
+              verify_timeout: Map.get(delivery, :checkpoint_recovery_version, 0) == 1
+            )
 
           {Map.put(receipt, "candidate_commit", sha), output}
         end
       )
 
+    unless checkpoint_timeout?(delivery, check), do: complete_recovery_check!(check)
+    {candidate, sha, check, output}
+  end
+
+  defp complete_recovery_check!(check) do
     case check.receipt do
       %{"status" => "finished", "output_complete" => true} ->
         :ok
@@ -629,8 +773,6 @@ defmodule Boss.Deliveries.Worker do
       _ ->
         successful!(check)
     end
-
-    {candidate, sha, check, output}
   end
 
   defp recover_implementation(
@@ -742,9 +884,12 @@ defmodule Boss.Deliveries.Worker do
         },
         fn ->
           {receipt, output} =
-            run_check(candidate["path"], delivery.check_config, fn ->
-              Candidate.verify(candidate, sha)
-            end)
+            run_check(
+              candidate["path"],
+              delivery.check_config,
+              fn -> Candidate.verify(candidate, sha) end,
+              verify_timeout: Map.get(delivery, :checkpoint_recovery_version, 0) == 1
+            )
 
           {Map.put(receipt, "candidate_commit", sha), output}
         end
@@ -790,7 +935,32 @@ defmodule Boss.Deliveries.Worker do
         )
 
       _ ->
-        successful!(check)
+        if checkpoint_timeout?(delivery, check) do
+          feedback = %{
+            "kind" => "checks",
+            "check_receipt" => check.receipt,
+            "output" => nil,
+            "check_output" => nil,
+            "check_output_available" => false,
+            "check_output_limitation" => timeout_limitation(check)
+          }
+
+          repeat(
+            delivery,
+            project,
+            source,
+            plan_step,
+            plan,
+            cycle,
+            candidate,
+            sha,
+            check.id,
+            feedback,
+            failures
+          )
+        else
+          successful!(check)
+        end
     end
   end
 
@@ -1091,8 +1261,22 @@ defmodule Boss.Deliveries.Worker do
       "check_config" => delivery.check_config,
       "previous_feedback" => feedback,
       "resolution_attempt" => attempt,
-      "previous_resolution" => if(parent.kind == "resolve", do: parent.receipt["report"])
+      "previous_resolution" => if(parent.kind == "resolve", do: parent.receipt["report"]),
+      "previous_resolution_diagnostic" =>
+        if(parent.kind == "resolve" and parent.receipt["outcome"] == "invalid_report",
+          do:
+            parent.receipt
+            |> Map.get("summary", %{})
+            |> Map.take(["validation_code", "report_bytes"])
+            |> Map.put("outcome", "invalid_report")
+        )
     }
+
+    input =
+      implementation_network_prompt(
+        input,
+        NetworkPolicy.profile(Map.get(delivery, :implementation_network_version, 0))
+      )
 
     prompt = ok!(Protocol.prompt(:resolve, input))
 
@@ -1117,8 +1301,7 @@ defmodule Boss.Deliveries.Worker do
           if prepare?, do: ok!(Workspace.prepare(workspace))
           ok!(verify.())
 
-          receipt =
-            run_agent(:resolve, workspace["path"], prompt, &Protocol.resolution/1, profile)
+          receipt = run_resolution(workspace["path"], prompt, profile)
 
           receipt = verify_agent(receipt, verify)
           {Map.put(receipt, "candidate_commit", sha), receipt["report"]}
@@ -1185,7 +1368,7 @@ defmodule Boss.Deliveries.Worker do
     do: ok!(Deliveries.model_profile(delivery, kind, cycle, if(plan_step, do: plan_step.id)))
 
   @doc false
-  def run_check(path, config, verify) do
+  def run_check(path, config, verify, opts \\ []) do
     with :ok <- continue(),
          :ok <- verify.(),
          {:ok, executable, args} <- executable(config["argv"], path),
@@ -1224,11 +1407,16 @@ defmodule Boss.Deliveries.Worker do
             {Atom.to_string(stream), chunks |> Enum.reverse() |> IO.iodata_to_binary()}
           end)
 
+        captured =
+          result.stdout_bytes + result.stderr_bytes <= limit and
+            Enum.all?(output, fn {_, text} -> String.valid?(text) end) and
+            byte_size(output["stdout"]) == result.stdout_bytes and
+            byte_size(output["stderr"]) == result.stderr_bytes
+
         complete =
           result.outcome == :exited and result.exit_kind == :exit and
             result.eof == %{stdout: true, stderr: true} and result.cleanup == :group_empty and
-            result.stdout_bytes + result.stderr_bytes <= limit and
-            Enum.all?(output, fn {_, text} -> String.valid?(text) end)
+            captured
 
         receipt = process_receipt(result)
 
@@ -1253,7 +1441,15 @@ defmodule Boss.Deliveries.Worker do
                 Map.merge(receipt, failure(reason))
             end
           else
-            receipt
+            if Keyword.get(opts, :verify_timeout, false) and captured and
+                 ExecutionRetry.check_timeout?(receipt) do
+              case verify.() do
+                :ok -> Map.put(receipt, "candidate_verified", true)
+                {:error, reason} -> Map.merge(receipt, failure(reason))
+              end
+            else
+              receipt
+            end
           end
 
         {receipt, if(complete, do: output, else: %{})}
@@ -1264,6 +1460,19 @@ defmodule Boss.Deliveries.Worker do
       {:error, reason} -> {failure(reason), %{}}
     end
   end
+
+  defp checkpoint_timeout?(delivery, check),
+    do:
+      Map.get(delivery, :checkpoint_recovery_version, 0) == 1 and
+        check.kind in ["checkpoint_check", "check", "timeout_check"] and
+        check.receipt["candidate_verified"] == true and
+        ExecutionRetry.check_timeout?(check.receipt)
+
+  defp timeout_limitation(%{receipt: %{"outcome" => "timeout"}}),
+    do:
+      "The saved check timed out. Its output is unavailable and incomplete; no failure text or passing evidence can be inferred. The candidate was reverified unchanged after known cleanup. Diagnose the timeout from the receipt and read-only source, then fix it without weakening the saved command or acceptance criteria."
+
+  defp timeout_limitation(_), do: nil
 
   @doc false
   def run_reviewer(reviewer, path, prompt, decode, profile \\ nil)
@@ -1333,6 +1542,20 @@ defmodule Boss.Deliveries.Worker do
   end
 
   @doc false
+  def run_resolution(path, prompt, profile) do
+    receipt =
+      run_agent(:resolve, path, prompt, &Protocol.resolution_detailed/1, profile,
+        report_diagnostics: true
+      )
+
+    diagnostics = Map.take(receipt, ["validation_code", "report_bytes"])
+
+    receipt
+    |> Map.drop(["validation_code", "report_bytes"])
+    |> Map.update("summary", diagnostics, &Map.merge(&1, diagnostics))
+  end
+
+  @doc false
   def run_agent(kind, path, prompt, decode, profile \\ nil, opts \\ []) do
     continue!()
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
@@ -1340,7 +1563,7 @@ defmodule Boss.Deliveries.Worker do
     if kind == :implement do
       agent_process(
         executable,
-        Codex.args(:implement, nil, profile),
+        Codex.args(:implement, nil, profile, Keyword.get(opts, :network_policy)),
         path,
         prompt,
         not is_nil(profile),
@@ -1351,7 +1574,7 @@ defmodule Boss.Deliveries.Worker do
              receipt =
                agent_process(
                  executable,
-                 Codex.args(kind, output, profile),
+                 Codex.args(kind, output, profile, Keyword.get(opts, :network_policy)),
                  path,
                  prompt,
                  not is_nil(profile),

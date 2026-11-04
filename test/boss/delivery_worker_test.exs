@@ -29,7 +29,8 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
-    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
   ]
 
   setup context do
@@ -359,6 +360,20 @@ defmodule Boss.DeliveryWorkerTest do
     @autonomy_mode mode
     test "#{@autonomy_mode} recovers through validated alternate output", ctx do
       System.put_env("BOSS_DELIVERY_MODE", @autonomy_mode)
+
+      if @autonomy_mode == "autonomy_invalid_resolver" do
+        fixture = Path.join([ctx.root, "bin", "codex"])
+
+        File.write!(
+          fixture,
+          String.replace(
+            File.read!(fixture),
+            "\"resolution_attempt\": data.get(\"resolution_attempt\"),",
+            "\"resolution_attempt\": data.get(\"resolution_attempt\"), \"previous_resolution_diagnostic\": data.get(\"previous_resolution_diagnostic\"),"
+          )
+        )
+      end
+
       manager = start_manager(ctx.repo)
       {:ok, run} = start(ctx, manager)
       saved = await_delivery(ctx, run.id)
@@ -371,6 +386,20 @@ defmodule Boss.DeliveryWorkerTest do
              )
 
       assert_no_raw(steps)
+
+      if @autonomy_mode == "autonomy_invalid_resolver" do
+        [failed, passed] = Enum.filter(steps, &(&1.kind == "resolve"))
+        assert failed.receipt["summary"]["validation_code"] == "invalid_steps"
+        assert failed.receipt["summary"]["report_bytes"] in 1..32_768
+        assert passed.receipt["summary"]["validation_code"] == "valid"
+        [_first, second] = Enum.filter(calls(ctx), &(&1["kind"] == "resolve"))
+
+        assert second["previous_resolution_diagnostic"] == %{
+                 "outcome" => "invalid_report",
+                 "validation_code" => "invalid_steps",
+                 "report_bytes" => failed.receipt["summary"]["report_bytes"]
+               }
+      end
     end
   end
 
@@ -950,6 +979,123 @@ defmodule Boss.DeliveryWorkerTest do
     assert Enum.map(Enum.drop(calls(ctx), 2), & &1["kind"]) == ["resolve"]
   end
 
+  for mode <-
+        ~w(network_checkpoint network_checkpoint_timeout network_check_timeout) do
+    @checkpoint_mode mode
+    @tag timeout: if(mode == "network_checkpoint", do: 120_000, else: 240_000)
+    test "#{@checkpoint_mode} preserves the candidate and pins network access before repair",
+         ctx do
+      old = timed_out_delivery(ctx)
+      fixture = Path.join([ctx.root, "bin", "codex"])
+
+      File.write!(
+        fixture,
+        String.replace(
+          File.read!(fixture),
+          ~s|if mode == "autonomy_invalid_resolver" and data["resolution_attempt"] == 1:|,
+          ~s|if mode == "checkpoint_source_invalid" or (mode == "autonomy_invalid_resolver" and data["resolution_attempt"] == 1):|
+        )
+      )
+
+      System.put_env("BOSS_DELIVERY_MODE", "checkpoint_source_invalid")
+
+      manager = start_manager(ctx.repo)
+
+      assert {:ok, parent} =
+               Boss.Deliveries.Retry.start_timeout(
+                 ctx.project.id,
+                 old.id,
+                 Ecto.UUID.generate(),
+                 manager
+               )
+
+      parent = await_retry(ctx, parent.id)
+      parent_steps = Deliveries.steps(parent.id)
+      assert parent.status == "failed" and parent.failure_code == nil
+      assert List.last(parent_steps).receipt["outcome"] == "invalid_report"
+      source_check = Enum.find(parent_steps, &(&1.kind == "timeout_check"))
+      assert source_check.receipt["outcome"] == "checks_failed"
+      source_sha = source_check.input["candidate_commit"]
+      source_workspace = source_check.input["workspace"]
+      assert :ok == Candidate.verify(source_workspace, source_sha)
+      install_network_checkpoint_fixture(ctx)
+      System.put_env("BOSS_DELIVERY_MODE", @checkpoint_mode)
+      command = Ecto.UUID.generate()
+      assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, command)
+      # Exercise the actual saved 120-second native deadline without overriding config.
+      saved = await_retry(ctx, child.id, 0, 6500)
+      steps = Deliveries.steps(child.id)
+      assert saved.check_config == parent.check_config
+      assert saved.config_hash == parent.config_hash
+      assert saved.checkpoint_recovery_version == 1 and saved.implementation_network_version == 1
+      [plan, snapshot, check | remaining] = steps
+      assert plan.receipt["outcome"] == "retained_plan"
+      assert plan.receipt["report"] == hd(parent_steps).receipt["report"]
+      assert plan.input["source_check_id"] == source_check.id
+      assert snapshot.kind == "checkpoint_snapshot" and check.kind == "checkpoint_check"
+      assert snapshot.input["source_candidate_commit"] == source_sha
+      assert check.input["source_check_id"] == source_check.id
+      assert snapshot.input["run_workspace"]["base_commit"] == source_sha
+      assert snapshot.input["run_workspace"]["path"] != source_workspace["path"]
+      sha = check.input["candidate_commit"]
+
+      assert {:ok, parents} =
+               Boss.Agents.Workspace.git(ctx.source, ["rev-list", "--parents", "-n", "1", sha])
+
+      assert parents == "#{sha} #{source_sha}"
+
+      assert saved.status == "ready_to_merge", inspect({saved, steps})
+      [resolution, implementation | _] = remaining
+      assert resolution.kind == "resolve" and implementation.kind == "implement"
+      assert implementation.input["parent_step_id"] == resolution.id
+      assert implementation.input["workspace"]["base_commit"] == sha
+
+      implementations = Enum.filter(steps, &(&1.kind == "implement"))
+
+      for s <- implementations do
+        assert s.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
+      end
+
+      for s <- Enum.reject(steps, &(&1.kind == "implement")) do
+        refute Map.has_key?(s.input, "network_policy")
+      end
+
+      timed_out = Enum.filter(steps, &(&1.receipt["outcome"] == "timeout"))
+
+      expected_timeouts =
+        if @checkpoint_mode in ~w(network_checkpoint_timeout network_check_timeout),
+          do: 1,
+          else: 0
+
+      assert length(timed_out) == expected_timeouts
+
+      for s <- timed_out do
+        assert s.receipt["status"] == "failed" and s.receipt["candidate_verified"] == true
+        assert s.receipt["cleanup"] == "group_empty"
+        assert s.receipt["eof"] == %{"stdout" => true, "stderr" => true}
+        assert s.receipt["output_complete"] == false and s.receipt["output_hash"] == nil
+        assert Enum.any?(steps, &(&1.kind == "resolve" and &1.input["source_step_id"] == s.id))
+      end
+
+      assert length(implementations) ==
+               if(@checkpoint_mode == "network_check_timeout", do: 2, else: 1)
+
+      review = List.last(steps)
+      final_check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
+      assert final_check.receipt["output_complete"] and final_check.receipt["exit_code"] == 0
+      assert review.input["original_base"] == parent.intent["base_commit"]
+      assert review.receipt["report"]["verdict"] == "approved"
+
+      assert Deliveries.get(ctx.project.id, parent.id) == parent
+      assert Deliveries.steps(parent.id) == parent_steps
+      assert :ok == Candidate.verify(source_workspace, source_sha)
+      count = length(calls(ctx))
+      assert {:ok, ^saved} = checkpoint_retry(ctx, manager, parent.id, command)
+      assert length(calls(ctx)) == count
+      assert_no_raw(steps)
+    end
+  end
+
   @tag timeout: 120_000
   test "retry plan cannot weaken the original accepted criteria before implementation", ctx do
     manager = start_manager(ctx.repo)
@@ -1151,7 +1297,15 @@ defmodule Boss.DeliveryWorkerTest do
 
     File.write!(
       Path.join(ctx.source, "check.py"),
-      "\nif text == 'base' and Path('timeout-only.txt').exists():\n    sys.exit(3)\n",
+      """
+
+      if (mode == 'network_checkpoint_timeout' and text == 'base') or (mode == 'network_check_timeout' and text == 'candidate-1\\n'):
+          signal.alarm(150)
+          import time
+          time.sleep(125)
+      if text == 'base' and Path('timeout-only.txt').exists():
+          sys.exit(3)
+      """,
       [:append]
     )
 
@@ -1275,6 +1429,57 @@ defmodule Boss.DeliveryWorkerTest do
     end
   end
 
+  defp checkpoint_retry(ctx, manager, parent, command, remaining \\ 100)
+  defp checkpoint_retry(_, _, _, _, 0), do: flunk("Previous checkpoint worker did not exit")
+
+  defp checkpoint_retry(ctx, manager, parent, command, remaining) do
+    case Boss.Deliveries.Retry.start_checkpoint(ctx.project.id, parent, command, manager) do
+      {:error, :busy} ->
+        Process.sleep(20)
+        checkpoint_retry(ctx, manager, parent, command, remaining - 1)
+
+      result ->
+        result
+    end
+  end
+
+  defp install_network_checkpoint_fixture(ctx) do
+    fixture = Path.join([ctx.root, "bin", "codex"])
+
+    File.write!(
+      fixture,
+      fixture
+      |> File.read!()
+      |> String.replace("cycle = data.get(\"cycle\", 0)", """
+      if mode.startswith('network_'):
+          network = [a for a in args if a.startswith(('features.network_proxy.', 'sandbox_workspace_write.'))]
+          if kind == 'implement':
+              assert 'sandbox_workspace_write.network_access=true' in network
+              assert 'features.network_proxy.enabled=true' in network
+              assert 'features.network_proxy.allow_local_binding=true' in network
+              assert len(network) == 4
+          else: assert not network
+          feedback = data.get('previous_feedback') or {}
+          if kind in ('resolve', 'implement') and feedback.get('check_output_available') is False:
+              assert feedback['check_output'] is None
+              assert 'unavailable and incomplete' in feedback['check_output_limitation']
+              assert feedback['check_receipt']['outcome'] == 'timeout'
+              assert feedback['check_receipt']['output_complete'] is False
+              assert feedback['check_receipt']['output_hash'] is None
+              assert feedback['check_receipt']['candidate_verified'] is True
+      cycle = data.get("cycle", 0)
+      """)
+      |> String.replace(
+        "elif feedback[\"kind\"] != \"plan\":",
+        "elif feedback[\"kind\"] != \"plan\" and feedback.get(\"check_output_available\", True):"
+      )
+      |> String.replace(
+        "if cycle > 1:",
+        "if cycle > 1 and data['previous_feedback'].get('check_output_available', True):"
+      )
+    )
+  end
+
   defp start_claude(ctx, manager, command \\ Ecto.UUID.generate()),
     do: legacy_start(ctx, manager, command, "claude")
 
@@ -1338,20 +1543,23 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   # Retry fixtures run two complete workflows; bound each owned stage's progress.
-  defp await_retry(ctx, id, previous_number \\ 0) do
-    eventually(fn ->
-      delivery = Deliveries.get(ctx.project.id, id)
+  defp await_retry(ctx, id, previous_number \\ 0, stage_wait \\ 1500) do
+    eventually(
+      fn ->
+        delivery = Deliveries.get(ctx.project.id, id)
 
-      not Deliveries.active?(delivery) or
-        Enum.any?(Deliveries.steps(id), &(&1.number > previous_number))
-    end)
+        not Deliveries.active?(delivery) or
+          Enum.any?(Deliveries.steps(id), &(&1.number > previous_number))
+      end,
+      stage_wait
+    )
 
     delivery = Deliveries.get(ctx.project.id, id)
 
     if Deliveries.active?(delivery) do
       number = Deliveries.steps(id) |> List.last() |> Map.fetch!(:number)
       assert number in 1..48
-      await_retry(ctx, id, number)
+      await_retry(ctx, id, number, stage_wait)
     else
       delivery
     end
