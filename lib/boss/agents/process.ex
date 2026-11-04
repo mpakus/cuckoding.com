@@ -1,5 +1,9 @@
 defmodule Boss.Agents.Process do
   @moduledoc "Bounded byte transport and owned process-group cleanup on macOS."
+  # These settings configure BOSS's own Mix/Phoenix instance, not a child project.
+  # An explicit per-command environment may select them again. Preserve PATH,
+  # toolchain/account settings and every unrelated inherited variable.
+  @host_environment ~w(MIX_ENV PORT PHX_SERVER BOSS_DATA_DIR)
 
   @doc """
   Runs a command without a shell. Send `:stop` to the caller to cancel it.
@@ -62,7 +66,10 @@ defmodule Boss.Agents.Process do
     native_args = [Integer.to_string(timeout), Integer.to_string(limit), executable | args]
 
     environment =
-      Enum.map(Keyword.get(opts, :env, []), fn {key, value} ->
+      @host_environment
+      |> Map.new(&{&1, nil})
+      |> Map.merge(Map.new(Keyword.get(opts, :env, [])))
+      |> Enum.map(fn {key, value} ->
         {String.to_charlist(key), if(is_nil(value), do: false, else: String.to_charlist(value))}
       end)
 
