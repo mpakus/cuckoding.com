@@ -136,6 +136,12 @@ defmodule Boss.Deliveries.Protocol do
           can proceed; otherwise identify the specific owner-only action or unavailable
           prerequisite. A difficult bug or ordinary implementation choice alone is
           not an external_action. Include complete actionable steps in either case.
+          An implementation_timeout means the captured candidate contains unverified partial work;
+          use its fresh check output to separate unfinished work from a failing setup.
+          Each check runs in a fresh worktree: actual locked dependencies must be
+          installed through the repository setup exercised by the saved check command.
+          Do not copy ignored dependency/build caches, vendor dependencies, weaken
+          coverage or replace the saved check command to make this candidate pass.
           """
 
         :implement ->
@@ -159,6 +165,11 @@ defmodule Boss.Deliveries.Protocol do
           the user's saved check command and independent review after you finish.
           The input includes check_config: prepare the project for that exact command.
           Checks run in a fresh worktree without ignored dependency or build caches.
+          After implementation_timeout this worktree starts from captured unverified partial work;
+          preserve useful code, diagnose the supplied fresh check failure and finish it.
+          Install actual locked dependencies through repository setup exercised by the
+          saved check command. Do not copy ignored dependency/build caches between
+          worktrees or vendor dependencies to bypass that setup.
           Keep production dependencies and adapters covered by tests; do not exclude
           production paths or replace required adapter regressions with mocks to pass.
           Ignore only appropriate generated build/test artifacts in repository rules;

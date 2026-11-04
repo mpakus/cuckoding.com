@@ -24,6 +24,9 @@ defmodule Boss.AutonomyModelPolicyTest do
     refute ModelPolicy.timeout_recoverable?(1, %{step | kind: "plan"})
     refute ModelPolicy.timeout_recoverable?(1, %{step | status: "cancelled"})
 
+    for invalid <- [nil, [], "timeout"],
+        do: refute(ModelPolicy.timeout_recoverable?(1, %{step | receipt: invalid}))
+
     for changes <- [
           %{"outcome" => "cancelled"},
           %{"outcome" => "exited"},

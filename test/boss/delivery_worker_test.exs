@@ -829,6 +829,127 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   @tag timeout: 120_000
+  test "explicit timeout retry captures partial work before distinct-model repair and fresh review",
+       ctx do
+    parent = timed_out_delivery(ctx)
+    parent_steps = Deliveries.steps(parent.id)
+    [old_plan, old_implementation] = parent_steps
+    old_workspace = old_implementation.input["workspace"]
+    assert parent.execution_recovery_version == 0
+
+    assert File.read!(Path.join(old_workspace["path"], "timeout-only.txt")) ==
+             "retained partial work\n"
+
+    {:ok, original_status} =
+      Boss.Agents.Workspace.git(old_workspace["path"], ["status", "--porcelain=v1"])
+
+    manager = start_manager(ctx.repo)
+    command = Ecto.UUID.generate()
+
+    assert {:ok, child} =
+             Boss.Deliveries.Retry.start_timeout(ctx.project.id, parent.id, command, manager)
+
+    saved = await_retry(ctx, child.id)
+    steps = Deliveries.steps(child.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    assert saved.execution_recovery_version == 1
+    assert saved.intent["base_commit"] == parent.intent["base_commit"]
+    assert saved.check_config == parent.check_config
+
+    assert Enum.map(steps, & &1.kind) ==
+             ~w(plan timeout_snapshot timeout_check resolve implement snapshot check review)
+
+    [plan, snapshot, check, resolution, implementation, _, final_check, review] = steps
+    assert plan.receipt["outcome"] == "retained_plan"
+    assert plan.receipt["report"] == old_plan.receipt["report"]
+    refute Map.has_key?(plan.input, "model_profile")
+    refute Map.has_key?(plan.receipt, "exit_code")
+    assert snapshot.input["implementation_step_id"] == old_implementation.id
+    assert snapshot.input["workspace"]["run_workspace"] == old_workspace
+    assert check.input["snapshot_step_id"] == snapshot.id
+    assert resolution.cycle == 0 and implementation.cycle == 1
+    assert resolution.input["source_step_id"] == check.id
+    assert implementation.input["resolution_step_id"] == resolution.id
+    assert implementation.input["workspace"]["base_commit"] == check.input["candidate_commit"]
+
+    for step <- [resolution, implementation] do
+      assert step.input["model_profile"]["model"] == "gpt-5.6-terra"
+    end
+
+    assert check.receipt["output_complete"] and check.receipt["exit_code"] == 3
+    assert check.status == "failed" and check.receipt["outcome"] == "checks_failed"
+    assert review.input["check_step_id"] == final_check.id
+    assert review.input["original_base"] == parent.intent["base_commit"]
+    assert review.receipt["report"]["verdict"] == "approved"
+
+    assert File.read!(Path.join(final_check.input["workspace"]["path"], "timeout-only.txt")) ==
+             "retained partial work\n"
+
+    assert Deliveries.get(ctx.project.id, parent.id) == parent
+    assert Deliveries.steps(parent.id) == parent_steps
+
+    assert {:ok, ^original_status} =
+             Boss.Agents.Workspace.git(old_workspace["path"], ["status", "--porcelain=v1"])
+
+    assert Enum.map(Enum.drop(calls(ctx), 2), & &1["kind"]) == ~w(resolve implement review)
+    count = length(calls(ctx))
+
+    assert {:ok, ^saved} =
+             Boss.Deliveries.Retry.start_timeout(ctx.project.id, parent.id, command, manager)
+
+    assert length(calls(ctx)) == count
+    assert_no_raw(steps)
+  end
+
+  @tag timeout: 120_000
+  test "timeout capture refuses incomplete fresh check evidence before another model", ctx do
+    parent = timed_out_delivery(ctx)
+    System.put_env("BOSS_DELIVERY_MODE", "check_invalid_utf8")
+    manager = start_manager(ctx.repo)
+
+    assert {:ok, child} =
+             Boss.Deliveries.Retry.start_timeout(
+               ctx.project.id,
+               parent.id,
+               Ecto.UUID.generate(),
+               manager
+             )
+
+    saved = await_retry(ctx, child.id)
+    assert saved.status == "failed", inspect({saved, Deliveries.steps(child.id)})
+
+    assert Enum.map(Deliveries.steps(child.id), & &1.kind) ==
+             ~w(plan timeout_snapshot timeout_check)
+
+    assert length(calls(ctx)) == 2
+  end
+
+  @tag timeout: 120_000
+  test "Stop during timeout diagnosis starts no replacement implementation", ctx do
+    parent = timed_out_delivery(ctx)
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_wait_resolve")
+    manager = start_manager(ctx.repo)
+
+    assert {:ok, child} =
+             Boss.Deliveries.Retry.start_timeout(
+               ctx.project.id,
+               parent.id,
+               Ecto.UUID.generate(),
+               manager
+             )
+
+    eventually(fn -> File.exists?(Path.join(ctx.root, "resolver-waiting")) end)
+    assert :ok = Deliveries.stop(ctx.project.id, child.id, Boss.DeliveryTestsActive)
+    saved = await_retry(ctx, child.id)
+    assert saved.status == "cancelled" and saved.cleanup == "group_empty"
+
+    assert Enum.map(Deliveries.steps(child.id), & &1.kind) ==
+             ~w(plan timeout_snapshot timeout_check resolve)
+
+    assert Enum.map(Enum.drop(calls(ctx), 2), & &1["kind"]) == ["resolve"]
+  end
+
+  @tag timeout: 120_000
   test "retry plan cannot weaken the original accepted criteria before implementation", ctx do
     manager = start_manager(ctx.repo)
     parent = rejected_delivery(ctx, manager)
@@ -1020,6 +1141,123 @@ defmodule Boss.DeliveryWorkerTest do
     saved = await_retry(ctx, run.id)
     assert saved.status == "blocked" and saved.cycle == 3
     saved
+  end
+
+  defp timed_out_delivery(ctx) do
+    alias Boss.Agents.{ModelCatalog, Workspace}
+    alias Boss.Deliveries.{Protocol, Worker}
+    System.put_env("BOSS_MODEL_CATALOG", "installed")
+
+    File.write!(
+      Path.join(ctx.source, "check.py"),
+      "\nif text == 'base' and Path('timeout-only.txt').exists():\n    sys.exit(3)\n",
+      [:append]
+    )
+
+    assert {:ok, _} = Workspace.git(ctx.source, ["add", "check.py"])
+    assert {:ok, _} = Workspace.git(ctx.source, ["commit", "-m", "Check partial timeout work"])
+
+    fixture = Path.join([ctx.root, "bin", "codex"])
+
+    File.write!(
+      fixture,
+      fixture
+      |> File.read!()
+      |> String.replace(
+        "    while True:\n        time.sleep(0.1)\n\nif kind == \"implement\":",
+        "    Path(\"timeout-only.txt\").write_text(\"retained partial work\\n\")\n    while True:\n        time.sleep(0.1)\n\nif kind == \"implement\":"
+      )
+      |> String.replace(
+        "        feedback = data[\"previous_feedback\"]\n        if feedback[\"kind\"] == \"implementation\":",
+        "        feedback = data[\"previous_feedback\"]\n        if feedback[\"kind\"] == \"implementation_timeout\":\n            assert feedback[\"implementation_receipt\"][\"outcome\"] == \"timeout\"\n            assert feedback[\"check_receipt\"][\"exit_code\"] == 3\n            assert Path(\"timeout-only.txt\").read_text() == \"retained partial work\\n\"\n        if feedback[\"kind\"] == \"implementation\":"
+      )
+    )
+
+    assert {:ok, {:new, d}} =
+             Deliveries.admit(
+               ctx.project.id,
+               ctx.task.id,
+               Ecto.UUID.generate(),
+               "python3 check.py"
+             )
+
+    assert {:ok, catalog} = ModelCatalog.discover()
+    assert {:ok, d} = Deliveries.set_model_catalog(d.id, catalog)
+    assert {:ok, workspace} = Workspace.plan(ctx.project, d.id)
+    intent = Map.new(workspace, fn {key, value} -> {to_string(key), value} end)
+    assert {:ok, d} = Deliveries.set_intent(d.id, intent)
+    pins = %{"spec_revision_id" => d.spec_revision_id, "config_hash" => d.config_hash}
+
+    assert {:ok, plan} =
+             Deliveries.begin_step(d.id, "plan", 0, Map.put(pins, "workspace", intent))
+
+    assert {:ok, _} = Workspace.prepare(intent)
+
+    input = %{
+      "specification" => "# One\nCreate result.txt",
+      "base_commit" => intent["base_commit"],
+      "check_config" => d.check_config
+    }
+
+    assert {:ok, prompt} = Protocol.prompt(:plan, input)
+
+    receipt =
+      Worker.run_agent(
+        :plan,
+        intent["path"],
+        prompt,
+        &Protocol.plan/1,
+        plan.input["model_profile"]
+      )
+
+    assert {:ok, plan} = Deliveries.finish_step(plan.id, Map.put(receipt, "workspace", intent))
+    assert plan.status == "finished"
+    assert {:ok, workspace} = Workspace.plan(ctx.project, Ecto.UUID.generate())
+    workspace = Map.new(workspace, fn {key, value} -> {to_string(key), value} end)
+
+    input =
+      Map.merge(pins, %{
+        "workspace" => workspace,
+        "plan_step_id" => plan.id,
+        "parent_step_id" => plan.id
+      })
+
+    assert {:ok, implementation} = Deliveries.begin_step(d.id, "implement", 1, input)
+    assert {:ok, _} = Workspace.prepare(workspace)
+
+    input = %{
+      "specification" => "# One\nCreate result.txt",
+      "plan" => plan.receipt["report"],
+      "cycle" => 1,
+      "base_commit" => workspace["base_commit"],
+      "check_config" => d.check_config
+    }
+
+    assert {:ok, prompt} = Protocol.prompt(:implement, input)
+    System.put_env("BOSS_DELIVERY_MODE", "wait")
+
+    receipt =
+      Worker.run_agent(
+        :implement,
+        workspace["path"],
+        prompt,
+        nil,
+        implementation.input["model_profile"],
+        deadline_ms: System.monotonic_time(:millisecond) + 6000
+      )
+
+    assert receipt["status"] == "failed" and receipt["outcome"] == "timeout"
+    assert receipt["cleanup"] == "group_empty" and receipt["signal"] == 15
+    assert receipt["eof"] == %{"stdout" => true, "stderr" => true}
+
+    assert {:ok, _} =
+             Deliveries.finish_step(implementation.id, Map.put(receipt, "workspace", workspace))
+
+    assert {:ok, parent} =
+             Deliveries.complete(d.id, "failed", "Implementation exceeded its bounded deadline.")
+
+    System.delete_env("BOSS_DELIVERY_MODE")
+    parent
   end
 
   defp retry(ctx, manager, parent, command \\ Ecto.UUID.generate(), remaining \\ 100)

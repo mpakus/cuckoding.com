@@ -5,7 +5,8 @@ defmodule Boss.Deliveries.ModelPolicy do
   def current_routing, do: 2
   def current_execution_recovery, do: 1
 
-  def timeout_recoverable?(1, %{kind: "implement", status: "failed", receipt: receipt}) do
+  def timeout_recoverable?(1, %{kind: "implement", status: "failed", receipt: receipt})
+      when is_map(receipt) do
     receipt["outcome"] == "timeout" and receipt["cleanup"] == "group_empty" and
       receipt["eof"] == %{"stdout" => true, "stderr" => true} and
       case receipt do
