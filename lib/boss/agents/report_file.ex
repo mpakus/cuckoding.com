@@ -2,18 +2,57 @@ defmodule Boss.Agents.ReportFile do
   @moduledoc false
   # Keep the exclusively created file descriptor: a replaced path is never read.
   def read(path, file) do
+    case read_checked(path, file) do
+      {:ok, bytes, _} -> {:ok, bytes}
+      _ -> {:error, :invalid_review}
+    end
+  end
+
+  def size(file) do
+    with {:ok, info} <- :file.read_file_info(file),
+         %{type: :regular, size: bytes} <- File.Stat.from_record(info),
+         true <- bytes in 0..9_007_199_254_740_991 do
+      bytes
+    else
+      _ -> nil
+    end
+  end
+
+  def read_checked(path, file) do
+    bytes = size(file)
+
     with {:ok, info} <- :file.read_file_info(file),
          original = File.Stat.from_record(info),
-         true <- original.type == :regular and original.size in 1..32_768,
-         {:ok, current} <- File.lstat(path),
-         true <-
-           current.type == :regular and current.inode == original.inode and
-             current.major_device == original.major_device,
+         :ok <- same_file(path, original),
+         :ok <- bounded_size(original.size),
          {:ok, 0} <- :file.position(file, :bof),
-         {:ok, bytes} when byte_size(bytes) <= 32_768 <- :file.read(file, 32_769) do
-      {:ok, bytes}
+         {:ok, text} <- :file.read(file, 32_769),
+         :ok <- bounded_size(byte_size(text)),
+         true <- byte_size(text) == original.size,
+         :ok <- same_file(path, original) do
+      {:ok, text, byte_size(text)}
     else
-      _ -> {:error, :invalid_review}
+      {:error, code} when code in [:report_empty, :report_too_large, :report_replaced] ->
+        {:error, code, bytes}
+
+      _ ->
+        {:error, :report_unavailable, bytes}
+    end
+  end
+
+  defp bounded_size(0), do: {:error, :report_empty}
+  defp bounded_size(bytes) when bytes > 32_768, do: {:error, :report_too_large}
+  defp bounded_size(bytes) when bytes > 0, do: :ok
+
+  defp same_file(path, original) do
+    with {:ok, current} <- File.lstat(path),
+         true <-
+           original.type == :regular and current.type == :regular and
+             current.inode == original.inode and current.major_device == original.major_device and
+             current.size == original.size do
+      :ok
+    else
+      _ -> {:error, :report_replaced}
     end
   end
 
