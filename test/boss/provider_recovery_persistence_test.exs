@@ -300,6 +300,8 @@ defmodule Boss.ProviderRecoveryPersistenceTest do
         {"unknown cleanup", %{"cleanup" => "unknown"}, "provider_rate_limit"},
         {"missing EOF", %{"eof" => %{"stdout" => true, "stderr" => false}},
          "provider_rate_limit"},
+        {"extra EOF member", %{"eof" => %{"stdout" => true, "stderr" => true, "forced" => true}},
+         "provider_rate_limit"},
         {"zero exit", %{"exit_code" => 0}, "provider_rate_limit"},
         {"boolean exit", %{"exit_code" => true}, "provider_rate_limit"},
         {"float exit", %{"exit_code" => 1.0}, "provider_rate_limit"},
@@ -325,6 +327,16 @@ defmodule Boss.ProviderRecoveryPersistenceTest do
              Deliveries.admit_checkpoint_retry(c.project.id, parent.id, Ecto.UUID.generate())
 
     assert d.provider_recovery_version == 0
+  end
+
+  for field <- ~w(path branch) do
+    test "source workspace #{field} must be text in context and SQL", c do
+      {parent, _, implementation} =
+        parent(c, %{}, "provider_rate_limit", %{unquote(field) => nil})
+
+      assert {:error, :checkpoint_retry_unavailable} = ExecutionRetry.provider_parent(parent)
+      assert {:error, _} = raw_provider(parent, implementation, %{})
+    end
   end
 
   test "migration roundtrip preserves old terminal rows and refuses new history loss", c do
@@ -356,7 +368,7 @@ defmodule Boss.ProviderRecoveryPersistenceTest do
     end
   end
 
-  defp parent(c, attrs \\ %{}, code \\ "provider_rate_limit") do
+  defp parent(c, attrs \\ %{}, code \\ "provider_rate_limit", workspace_attrs \\ %{}) do
     {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
     {:ok, d} = Deliveries.set_model_catalog(d.id, @catalog)
     {:ok, d} = Deliveries.set_intent(d.id, workspace(c, d.id))
@@ -378,7 +390,11 @@ defmodule Boss.ProviderRecoveryPersistenceTest do
         d,
         "implement",
         1,
-        %{"workspace" => fresh(d.intent), "parent_step_id" => p.id, "plan_step_id" => p.id},
+        %{
+          "workspace" => Map.merge(fresh(d.intent), workspace_attrs),
+          "parent_step_id" => p.id,
+          "plan_step_id" => p.id
+        },
         r
       )
 
