@@ -962,4 +962,5 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 
 - [x] Reproduce inherited launcher settings with finite production-runner tests (seed7201, two expected failures).
 - [x] Isolate launcher defaults, preserve explicit child overrides and verify real Mix test selection plus native lifecycle checks (32 passed7202, full native Done7203).
-- [ ] Independently review, merge locally, activate safely and resume real task47 through exact Done.
+- [x] Independently review, merge locally and activate with a verified single dev reload (edb70e7, oldworker cleanup preserved).
+- [ ] Verify real task47 through passing checks, review, publication, postchecks and exact Done.

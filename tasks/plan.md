@@ -638,4 +638,5 @@ Isolate launcher-owned MIX_ENV/PORT/PHX_SERVER/BOSS_DATA_DIR from project child
 processes while preserving explicit child environment overrides and host PATH.
 Reproduce with the production process runner and a dependency-free Mix project;
 verify Stop/cleanup, checks and model runners. Activate only after independent
-review and a safe idle-instance restart, then continue the retained task47 code.
+review and a verified single dev reload or safe idle-instance restart, then continue
+the retained task47 code.
