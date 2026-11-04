@@ -30,7 +30,8 @@ defmodule Boss.MergeIntegrationPersistenceTest do
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
-    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery}
+    {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
   ]
 
   test "upgrade preserves legacy approval and publication; durable merge intent forbids downgrade and restart replay" do
@@ -38,6 +39,10 @@ defmodule Boss.MergeIntegrationPersistenceTest do
 
     {legacy, original} = ready(project, "legacy")
     saved_steps = Deliveries.steps(legacy.id)
+
+    Ecto.Migrator.down(Repo, 20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecoverySchema,
+      log: false
+    )
 
     Ecto.Migrator.down(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecoverySchema,
       log: false
@@ -283,6 +288,13 @@ defmodule Boss.MergeIntegrationPersistenceTest do
         else: Boss.Repo.Migrations.AddExecutionRecovery
 
     Ecto.Migrator.up(Repo, 20_261_106_140_000, execution_module, log: false)
+
+    checkpoint_module =
+      if version < @version,
+        do: Boss.Repo.Migrations.AddCheckpointRecoverySchema,
+        else: Boss.Repo.Migrations.AddCheckpointRecovery
+
+    Ecto.Migrator.up(Repo, 20_261_106_150_000, checkpoint_module, log: false)
 
     project =
       Repo.insert!(%Projects.Project{
