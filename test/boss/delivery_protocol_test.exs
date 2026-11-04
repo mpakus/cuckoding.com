@@ -288,7 +288,9 @@ defmodule Boss.DeliveryProtocolTest do
       assert instructions =~
                "No extra or duplicate keys, wrapper object, Markdown fences or surrounding prose"
 
-      assert instructions =~ "top-level candidate_commit, check_receipt and check_output"
+      assert instructions =~
+               "the input's top-level candidate_commit, check_receipt and check_output"
+
       assert instructions =~ "Previous feedback is historical"
     end
   end

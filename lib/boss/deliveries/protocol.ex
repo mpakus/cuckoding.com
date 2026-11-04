@@ -283,7 +283,7 @@ defmodule Boss.Deliveries.Protocol do
           changes_requested requires at least one failed criterion and nonempty issues;
           needs_spec_revision requires at least one unclear criterion and nonempty issues.
           Individual field limits do not replace the total byte budget.
-          Use top-level candidate_commit, check_receipt and check_output as the current
+          Use the input's top-level candidate_commit, check_receipt and check_output as the current
           candidate's check evidence. Previous feedback is historical: re-evaluate its
           findings against this exact candidate, without substituting an older failure,
           passing check or approval for the current evidence.
