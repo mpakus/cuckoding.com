@@ -362,6 +362,9 @@
   exhausting its five-cycle/forty-eight-stage budget. Legacy retains three cycles/twenty
   stages and repeated-failure refusal. Stop, changed candidates and unknown cleanup
   still halt. Do not persist raw output or truncate prompts to manufacture approval.
+  Prior diagnostic steps are advice. Preserve the pinned acceptance and explicit
+  security gates, verify dependency advisory applicability and mitigation, and
+  require fresh evidence for reused same-task code.
 - Terminal workflow attention uses the persisted task event for the reason and
   recovery action. Derive it from bounded structured findings and fixed stage
   diagnostics. Strip controls, preserve UTF-8 and never include raw output.

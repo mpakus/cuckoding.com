@@ -201,3 +201,9 @@ the original check. A different model diagnoses the fresh result. The next
 implementation starts from that commit. Fresh review, exact publication and
 post-publication checks still govern Done. A repeated provider failure stops
 dispatch.
+
+Resolver and implementation prompts keep earlier advice subordinate to the saved
+requirements. Package advisories need evidence about the affected configuration
+and reachable code, plus any verified mitigation and residual risk. Required
+security checks remain binding. Models can reuse relevant same-task commits
+after checking their provenance and diff and running fresh verification.
