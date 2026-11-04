@@ -27,7 +27,8 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
     {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
-    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery},
+    {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery}
   ]
 
   test "migration preserves Codex history and pinned Claude request survives restart" do

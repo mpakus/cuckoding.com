@@ -30,7 +30,8 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
     {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
-    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery}
+    {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery},
+    {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery}
   ]
 
   setup context do
@@ -1096,6 +1097,166 @@ defmodule Boss.DeliveryWorkerTest do
     end
   end
 
+  @tag autonomy: true, routing: 2, provider_checkpoint: true, timeout: 120_000
+  test "explicit provider checkpoint captures rate-limited work without reclassifying its failure",
+       ctx do
+    manager = start_manager(ctx.repo)
+    parent = rate_limited_delivery(ctx, manager)
+    parent_steps = Deliveries.steps(parent.id)
+    source = List.last(parent_steps)
+    workspace = source.input["workspace"]
+
+    assert File.read!(Path.join(workspace["path"], "provider-only.txt")) ==
+             "retained partial work\n"
+
+    assert {:ok, old_head} = Boss.Agents.Workspace.git(workspace["path"], ["rev-parse", "HEAD"])
+
+    assert {:ok, old_status} =
+             Boss.Agents.Workspace.git(workspace["path"], ["status", "--porcelain"])
+
+    System.put_env("BOSS_DELIVERY_MODE", "approved")
+    command = Ecto.UUID.generate()
+    assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, command)
+    saved = await_retry(ctx, child.id)
+    steps = Deliveries.steps(child.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    assert saved.provider_recovery_version == 1
+    assert saved.checkpoint_recovery_version == 1
+    assert saved.retry_source_check_id == nil
+    assert saved.retry_implementation_id == source.id
+    assert saved.check_config == parent.check_config and saved.config_hash == parent.config_hash
+    assert saved.model_catalog == parent.model_catalog and saved.reviewer == parent.reviewer
+    assert saved.spec_revision_id == parent.spec_revision_id
+
+    assert Enum.map(steps, & &1.kind) ==
+             ~w(plan checkpoint_snapshot checkpoint_check resolve implement snapshot check review)
+
+    [plan, snapshot, check, resolution, replacement, _, final_check, review] = steps
+    assert plan.receipt["outcome"] == "retained_plan"
+    assert plan.receipt["report"] == hd(parent_steps).receipt["report"]
+    refute Map.has_key?(plan.receipt, "exit_code")
+    assert snapshot.input["run_workspace"] == workspace
+    assert snapshot.input["source_check_id"] == nil
+    assert snapshot.input["source_candidate_commit"] == nil
+    assert snapshot.input["implementation_step_id"] == source.id
+    sha = check.input["candidate_commit"]
+    assert snapshot.receipt["candidate_commit"] == sha
+    assert check.input["workspace"]["run_workspace"] == workspace
+    assert check.receipt["status"] == "failed" and check.receipt["outcome"] == "checks_failed"
+    assert check.receipt["exit_code"] == 3 and check.receipt["output_complete"] == true
+
+    assert File.read!(Path.join(check.input["workspace"]["path"], "provider-only.txt")) ==
+             "retained partial work\n"
+
+    assert resolution.input["source_step_id"] == check.id
+    assert resolution.input["model_profile"]["model"] == "gpt-5.6-terra"
+    assert replacement.input["model_profile"]["model"] == "gpt-5.6-terra"
+    assert replacement.input["workspace"]["base_commit"] == sha
+    assert replacement.input["network_policy"] == Boss.Agents.NetworkPolicy.profile(1)
+    assert final_check.receipt["exit_code"] == 0 and final_check.receipt["output_complete"]
+    assert review.input["original_base"] == parent.intent["base_commit"]
+    assert review.receipt["report"]["verdict"] == "approved"
+    assert Deliveries.get(ctx.project.id, parent.id) == parent
+    assert Deliveries.steps(parent.id) == parent_steps
+    assert {:ok, ^old_head} = Boss.Agents.Workspace.git(workspace["path"], ["rev-parse", "HEAD"])
+
+    assert {:ok, ^old_status} =
+             Boss.Agents.Workspace.git(workspace["path"], ["status", "--porcelain"])
+
+    count = length(calls(ctx))
+    assert {:ok, ^saved} = checkpoint_retry(ctx, manager, parent.id, command)
+    assert length(calls(ctx)) == count
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true, routing: 2, provider_checkpoint: true, timeout: 120_000
+  test "another rate limit in the explicit child halts without automatically capturing or retrying",
+       ctx do
+    manager = start_manager(ctx.repo)
+    parent = rate_limited_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "provider_checkpoint_again")
+    assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, Ecto.UUID.generate())
+    saved = await_retry(ctx, child.id)
+    steps = Deliveries.steps(child.id)
+    assert saved.status == "failed" and saved.failure_code == "provider_rate_limit"
+    assert saved.cleanup == "group_empty"
+
+    assert Enum.map(steps, & &1.kind) ==
+             ~w(plan checkpoint_snapshot checkpoint_check resolve implement)
+
+    assert List.last(steps).receipt["outcome"] == "exited"
+    assert List.last(steps).receipt["summary"]["error_class"] == "rate_limit"
+    assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan implement resolve implement)
+  end
+
+  @tag autonomy: true, routing: 2, provider_checkpoint: true, timeout: 120_000
+  test "Stop during provider checkpoint diagnosis starts no replacement", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rate_limited_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_wait_resolve")
+    assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, Ecto.UUID.generate())
+    eventually(fn -> File.exists?(Path.join(ctx.root, "resolver-waiting")) end)
+    assert :ok = Deliveries.stop(ctx.project.id, child.id, Boss.DeliveryTestsActive)
+    saved = await_retry(ctx, child.id)
+    assert saved.status == "cancelled" and saved.cleanup == "group_empty"
+
+    assert Enum.map(Deliveries.steps(child.id), & &1.kind) ==
+             ~w(plan checkpoint_snapshot checkpoint_check resolve)
+
+    assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan implement resolve)
+  end
+
+  @tag autonomy: true, routing: 2, provider_checkpoint: true, timeout: 120_000
+  test "provider checkpoint refuses incomplete fresh check evidence before another model", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rate_limited_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "check_invalid_utf8")
+    assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, Ecto.UUID.generate())
+    saved = await_retry(ctx, child.id)
+    assert saved.status == "failed"
+
+    assert Enum.map(Deliveries.steps(child.id), & &1.kind) ==
+             ~w(plan checkpoint_snapshot checkpoint_check)
+
+    assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan implement)
+  end
+
+  @tag autonomy: true, routing: 2, provider_checkpoint: true, timeout: 120_000
+  test "provider checkpoint cannot capture files before its snapshot intent commits", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rate_limited_delivery(ctx, manager)
+    source = List.last(Deliveries.steps(parent.id))
+    workspace = source.input["workspace"]
+
+    assert {:ok, ""} =
+             Boss.Agents.Workspace.git(ctx.source, [
+               "for-each-ref",
+               "--format=%(refname)",
+               "refs/boss/checks/"
+             ])
+
+    Repo.query!(
+      "CREATE TRIGGER fixture_stop_checkpoint BEFORE INSERT ON delivery_steps WHEN NEW.kind='checkpoint_snapshot' BEGIN SELECT RAISE(ABORT, 'fixture'); END"
+    )
+
+    System.put_env("BOSS_DELIVERY_MODE", "approved")
+    assert {:ok, child} = checkpoint_retry(ctx, manager, parent.id, Ecto.UUID.generate())
+    saved = await_retry(ctx, child.id)
+    assert saved.status == "interrupted" and saved.cleanup == "unknown"
+    assert Enum.map(Deliveries.steps(child.id), & &1.kind) == ["plan"]
+    assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan implement)
+
+    assert {:ok, ""} =
+             Boss.Agents.Workspace.git(ctx.source, [
+               "for-each-ref",
+               "--format=%(refname)",
+               "refs/boss/checks/"
+             ])
+
+    assert File.read!(Path.join(workspace["path"], "provider-only.txt")) ==
+             "retained partial work\n"
+  end
+
   @tag timeout: 120_000
   test "retry plan cannot weaken the original accepted criteria before implementation", ctx do
     manager = start_manager(ctx.repo)
@@ -1288,6 +1449,74 @@ defmodule Boss.DeliveryWorkerTest do
     saved = await_retry(ctx, run.id)
     assert saved.status == "blocked" and saved.cycle == 3
     saved
+  end
+
+  defp rate_limited_delivery(ctx, manager) do
+    System.put_env("BOSS_MODEL_CATALOG", "installed")
+
+    File.write!(
+      Path.join(ctx.source, "check.py"),
+      """
+
+      if text == 'base' and Path('provider-only.txt').exists():
+          sys.exit(3)
+      """,
+      [:append]
+    )
+
+    assert {:ok, _} = Boss.Agents.Workspace.git(ctx.source, ["add", "check.py"])
+
+    assert {:ok, _} =
+             Boss.Agents.Workspace.git(ctx.source, [
+               "commit",
+               "-m",
+               "Check retained provider work"
+             ])
+
+    fixture = Path.join([ctx.root, "bin", "codex"])
+
+    File.write!(
+      fixture,
+      String.replace(File.read!(fixture), "if mode == \"routing_auth\":", """
+      feedback = data.get('previous_feedback') or {}
+      if kind in ('resolve', 'implement') and feedback.get('kind') == 'provider_checkpoint':
+          assert feedback['provider_error_class'] == 'rate_limit'
+          network = [a for a in args if a.startswith(('features.network_proxy.', 'sandbox_workspace_write.'))]
+          if kind == 'implement':
+              assert 'sandbox_workspace_write.network_access=true' in network
+              assert 'features.network_proxy.enabled=true' in network
+              assert 'features.network_proxy.allow_local_binding=true' in network
+              assert len(network) == 4
+          else: assert not network
+          assert data['implementation_network_policy']['version'] == 1
+          assert feedback['implementation_receipt']['outcome'] == 'exited'
+          assert feedback['implementation_receipt']['summary']['error_class'] == 'rate_limit'
+          assert feedback['check_receipt']['outcome'] == 'checks_failed'
+          assert feedback['check_receipt']['exit_code'] == 3
+          assert feedback['check_output_available'] is True
+          assert 'CHECK_STDOUT_SECRET_SENTINEL' in feedback['check_output']['stdout']
+          assert 'CHECK_STDERR_SECRET_SENTINEL' in feedback['check_output']['stderr']
+          assert Path('provider-only.txt').read_text() == 'retained partial work\\n'
+      if mode in ('provider_checkpoint_source', 'provider_checkpoint_again') and kind == 'implement':
+          Path('provider-only.txt').write_text('retained partial work\\n')
+          emit({'type': 'error', 'code': 'rate_limit_exceeded', 'message': 'RAW_MODEL_SECRET_SENTINEL'})
+          sys.exit(1)
+      if mode == "routing_auth":
+      """)
+    )
+
+    install_network_checkpoint_fixture(ctx)
+    System.put_env("BOSS_DELIVERY_MODE", "provider_checkpoint_source")
+    assert {:ok, parent} = start(ctx, manager)
+    parent = await_retry(ctx, parent.id)
+    assert parent.status == "failed" and parent.failure_code == "provider_rate_limit"
+    assert parent.cleanup == "group_empty"
+    assert Enum.map(Deliveries.steps(parent.id), & &1.kind) == ~w(plan implement)
+    source = List.last(Deliveries.steps(parent.id))
+    assert source.receipt["outcome"] == "exited" and source.receipt["exit_code"] == 1
+    assert source.receipt["eof"] == %{"stdout" => true, "stderr" => true}
+    assert source.receipt["summary"]["error_class"] == "rate_limit"
+    parent
   end
 
   defp timed_out_delivery(ctx) do
