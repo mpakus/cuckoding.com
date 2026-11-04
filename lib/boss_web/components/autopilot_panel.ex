@@ -41,6 +41,26 @@ defmodule BossWeb.AutopilotPanel do
         <p :if={!@loaded && !@error} role="status" class="text-sm text-muted">
           Loading Autopilot…
         </p>
+        <div
+          :if={!@documentation}
+          id="documentation-conversion"
+          class="space-y-2 border-b border-line pb-4"
+        >
+          <p id="documentation-conversion-help" class="max-w-3xl text-sm text-body">
+            Imported instructions instead of implementation tasks? Use these documents as planning context.
+            Existing tasks and attempts remain in reference history. Then Start Autopilot to generate a new plan.
+          </p>
+          <button
+            id="plan-from-documentation"
+            type="button"
+            phx-target={@myself}
+            phx-click="plan_from_documentation"
+            phx-value-command-id={@command}
+            disabled={!@conversion_ready}
+            aria-describedby="documentation-conversion-help"
+            class="app-button-secondary px-3 py-2 text-sm disabled:opacity-50"
+          >Plan from documentation</button>
+        </div>
         <div :if={@intake && @intake.status != "finished"} id="autopilot-intake" class="space-y-2">
           <p id="autopilot-intake-status" role="status" class="text-sm text-body">
             {if @intake.status == "planning",

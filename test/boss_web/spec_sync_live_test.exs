@@ -246,7 +246,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert {:noreply, socket} =
              ProjectLive.handle_async(
                :refresh,
-               {:ok, {Projects.list_spec_entries(project.id), :interrupted}},
+               {:ok, {project, Projects.list_spec_entries(project.id), :interrupted}},
                reloading
              )
 

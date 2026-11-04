@@ -108,6 +108,7 @@ defmodule BossWeb.TaskRevision do
       end) || "unavailable"
 
   def resolved?({:ok, _}), do: true
+  def resolved?({:error, :reference_only}), do: true
 
   def resolved?({:error, reason}),
     do:
@@ -126,6 +127,7 @@ defmodule BossWeb.TaskRevision do
   def resolved?(_), do: false
 
   def error({:ok, _}), do: nil
+  def error({:error, :reference_only}), do: reason(:reference_only)
 
   def error({:error, :stale_state}),
     do: "The task changed. Review its refreshed snapshot before trying again."
@@ -150,6 +152,7 @@ defmodule BossWeb.TaskRevision do
     do:
       "The update outcome could not be confirmed. Retry the saved revision request before starting other work."
 
+  defp reason(:reference_only), do: "Reference documents keep their original task snapshots."
   defp reason(:task_unavailable), do: "This task cannot change its source in its current state."
   defp reason(:busy), do: "This task has active work or cleanup that needs attention."
 
