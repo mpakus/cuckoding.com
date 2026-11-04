@@ -955,5 +955,5 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 - [x] Pin a bounded implementation network policy on a new explicit recovery request.
 - [x] Resume retained code after a failed or known-clean timed-out check; preserve missing output honestly.
 - [x] Verify model handoff, Stop/unknown/refusal, source pins and exact publication/Done with finite native fixtures.
-- [ ] Review, merge locally, rehearse original-data migration and activate a fresh saved checkpoint request.
+- [x] Review, merge locally, rehearse original-data migration and activate a fresh saved checkpoint request (main f72f68e4, 53 tests7110, child69596842).
 - [ ] Verify real task47 checks, independent review, integration and Done.
