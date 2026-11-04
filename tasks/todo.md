@@ -928,7 +928,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   plus exhaustion without partial tasks (2passed6511; final2passed6514).
 - [x] Combined parser/storage/transport/UI31passed6510(final34passed6515), web/persistence214passed6512,
   remaining persistence/recovery38passed6513; copied liveDB preserves15oldtables.
-- [ ] Observe a real project intake and implementation using the new policy.
+- [x] Observe real rejected-plan → Terra correction →18generated tasks → first
+  implementation stage and actual Phoenix source files (2026-11-04, requestd57ece25).
+- [ ] Verify the real bootstrap task reaches passing checks, review and Done.
 
 The earlier real request719ff7c4 failed before task creation with a generic reason;
 the exact provider cause was not retained and is not inferred from fixture results.
