@@ -941,7 +941,7 @@ No claim of real application completion follows from the finite CLI tests.
 - [x] New explicit timeout retry preserves original plan, source, checks and history.
 - [x] Capture retained partial work, run fresh checks, resolve with another model,
   implement again, and verify rejected review recovery through exact Done.
-- [ ] Guard Stop, unknown cleanup, replay, source drift and historical policy in SQL
+- [x] Guard Stop, unknown cleanup, replay, source drift and historical policy in SQL
   and context tests; review and merge locally before activating.
 - [ ] Verify real task47 checks, independent review, publication and postchecks.
 
