@@ -105,6 +105,90 @@ defmodule Boss.IntakeAgentReportTest do
     refute File.exists?(Path.join(c.root, "called"))
   end
 
+  test "prelaunch Git Stop and deadline keep known ownership across the workspace boundary", c do
+    for mode <- [:stop, :deadline] do
+      deadline = System.monotonic_time(:millisecond) + if(mode == :stop, do: 60_000, else: 0)
+
+      runner = fn _executable, args, opts ->
+        if mode == :stop, do: send(self(), :stop)
+        Planner.run_git("/nonexistent/intake-fixture-git", args, opts, deadline)
+      end
+
+      assert {:error, :cancelled} =
+               Boss.Agents.Workspace.git(c.root, ["status"], runner: runner)
+    end
+
+    assert {:error, :cleanup_unknown} =
+             Boss.Agents.Workspace.git(c.root, ["status"],
+               runner: fn _, _, _ -> %{outcome: :failed, cleanup: :unknown} end
+             )
+  end
+
+  test "final validation interrupts a Git metadata lock at the original deadline", c do
+    source = Path.join(c.root, "source")
+    File.mkdir!(source)
+
+    for args <- [
+          ["init", "-q", "-b", "main"],
+          [
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "base"
+          ],
+          ["checkout", "-q", "-b", "observer"]
+        ] do
+      assert {_, 0} = System.cmd("git", args, cd: source, stderr_to_stdout: true)
+    end
+
+    {source, 0} = System.cmd("/bin/pwd", ["-P"], cd: source)
+    source = String.trim(source)
+
+    project = %{
+      id: 9123,
+      root_path: source,
+      git_common_dir: Path.join(source, ".git"),
+      base_branch: "main"
+    }
+
+    assert {:ok, workspace} = Boss.Agents.Workspace.plan(project, Ecto.UUID.generate())
+    intent = Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end)
+    owner = self()
+
+    {holder, monitor} =
+      spawn_monitor(fn ->
+        owner_monitor = Process.monitor(owner)
+        lock = {{Boss.Agents.Workspace, :worktree, project.git_common_dir}, self()}
+        true = :global.set_lock(lock, [node()], 0)
+        send(owner, {:lock_held, self()})
+
+        receive do
+          :release -> :ok
+          {:DOWN, ^owner_monitor, :process, ^owner, _} -> :ok
+        end
+
+        :global.del_lock(lock, [node()])
+      end)
+
+    assert_receive {:lock_held, ^holder}, 1000
+    started = System.monotonic_time(:millisecond)
+
+    try do
+      assert {:error, :planning_deadline} =
+               Planner.validate_current(project, %{workspace: intent, deadline_ms: started + 6500})
+
+      assert System.monotonic_time(:millisecond) - started < 3500
+    after
+      send(holder, :release)
+      assert_receive {:DOWN, ^monitor, :process, ^holder, :normal}, 1000
+    end
+  end
+
   defp run(path, mode, opts),
     do:
       Worker.run_agent(
