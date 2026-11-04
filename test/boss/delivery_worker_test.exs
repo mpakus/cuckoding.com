@@ -27,7 +27,8 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
-    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation}
+    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
   ]
 
   setup context do

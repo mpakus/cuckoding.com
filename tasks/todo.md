@@ -8,7 +8,8 @@
 - [x] Проверить смену моделей, неизменность критериев, Stop и старые заявки.
 - [x] Доказать Autopilot question → resolution → implementation → verified Done.
 - [x] Независимое ревью, общий regression и локальная интеграция.
-- [ ] Расширить восстановление на intake и конфликты интеграции с новым проверенным candidate.
+- [x] Проверить восстановление intake: сохранённый отказ → другая модель → задачи → Done.
+- [ ] Расширить восстановление на конфликты интеграции с новым проверенным candidate.
 - [ ] Отдельно измерить реальное автономное завершение и время владельца.
 
 Доказательства первого прохода: 20 native recovery tests (seed 1203), два повторных
@@ -913,3 +914,22 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   verify its exact saved request, source and model catalog on local4001.
 - [ ] Observe real-provider task generation, implementation and checks; admission
   and finite fixtures do not establish completed live delivery.
+
+## Documentation planning recovery — 2026-11-04
+
+- [x] New planning_version1 saves model/source intent and immutable sanitized
+  receipts before handoff; old requests retain version0 and original history.
+- [x] Align schema/prompt with32tasks/32KiB and field limits; preserve complete
+  original source/check inputs and fixed rejection feedback across model changes.
+- [x] Bound planning to3attempts under one20minute deadline; Stop, unknown cleanup,
+  drift and shared provider failures halt. Bind task creation to the latest planhash.
+- [x] Display persisted attempt history, model and bounded validation diagnostics.
+- [x] Native fakeCLI rejection→alternate model→two dependent tasks→verified Done,
+  plus exhaustion without partial tasks (2passed6511; final2passed6514).
+- [x] Combined parser/storage/transport/UI31passed6510(final34passed6515), web/persistence214passed6512,
+  remaining persistence/recovery38passed6513; copied liveDB preserves15oldtables.
+- [ ] Observe a real project intake and implementation using the new policy.
+
+The earlier real request719ff7c4 failed before task creation with a generic reason;
+the exact provider cause was not retained and is not inferred from fixture results.
+No claim of real application completion follows from the finite CLI tests.

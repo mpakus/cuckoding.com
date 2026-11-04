@@ -26,7 +26,8 @@ defmodule Boss.CheckPersistenceTest do
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
     {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
     {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting},
-    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation}
+    {20_261_106_120_000, Boss.Repo.Migrations.ConvertProjectDocumentation},
+    {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery}
   ]
 
   setup do

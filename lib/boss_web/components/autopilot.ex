@@ -14,6 +14,7 @@ defmodule BossWeb.Autopilot do
        open: false,
        batch: nil,
        intake: nil,
+       intake_attempts: [],
        loaded: false,
        loading: false,
        load_again: false,
@@ -193,6 +194,12 @@ defmodule BossWeb.Autopilot do
   def handle_async({:load, generation}, result, %{assigns: %{generation: generation}} = socket) do
     socket =
       case result do
+        {:ok, {batch, intake, selection, conversion, attempts}} ->
+          socket
+          |> assign(intake_attempts: attempts)
+          |> confirm_conversion(conversion)
+          |> apply_selection(batch, intake, selection)
+
         {:ok, {batch, intake, selection, conversion}} ->
           socket
           |> confirm_conversion(conversion)
@@ -343,6 +350,7 @@ defmodule BossWeb.Autopilot do
     |> start_async({:load, generation}, fn ->
       batch = Engine.current(project)
       intake = if documentation?, do: Intake.latest(project)
+      attempts = if intake, do: Intake.attempts(intake.id), else: []
 
       conversion =
         case pending do
@@ -350,7 +358,7 @@ defmodule BossWeb.Autopilot do
           _ -> nil
         end
 
-      {batch, intake, Engine.selection(project), conversion}
+      {batch, intake, Engine.selection(project), conversion, attempts}
     end)
   end
 
