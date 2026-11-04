@@ -273,6 +273,12 @@
   local/private access, not only one PostgreSQL port. Read-only stages and old
   requests retain their prior policy. Never let model-written files expand hosts,
   change host settings or replace the sandbox with full access.
+- An explicit checkpoint can recover a retained implementation after a typed
+  provider rate limit. Pin `provider_recovery_version: 1` on the new request.
+  Require the saved terminal task event, natural nonzero exit, both EOFs, known
+  cleanup and exact implementation workspace. Save capture intent before Git,
+  then check, diagnose and implement before fresh review. Provider failure
+  still stops dispatch.
 - Documentation projects use one explicit persisted intake before Autopilot.
   New planning_version1 retains at most three immutable model attempts under one
   absolute deadline. Save model/source intent before effects and sanitized receipt

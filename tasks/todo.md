@@ -968,5 +968,5 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 ### Explicit provider-capacity continuation
 
 - [x] Identify the typed terminal rate limit and verify the retained application source on a fresh PostgreSQL test copy.
-- [ ] Verify immutable admission, migration preservation, fresh captured checks and the complete native flow to Done.
+- [x] Verify immutable admission, migration preservation, fresh captured checks and the complete native flow to Done (7313, 7316, 7317).
 - [ ] Continue the real task with its pinned criteria and verify its approved and published commit.

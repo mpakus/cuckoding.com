@@ -186,3 +186,18 @@ Project commands run without the four launcher-owned defaults `MIX_ENV`, `PORT`,
 win; PATH and the project's CLI/toolchain remain unchanged. This prevents a local
 BOSS launch from making `mix test` select development mode or bind BOSS's port.
 It does not select test mode for arbitrary commands or rewrite earlier receipts.
+
+### Explicit continuation after a provider rate limit
+
+A shared provider failure stops the current workflow before another model call.
+A fresh checkpoint command can recover the latest implementation if its receipt
+classifies a natural nonzero exit as a rate limit and proves both EOFs and empty
+process group cleanup. The new request pins `provider_recovery_version: 1`,
+the terminal task event, original model catalog and saved workspace. Existing
+requests retain their original policy.
+
+The worker saves capture intent, snapshots the retained workspace and executes
+the original check. A different model diagnoses the fresh result. The next
+implementation starts from that commit. Fresh review, exact publication and
+post-publication checks still govern Done. A repeated provider failure stops
+dispatch.
