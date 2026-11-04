@@ -246,6 +246,326 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
     end
   end
 
+  test "SQL admission rejects altered source pins and never upgrades an ordinary delivery", c do
+    {parent, plan, implementation} = parent(c)
+
+    for changes <- [
+          %{retry_implementation_id: plan.id},
+          %{execution_recovery_version: 0},
+          %{admitted_version: parent.task_version},
+          %{
+            model_catalog:
+              Map.put(@catalog, "small", %{
+                "model" => "gpt-5.6-luna",
+                "reasoning_effort" => "medium"
+              })
+          },
+          %{config_hash: @hash},
+          %{reviewer: "claude"},
+          %{retry_review_id: plan.id}
+        ] do
+      assert {:error, _} = raw_child(parent, implementation, changes)
+    end
+
+    assert {:error, _} =
+             Repo.query(
+               "UPDATE deliveries SET execution_recovery_version=1,retry_implementation_id=? WHERE id=?",
+               [implementation.id, parent.id]
+             )
+
+    assert Repo.get!(Delivery, parent.id) == parent
+  end
+
+  test "retained plan SQL rejects changed criteria and fabricated process receipt", c do
+    {parent, source_plan, source} = parent(c)
+
+    {:ok, {:new, d}} =
+      Deliveries.admit_timeout_retry(c.project.id, parent.id, Ecto.UUID.generate())
+
+    {:ok, d} = Deliveries.set_intent(d.id, workspace(c, d.id))
+
+    i =
+      pins(d, %{
+        "workspace" => d.intent,
+        "source_plan_id" => source_plan.id,
+        "source_implementation_id" => source.id
+      })
+
+    assert {:error, _} = raw_step(d, "plan", 0, Map.put(i, "source_plan_id", source.id))
+    {:ok, p} = Deliveries.begin_step(d.id, "plan", 0, i)
+
+    valid = %{
+      "status" => "finished",
+      "cleanup" => "group_empty",
+      "outcome" => "retained_plan",
+      "report" => source_plan.receipt["report"],
+      "workspace" => d.intent
+    }
+
+    for changed <- [
+          Map.put(valid, "exit_code", 0),
+          put_in(valid, ["report", "acceptance"], ["Easier criterion"]),
+          Map.put(valid, "outcome", "exited"),
+          Map.put(valid, "workspace", fresh(d.intent))
+        ] do
+      assert {:error, :invalid_receipt} = Deliveries.finish_step(p.id, changed)
+      assert {:error, _} = raw_finish(p, changed)
+    end
+
+    assert {:ok, _} = Deliveries.finish_step(p.id, valid)
+  end
+
+  test "snapshot cannot substitute workspace and failed incomplete check cannot authorize resolution",
+       c do
+    {d, p, source} = child(c)
+    id = Ecto.UUID.generate()
+
+    w = %{
+      "check_id" => id,
+      "path" => Path.join(d.intent["repo_path"], id),
+      "ref" => "refs/boss/checks/" <> id,
+      "run_workspace" => source.input["workspace"]
+    }
+
+    i =
+      pins(d, %{"workspace" => w, "implementation_step_id" => source.id, "plan_step_id" => p.id})
+
+    wrong = put_in(i, ["workspace", "run_workspace", "base_commit"], String.duplicate("c", 40))
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "timeout_snapshot", 0, wrong)
+    assert {:error, _} = raw_step(d, "timeout_snapshot", 0, wrong)
+    {:ok, snap} = Deliveries.begin_step(d.id, "timeout_snapshot", 0, i)
+
+    wrong_receipt =
+      receipt(%{"workspace" => Map.put(w, "path", "/different"), "candidate_commit" => @sha})
+
+    assert {:error, :invalid_receipt} = Deliveries.finish_step(snap.id, wrong_receipt)
+    assert {:error, _} = raw_finish(snap, wrong_receipt)
+    assert {:error, _} = raw_finish(snap, receipt(%{"workspace" => w, "cleanup" => "unknown"}))
+    {:ok, snap} = Deliveries.finish_step(snap.id, receipt(%{"workspace" => w}))
+
+    check =
+      finish(
+        d,
+        "timeout_check",
+        0,
+        %{
+          "snapshot_step_id" => snap.id,
+          "implementation_step_id" => source.id,
+          "plan_step_id" => p.id,
+          "workspace" => w,
+          "candidate_commit" => @sha
+        },
+        %{
+          "status" => "failed",
+          "exit_code" => 1,
+          "outcome" => "checks_failed",
+          "output_complete" => false,
+          "output_hash" => @hash
+        }
+      )
+
+    input = resolution_input(d, p, check)
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "resolve", 0, input)
+
+    assert {:error, _} =
+             raw_step(d, "resolve", 0, Map.put(input, "model_profile", @catalog["resolver"]))
+  end
+
+  test "second opinion is distinct and replacement still avoids timed out implementation", c do
+    {d, p, source} = child(c)
+    check = timeout_check(d, p, source, 0)
+    {:ok, first} = Deliveries.begin_step(d.id, "resolve", 0, resolution_input(d, p, check))
+
+    {:ok, first} =
+      Deliveries.finish_step(first.id, receipt(%{"report" => resolution_report("Ask owner")}))
+
+    input =
+      resolution_input(d, p, check)
+      |> Map.merge(%{"parent_step_id" => first.id, "resolution_attempt" => 2})
+
+    second = finish(d, "resolve", 0, input, %{"report" => resolution_report(nil)})
+    assert first.input["model_profile"] == @catalog["resolver"]
+    assert second.input["model_profile"] == hd(@catalog["fallbacks"])
+    {:ok, impl} = Deliveries.begin_step(d.id, "implement", 1, implementation_input(d, p, second))
+    assert impl.input["model_profile"] == @catalog["resolver"]
+  end
+
+  test "five cycle limit remains closed after repeated timeout repair", c do
+    {d, p, source} = child(c)
+
+    failed =
+      Enum.reduce(0..4, source, fn cycle, previous ->
+        resolution = resolve(d, p, timeout_check(d, p, previous, cycle))
+        finish(d, "implement", cycle + 1, implementation_input(d, p, resolution), timeout())
+      end)
+
+    assert failed.cycle == 5
+    id = Ecto.UUID.generate()
+
+    w = %{
+      "check_id" => id,
+      "path" => Path.join(d.intent["repo_path"], id),
+      "ref" => "refs/boss/checks/" <> id,
+      "run_workspace" => failed.input["workspace"]
+    }
+
+    i =
+      pins(d, %{"workspace" => w, "implementation_step_id" => failed.id, "plan_step_id" => p.id})
+
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "timeout_snapshot", 5, i)
+    assert {:error, _} = raw_step(d, "timeout_snapshot", 5, i)
+    assert length(Deliveries.steps(d.id)) == 21
+  end
+
+  test "migration roundtrip preserves historical timeout receipts and refuses retained recovery history",
+       c do
+    {parent, _, _} = parent(c)
+    steps = Deliveries.steps(parent.id)
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_106_140_000,
+               Boss.Repo.Migrations.AddExecutionRecovery, log: false)
+
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery,
+               log: false
+             )
+
+    assert Repo.get!(Delivery, parent.id) == parent and Deliveries.steps(parent.id) == steps
+
+    assert {:ok, {:new, _}} =
+             Deliveries.admit_timeout_retry(c.project.id, parent.id, Ecto.UUID.generate())
+
+    assert_raise RuntimeError, ~r/Refusing to discard execution recovery history/, fn ->
+      Ecto.Migrator.down(Repo, 20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery,
+        log: false
+      )
+    end
+  end
+
+  test "terminal child cannot gain stages through direct SQL", c do
+    {d, p, source} = child(c)
+    assert {:ok, _} = Deliveries.complete(d.id, "cancelled")
+    id = Ecto.UUID.generate()
+
+    w = %{
+      "check_id" => id,
+      "path" => Path.join(d.intent["repo_path"], id),
+      "ref" => "refs/boss/checks/" <> id,
+      "run_workspace" => source.input["workspace"]
+    }
+
+    assert {:error, _} =
+             raw_step(
+               d,
+               "timeout_snapshot",
+               0,
+               pins(d, %{
+                 "workspace" => w,
+                 "implementation_step_id" => source.id,
+                 "plan_step_id" => p.id
+               })
+             )
+  end
+
+  test "complete failed check is repairable while malformed success evidence is rejected", c do
+    {d, p, source} = child(c)
+    id = Ecto.UUID.generate()
+
+    w = %{
+      "check_id" => id,
+      "path" => Path.join(d.intent["repo_path"], id),
+      "ref" => "refs/boss/checks/" <> id,
+      "run_workspace" => source.input["workspace"]
+    }
+
+    snap =
+      finish(
+        d,
+        "timeout_snapshot",
+        0,
+        %{"workspace" => w, "implementation_step_id" => source.id, "plan_step_id" => p.id},
+        %{"workspace" => w}
+      )
+
+    {:ok, check} =
+      Deliveries.begin_step(
+        d.id,
+        "timeout_check",
+        0,
+        pins(d, %{
+          "snapshot_step_id" => snap.id,
+          "implementation_step_id" => source.id,
+          "plan_step_id" => p.id,
+          "workspace" => w,
+          "candidate_commit" => @sha
+        })
+      )
+
+    valid = receipt(%{"output_complete" => true, "output_hash" => @hash})
+
+    for r <- [
+          Map.put(valid, "output_complete", 1),
+          Map.put(valid, "output_hash", String.duplicate("z", 64)),
+          put_in(valid, ["eof", "stdout"], 1),
+          Map.put(valid, "candidate_commit", String.duplicate("d", 40))
+        ] do
+      assert {:error, :invalid_receipt} = Deliveries.finish_step(check.id, r)
+      assert {:error, _} = raw_finish(check, r)
+    end
+
+    failed =
+      Map.merge(valid, %{"status" => "failed", "exit_code" => 3, "outcome" => "checks_failed"})
+
+    {:ok, check} = Deliveries.finish_step(check.id, failed)
+    assert ExecutionRetry.check?(check)
+    assert resolve(d, p, check).input["model_profile"] == @catalog["resolver"]
+  end
+
+  defp raw_child(parent, implementation, changes) do
+    attrs =
+      %{
+        id: Ecto.UUID.generate(),
+        project_id: parent.project_id,
+        task_id: parent.task_id,
+        spec_revision_id: parent.spec_revision_id,
+        command_id: Ecto.UUID.generate(),
+        admitted_version: parent.task_version + 1,
+        task_version: parent.task_version + 1,
+        check_config: JSON.encode!(parent.check_config),
+        config_hash: parent.config_hash,
+        reviewer: parent.reviewer,
+        autonomy_version: parent.autonomy_version,
+        routing_version: parent.routing_version,
+        model_catalog: parent.model_catalog,
+        execution_recovery_version: 1,
+        retry_implementation_id: implementation.id,
+        retry_review_id: nil
+      }
+      |> Map.merge(changes)
+      |> Map.update!(:model_catalog, &JSON.encode!/1)
+
+    keys = Map.keys(attrs)
+
+    Repo.query(
+      "INSERT INTO deliveries (" <>
+        Enum.map_join(keys, ",", &to_string/1) <>
+        ",inserted_at,updated_at) VALUES(" <>
+        Enum.map_join(keys, ",", fn _ -> "?" end) <> ",CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+      Enum.map(keys, &Map.fetch!(attrs, &1))
+    )
+  end
+
+  defp raw_finish(step, r),
+    do:
+      Repo.query("UPDATE delivery_steps SET status=?,receipt=? WHERE id=?", [
+        r["status"],
+        JSON.encode!(r),
+        step.id
+      ])
+
   defp parent(c, attrs \\ nil) do
     {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
     {:ok, d} = Deliveries.set_model_catalog(d.id, @catalog)
@@ -331,12 +651,15 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
     )
   end
 
-  defp resolve(d, p, source) do
-    finish(
-      d,
-      "resolve",
-      source.cycle,
-      %{
+  defp resolve(d, p, source),
+    do:
+      finish(d, "resolve", source.cycle, resolution_input(d, p, source), %{
+        "report" => resolution_report(nil)
+      })
+
+  defp resolution_input(d, p, source),
+    do:
+      pins(d, %{
         "parent_step_id" => source.id,
         "source_step_id" => source.id,
         "plan_step_id" => p.id,
@@ -345,17 +668,15 @@ defmodule Boss.ExecutionRecoveryPersistenceTest do
         "resolution_attempt" => 1,
         "input_hash" => @hash,
         "feedback_hash" => @hash
-      },
-      %{
-        "report" => %{
-          "summary" => "Repair saved requirement",
-          "steps" => ["Finish implementation"],
-          "assumptions" => [],
-          "external_action" => nil
-        }
-      }
-    )
-  end
+      })
+
+  defp resolution_report(action),
+    do: %{
+      "summary" => "Repair saved requirement",
+      "steps" => ["Finish implementation"],
+      "assumptions" => [],
+      "external_action" => action
+    }
 
   defp implementation_input(d, p, r),
     do:
