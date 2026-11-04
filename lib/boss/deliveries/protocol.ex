@@ -45,24 +45,65 @@ defmodule Boss.Deliveries.Protocol do
     end
   end
 
-  def resolution(text) when is_binary(text) and byte_size(text) in 1..32_768 do
-    with true <- String.valid?(text),
-         {:ok, %Jason.OrderedObject{values: pairs}} <-
-           Jason.decode(text, objects: :ordered_objects),
-         keys = Enum.map(pairs, &elem(&1, 0)),
-         true <- Enum.sort(keys) == ~w(assumptions external_action steps summary),
-         report = Map.new(pairs),
-         true <- text?(report["summary"], 2000),
-         true <- strings?(report["steps"], 2000),
-         true <- report["assumptions"] == [] or strings?(report["assumptions"], 1000),
-         true <- is_nil(report["external_action"]) or text?(report["external_action"], 500) do
-      {:ok, report}
-    else
-      _ -> {:error, :invalid_resolution}
+  def resolution(text) do
+    case resolution_detailed(text) do
+      {:ok, report} -> {:ok, report}
+      {:error, _} -> {:error, :invalid_resolution}
     end
   end
 
-  def resolution(_), do: {:error, :invalid_resolution}
+  @doc false
+  def resolution_detailed(text) when is_binary(text) do
+    cond do
+      text == "" -> {:error, :report_empty}
+      byte_size(text) > 32_768 -> {:error, :report_too_large}
+      not String.valid?(text) -> {:error, :invalid_encoding}
+      true -> decode_resolution(text)
+    end
+  end
+
+  def resolution_detailed(_), do: {:error, :invalid_shape}
+
+  defp decode_resolution(text) do
+    case Jason.decode(text, objects: :ordered_objects) do
+      {:ok, %Jason.OrderedObject{values: pairs}} ->
+        keys = Enum.map(pairs, &elem(&1, 0))
+        report = Map.new(pairs)
+        expected = ~w(assumptions external_action steps summary)
+
+        cond do
+          length(keys) != length(Enum.uniq(keys)) ->
+            {:error, :duplicate_keys}
+
+          keys -- expected != [] ->
+            {:error, :unknown_fields}
+
+          Enum.sort(keys) != expected ->
+            {:error, :invalid_shape}
+
+          not text?(report["summary"], 2000) ->
+            {:error, :invalid_summary}
+
+          not strings?(report["steps"], 2000) ->
+            {:error, :invalid_steps}
+
+          report["assumptions"] != [] and not strings?(report["assumptions"], 1000) ->
+            {:error, :invalid_assumptions}
+
+          not is_nil(report["external_action"]) and not text?(report["external_action"], 500) ->
+            {:error, :invalid_external_action}
+
+          true ->
+            {:ok, report}
+        end
+
+      {:ok, _} ->
+        {:error, :invalid_shape}
+
+      {:error, _} ->
+        {:error, :invalid_json}
+    end
+  end
 
   def review(text, plan) do
     with {:ok, report} <- Verdict.decode(text),
@@ -136,6 +177,17 @@ defmodule Boss.Deliveries.Protocol do
           can proceed; otherwise identify the specific owner-only action or unavailable
           prerequisite. A difficult bug or ordinary implementation choice alone is
           not an external_action. Include complete actionable steps in either case.
+          Return one complete compact JSON object of at most 32768 UTF-8 bytes total,
+          including JSON keys, punctuation, escaping and whitespace. Field budgets:
+          summary 1–2000 UTF-8 bytes; steps 1–20 strings of 1–2000 UTF-8 bytes each;
+          assumptions 0–20 strings of 1–1000 UTF-8 bytes each; external_action null
+          or 1–500 UTF-8 bytes. All strings must be nonblank and contain no NUL.
+          Character counts do not replace byte limits; keep the combined response
+          below the total budget even when every individual field fits its budget.
+          Use concise file references and actionable fixes instead of copying the
+          supplied specification, code or check logs. Do not truncate JSON or omit
+          required work to fit; state the complete diagnosis concisely. If a previous
+          resolution diagnostic is supplied, correct that rejected response format.
           An implementation_timeout means the captured candidate contains unverified partial work;
           use its fresh check output to separate unfinished work from a failing setup.
           Each check runs in a fresh worktree: actual locked dependencies must be

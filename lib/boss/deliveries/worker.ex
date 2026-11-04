@@ -1091,7 +1091,15 @@ defmodule Boss.Deliveries.Worker do
       "check_config" => delivery.check_config,
       "previous_feedback" => feedback,
       "resolution_attempt" => attempt,
-      "previous_resolution" => if(parent.kind == "resolve", do: parent.receipt["report"])
+      "previous_resolution" => if(parent.kind == "resolve", do: parent.receipt["report"]),
+      "previous_resolution_diagnostic" =>
+        if(parent.kind == "resolve" and parent.receipt["outcome"] == "invalid_report",
+          do:
+            parent.receipt
+            |> Map.get("summary", %{})
+            |> Map.take(["validation_code", "report_bytes"])
+            |> Map.put("outcome", "invalid_report")
+        )
     }
 
     prompt = ok!(Protocol.prompt(:resolve, input))
@@ -1117,8 +1125,7 @@ defmodule Boss.Deliveries.Worker do
           if prepare?, do: ok!(Workspace.prepare(workspace))
           ok!(verify.())
 
-          receipt =
-            run_agent(:resolve, workspace["path"], prompt, &Protocol.resolution/1, profile)
+          receipt = run_resolution(workspace["path"], prompt, profile)
 
           receipt = verify_agent(receipt, verify)
           {Map.put(receipt, "candidate_commit", sha), receipt["report"]}
@@ -1330,6 +1337,20 @@ defmodule Boss.Deliveries.Worker do
     after
       :ets.delete(parser)
     end
+  end
+
+  @doc false
+  def run_resolution(path, prompt, profile) do
+    receipt =
+      run_agent(:resolve, path, prompt, &Protocol.resolution_detailed/1, profile,
+        report_diagnostics: true
+      )
+
+    diagnostics = Map.take(receipt, ["validation_code", "report_bytes"])
+
+    receipt
+    |> Map.drop(["validation_code", "report_bytes"])
+    |> Map.update("summary", diagnostics, &Map.merge(&1, diagnostics))
   end
 
   @doc false

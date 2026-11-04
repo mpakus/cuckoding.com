@@ -360,6 +360,20 @@ defmodule Boss.DeliveryWorkerTest do
     @autonomy_mode mode
     test "#{@autonomy_mode} recovers through validated alternate output", ctx do
       System.put_env("BOSS_DELIVERY_MODE", @autonomy_mode)
+
+      if @autonomy_mode == "autonomy_invalid_resolver" do
+        fixture = Path.join([ctx.root, "bin", "codex"])
+
+        File.write!(
+          fixture,
+          String.replace(
+            File.read!(fixture),
+            "\"resolution_attempt\": data.get(\"resolution_attempt\"),",
+            "\"resolution_attempt\": data.get(\"resolution_attempt\"), \"previous_resolution_diagnostic\": data.get(\"previous_resolution_diagnostic\"),"
+          )
+        )
+      end
+
       manager = start_manager(ctx.repo)
       {:ok, run} = start(ctx, manager)
       saved = await_delivery(ctx, run.id)
@@ -372,6 +386,20 @@ defmodule Boss.DeliveryWorkerTest do
              )
 
       assert_no_raw(steps)
+
+      if @autonomy_mode == "autonomy_invalid_resolver" do
+        [failed, passed] = Enum.filter(steps, &(&1.kind == "resolve"))
+        assert failed.receipt["summary"]["validation_code"] == "invalid_steps"
+        assert failed.receipt["summary"]["report_bytes"] in 1..32_768
+        assert passed.receipt["summary"]["validation_code"] == "valid"
+        [_first, second] = Enum.filter(calls(ctx), &(&1["kind"] == "resolve"))
+
+        assert second["previous_resolution_diagnostic"] == %{
+                 "outcome" => "invalid_report",
+                 "validation_code" => "invalid_steps",
+                 "report_bytes" => failed.receipt["summary"]["report_bytes"]
+               }
+      end
     end
   end
 
