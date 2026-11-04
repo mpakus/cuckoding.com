@@ -13,6 +13,7 @@ defmodule Boss.Repo.Migrations.AddIntakeRecovery do
     execute("""
     CREATE TRIGGER intake_planning_version_immutable BEFORE UPDATE ON project_intakes
     WHEN NEW.planning_version IS NOT OLD.planning_version
+      OR (NEW.planning_version=0 AND NEW.accepted_attempt_id IS NOT NULL)
       OR (OLD.accepted_attempt_id IS NOT NULL AND NEW.accepted_attempt_id IS NOT OLD.accepted_attempt_id)
     BEGIN SELECT RAISE(ABORT, 'intake planning policy and acceptance are immutable'); END
     """)
