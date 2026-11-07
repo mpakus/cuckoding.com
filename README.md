@@ -12,11 +12,8 @@ Managed workflows add a typed plan, bounded fixes, Codex or Claude independent
 review, explicit integration and postchecks before Done. Task source adoption
 and Done-only dependency readiness keep execution pinned to reviewed inputs.
 
-Release preparation: [0.1.0-rc.1 build, installation and acceptance](docs/RELEASE.md).
-The macOS CI candidate passed full regression and packaging with pinned
-OpenSSL 3.5.9. Local Developer ID signing and packaged smoke also passed.
-Notarization, stapling/Gatekeeper, clean-machine, fresh provider acceptance and
-Linux task execution remain open gates. See [CHANGELOG.md](CHANGELOG.md).
+For the local macOS beta, see the [build and installation guide](docs/RELEASE.md)
+and [release notes](CHANGELOG.md).
 
 ## Run locally
 
@@ -199,20 +196,27 @@ in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 To process the whole current Backlog, choose **Autopilot** beside **Sync specs** on
 the project page. Enter the check command and reviewer, then **Start Autopilot**.
 Tasks run one at a time through fixes, review, integration and verified Done;
-unresolved failure stops the sequence. Watch the saved task list and board, or use
-Pause/Resume/Stop. Later imports are excluded. The target branch must not be checked
-out in your working folders. See [Autopilot](docs/AUTOPILOT.md) for recovery and limits.
+an unresolved pre-integration failure with verified cleanup can leave independent
+tasks running. Shared provider failures and unsafe integration outcomes stop the
+batch. Watch the saved task list and board, or use Pause/Resume/Stop. Later imports
+are excluded. For a specs project, select an existing target branch that is free
+in every worktree before starting. For example, run `git branch boss-delivery` from
+the desired base commit, then select `boss-delivery` at registration. Documentation
+mode creates a free target when left blank. See [Autopilot](docs/AUTOPILOT.md).
 
-The saved check runs from the candidate's repository root. For a new project,
-prepare that root for the exact command and include appropriate generated-artifact
-ignore rules before verification. Tests must preserve source and test files;
+The saved check runs from a fresh candidate worktree. If dependencies are required,
+point the check at a trusted, committed script that installs the locked dependencies
+and runs the checks. A bare `mix test` assumes its dependencies are already available.
+Include appropriate generated-artifact ignore rules before verification.
+Tests must preserve source and test files;
 exit 0 alone cannot approve a changed candidate. See
 [check integrity and recovery](docs/MANAGED_DELIVERIES.md).
 
 Open a task, enter a trusted **Workflow check command**, select a reviewer, then choose **Start
 workflow**. BOSS saves a plan, implements in an isolated worktree, checks the
 snapshot and requests a fresh review. Failed checks or requested changes can
-trigger fixes, up to three cycles. Codex plans/implements/fixes; the independent
+trigger model-assisted fixes, up to five implementation cycles on new starts.
+Codex plans/implements/fixes; the independent
 reviewer is Codex by default or explicitly Claude. Claude assesses supplied
 evidence without model filesystem/shell tools. Your selected local CLI accounts
 may incur charges for multiple runs. Closing the browser keeps the workflow running.

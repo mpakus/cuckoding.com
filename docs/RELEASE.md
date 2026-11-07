@@ -1,4 +1,11 @@
-# BOSS 0.1.0-rc.1
+# BOSS macOS beta
+
+`v0.1.0-rc.2` identifies the local beta source. The archive produced by the
+build below is `boss-0.1.0-rc.2.tar.gz`. See the November 7 worklog for local
+acceptance. The previous candidate's CI and signing evidence applies to the
+specific rc.1 artifacts below.
+
+## Previous candidate (0.1.0-rc.1)
 
 Reviewed source `1ef9f9533896465669ed32ed7d2083acfdc292e1` passed the complete
 [macOS14 CI40980336307](https://github.com/mpakus/cuckoding.com/actions/runs/40980336307):
@@ -19,7 +26,7 @@ packaged as `boss.dmg`; the signed payload passed unpacked smoke. Independent
 strict Apple-anchor/signature and mounted-payload review approved the exact image.
 Notarization, stapling/Gatekeeper, a quarantined
 clean-machine download, fresh provider and Linux acceptance remain open. No stable
-release or tag has been created. Historical signed5570d3f is held because its
+release or tag was created for rc.1. Historical signed5570d3f is held because its
 OpenSSL3.6.3 predates upstream fixes; its signatures do not clear that gate.
 
 [Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) remains on a separate
@@ -77,8 +84,8 @@ rtk proxy mix format --check-formatted rel/package.exs rel/test_package.exs
 rtk proxy mix compile --warnings-as-errors
 rtk proxy mix test
 rtk proxy env MIX_ENV=prod mix release.build
-rtk proxy python3 -B scripts/smoke_release.py _build/prod/boss-0.1.0-rc.1.tar.gz
-rtk proxy shasum -a 256 _build/prod/boss-0.1.0-rc.1.tar.gz
+rtk proxy python3 -B scripts/smoke_release.py _build/prod/boss-0.1.0-rc.2.tar.gz
+rtk proxy shasum -a 256 _build/prod/boss-0.1.0-rc.2.tar.gz
 ```
 
 The selected Elixir must be1.20.3-otp-28; put that installation's `bin` after the

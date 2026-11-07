@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-rc.2 — 2026-11-07
+
+Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it.
+
+- Plan tasks from committed project documentation and run their dependency order
+  through checks, independent review, publication and postchecks in Autopilot.
+- Use the installed CLI's model catalog and bounded alternate-model recovery for
+  recoverable questions, failed checks and rejected implementations.
+- Keep shared provider outages, Stop and uncertain process cleanup visible on
+  the board and halt dispatch when ownership or the provider is uncertain.
+- Update Ecto to 3.14.3 for CVE-2026-118391.
+
 ## 0.1.0-rc.1 — unreleased
 
 Initial BOSS release candidate for local macOS use. This is a source and packaging
