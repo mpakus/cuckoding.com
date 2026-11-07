@@ -971,3 +971,15 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 - [x] Verify immutable admission, migration preservation, fresh captured checks and the complete native flow to Done (7313, 7316, 7317).
 - [x] Review and activate the exact report contract for managed review and merge review (a2c8087, 22 tests7456).
 - [ ] Continue the real task with its pinned criteria and verify its approved and published commit.
+
+## Local macOS beta — 2026-11-07
+
+- [x] Clear Hex and npm audits with the fixed Ecto lock, and verify format,
+  compilation, assets and package fixtures.
+- [x] Assemble and smoke the unpacked arm64 beta with the pinned native runtime.
+- [x] Verify packaged documentation intake, recovery from rejected review,
+  dependency order and two exact published Done tasks using a finite CLI.
+- [x] Full rc.2 regression passed with 861 tests and one platform skip (seed 1107).
+
+Fresh real-provider acceptance and distribution remain separate gates.
+See the [beta worklog](../.worklog/2026-11-07.md).

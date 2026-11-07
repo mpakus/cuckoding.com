@@ -195,9 +195,9 @@ in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 
 To process the whole current Backlog, choose **Autopilot** beside **Sync specs** on
 the project page. Enter the check command and reviewer, then **Start Autopilot**.
-Tasks run one at a time through fixes, review, integration and verified Done;
-an unresolved pre-integration failure with verified cleanup can leave independent
-tasks running. Shared provider failures and unsafe integration outcomes stop the
+Tasks run one at a time through fixes, review, integration and verified Done.
+Independent tasks can continue after a pre-integration failure with verified
+cleanup. Shared provider failures and unsafe integration outcomes stop the
 batch. Watch the saved task list and board, or use Pause/Resume/Stop. Later imports
 are excluded. For a specs project, select an existing target branch that is free
 in every worktree before starting. For example, run `git branch boss-delivery` from

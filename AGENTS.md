@@ -106,6 +106,9 @@
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid
   acceptance run never authorizes an automatic second workflow or CI provider call.
+- Local beta evidence distinguishes archive startup from packaged Autopilot.
+  Verify intake, repair, dependency order and exact Done with a finite CLI in
+  a fresh repository and data root. Keep any real-provider acceptance separate.
 - LiveView test async drains use explicit bounded render_async(view, 2_000) waits.
   Search every caller across test/, retain assertions/loop counts and intentional
   timing checks, and never raise global ExUnit or production deadlines for CI.

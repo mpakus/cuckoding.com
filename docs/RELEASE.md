@@ -120,7 +120,7 @@ therefore requires macOS27.0 or later; a different CI build needs its own inspec
 
 ## Explicit macOS distribution preparation
 
-Current CI candidate5cbe590 was signed using the explicitly approved certificate
+The rc.1 CI candidate5cbe590 was signed using the explicitly approved certificate
 `8652753D50EE045DC63F725BB5B1D3E914F657A1`, TeamG4HV2FL5N2. The signed payload
 passed startup/auth/assets/native-helper/persistence/restart/stop smoke; the signer
 verified all24 hardened native images, BEAM-only allow-jit and the signed DMG.
@@ -175,7 +175,8 @@ validation while loading crypto: ad-hoc images have no common signing Team.
 That failure does not justify disabling library validation or widening entitlements.
 The unmodified local archive's earlier successful smoke is separate evidence.
 
-Upload of the exact current signed DMG is authorized. Credential preflight on
+The prior upload authorization applies to the exact rc.1 DMG from candidate
+5cbe590, identified by the pre-notarization SHA256 above. Credential preflight on
 2026-10-29 returned exit69: the requested profile could not be resolved in the
 available Keychain. No submission/upload occurred; the original signed image is
 unchanged. The owner must supply the correct existing profile or configure it
