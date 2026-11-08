@@ -37,10 +37,18 @@ validation on the development machine. No system security setting is changed.
 Open **http://127.0.0.1:4000** and enter the one-use token printed in the terminal.
 It expires after ten minutes. The token is submitted with CSRF protection and is
 never included in the URL. The browser receives a signed, HttpOnly, SameSite=Strict
-cookie. Reopening the same browser works while the backend remains running;
-closing a tab does not stop BOSS. A server restart creates fresh signing/session
-secrets and requires another terminal token. Tokens and session grants stay in
-memory; LiveView session logging is disabled.
+cookie. Closing a tab does not stop BOSS. Without **Remember this browser**, a
+restart or expiration of the 12-hour browser session requires a new token.
+
+Select **Remember this browser for 30 days** at unlock to reconnect automatically
+on the same loopback address and port, including after a BOSS restart. BOSS
+remembers one browser per data directory. A new remembered unlock replaces the
+previous one. BOSS keeps a hash and expiry in its private data directory and
+issues a fresh ordinary session on automatic unlock. Clearing the browser’s
+site data removes its saved access. To revoke automatic unlock on the server,
+run `Boss.LocalAccess.forget_browser()` from its local IEx console.
+The remembered cookie is scoped to the unlock path on the loopback host.
+Browsers share cookies across ports on the same host.
 
 For a replacement token without stopping an IEx server, run
 `Boss.LocalAccess.new_token()` in that server's local console. This invalidates

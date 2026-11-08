@@ -130,6 +130,10 @@
 - Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
   referrer policy: `no-referrer` made legitimate browser form POSTs send a null
   Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.
+- Remembered browser access is opt-in during a CSRF-protected terminal token
+  exchange. Persist only one hashed verifier and absolute expiry per private data
+  root. Keep the cookie scoped to unlock and restore the existing per-run signed
+  session. Preserve loopback, Origin, CSRF and LiveView authentication gates.
 - Token recovery uses the owner-local IEx `Boss.LocalAccess.new_token()` or an
   authorized idle-instance restart with consistent backup/original data. Local
   console operations use public Manager APIs and saved UUIDs; browser observation

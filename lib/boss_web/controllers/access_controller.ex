@@ -1,18 +1,38 @@
 defmodule BossWeb.AccessController do
   use BossWeb, :controller
 
-  def show(conn, _params), do: render(conn, :unlock, error: nil)
+  @remember_cookie_options [path: "/unlock", http_only: true, same_site: "Strict"]
+
+  def show(conn, _params) do
+    case Boss.LocalAccess.restore(conn.req_cookies[remember_cookie(conn)]) do
+      {:ok, session} -> connect_browser(conn, session)
+      :error -> render(conn, :unlock, error: nil)
+    end
+  end
 
   def create(conn, params) do
-    case Boss.LocalAccess.exchange(params["token"]) do
+    result =
+      if params["remember"] == "true",
+        do: Boss.LocalAccess.remember(params["token"]),
+        else: Boss.LocalAccess.exchange(params["token"])
+
+    case result do
       {:ok, session} ->
-        Plug.CSRFProtection.delete_csrf_token()
+        connect_browser(conn, session)
+
+      {:ok, session, credential, max_age} ->
+        options = [max_age: max_age] ++ @remember_cookie_options
 
         conn
-        |> configure_session(renew: true)
-        |> clear_session()
-        |> put_session(:local_session, session)
-        |> redirect(to: ~p"/")
+        |> put_resp_cookie(remember_cookie(conn), credential, options)
+        |> connect_browser(session)
+
+      {:error, :remember_failed} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> render(:unlock,
+          error: "BOSS couldn’t remember this browser. Try again or leave the box unchecked."
+        )
 
       :error ->
         conn
@@ -20,6 +40,19 @@ defmodule BossWeb.AccessController do
         |> render(:unlock, error: "Token is invalid, expired or already used.")
     end
   end
+
+  defp connect_browser(conn, session) do
+    Plug.CSRFProtection.delete_csrf_token()
+
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> configure_session(renew: true)
+    |> clear_session()
+    |> put_session(:local_session, session)
+    |> redirect(to: ~p"/")
+  end
+
+  defp remember_cookie(conn), do: "_boss_remember_#{conn.port}"
 end
 
 defmodule BossWeb.AccessHTML do
@@ -48,6 +81,10 @@ defmodule BossWeb.AccessHTML do
         autofocus
         class="app-field w-full px-3 py-3"
       />
+      <label class="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" name="remember" value="true" class="size-4" />
+        Remember this browser for 30 days
+      </label>
       <p :if={@error} role="alert" class="text-sm text-danger">{@error}</p>
       <button
         type="submit"

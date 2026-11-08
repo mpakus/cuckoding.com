@@ -10,12 +10,15 @@ defmodule BossWeb.LocalAccessTest do
     assert redirected_to(get(conn, "/")) == "/unlock"
     html = conn |> get("/unlock?token=do-not-reflect-me") |> html_response(200)
     assert html =~ "One-use token"
+    assert html =~ "Remember this browser for 30 days"
     refute html =~ "do-not-reflect-me"
   end
 
   test "bootstrap requires CSRF", %{conn: conn, token: token} do
     assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
-      conn |> put_private(:plug_skip_csrf_protection, false) |> post("/unlock", token: token)
+      conn
+      |> put_private(:plug_skip_csrf_protection, false)
+      |> post("/unlock", token: token, remember: "true")
     end
   end
 
@@ -29,6 +32,7 @@ defmodule BossWeb.LocalAccessTest do
     cookie = signed_in.resp_cookies["_boss_key"]
     assert cookie.http_only
     assert cookie.same_site == "Strict"
+    refute Map.has_key?(signed_in.resp_cookies, "_boss_remember_4002")
     assert {:ok, view, html} = live(local_recycle(signed_in), "/")
     assert html =~ "Projects"
     assert render(view) =~ "Closing this tab"
@@ -38,6 +42,53 @@ defmodule BossWeb.LocalAccessTest do
 
     assert fresh |> post("/unlock", token: token, _csrf_token: csrf) |> html_response(401) =~
              "Token is invalid, expired or already used"
+  end
+
+  test "only a valid remembered cookie reconnects after the session service restarts", %{
+    conn: conn,
+    token: token
+  } do
+    on_exit(fn -> :ok = Boss.LocalAccess.forget_browser() end)
+    {form, csrf} = unlock_form(conn)
+    remembered = post(form, "/unlock", token: token, _csrf_token: csrf, remember: "true")
+    assert redirected_to(remembered) == "/"
+
+    cookie_name = "_boss_remember_4002"
+    cookie = remembered.resp_cookies[cookie_name]
+    assert cookie.path == "/unlock"
+    assert cookie.http_only
+    assert cookie.same_site == "Strict"
+    assert cookie.max_age == 30 * 24 * 60 * 60
+
+    {form, csrf} = unlock_form(conn)
+    ordinary = post(form, "/unlock", token: Boss.LocalAccess.new_token(), _csrf_token: csrf)
+    assert redirected_to(ordinary) == "/"
+
+    assert :ok = Supervisor.terminate_child(Boss.Supervisor, Boss.LocalAccess)
+    assert {:ok, _pid} = Supervisor.restart_child(Boss.Supervisor, Boss.LocalAccess)
+
+    assert redirected_to(get(local_recycle(ordinary), "/")) == "/unlock"
+    assert html_response(get(local_recycle(ordinary), "/unlock"), 200) =~ "One-use token"
+    assert redirected_to(get(local_recycle(remembered), "/")) == "/unlock"
+
+    assert conn
+           |> put_req_cookie(cookie_name, String.duplicate("x", 43))
+           |> get("/unlock")
+           |> html_response(200) =~ "One-use token"
+
+    assert local_recycle(remembered)
+           |> put_req_header("origin", "https://evil.example")
+           |> get("/unlock")
+           |> response(403) == "Forbidden"
+
+    restored = get(local_recycle(remembered), "/unlock")
+    assert redirected_to(restored) == "/"
+    refute Map.has_key?(restored.resp_cookies, cookie_name)
+    assert {:ok, _view, html} = live(local_recycle(restored), "/")
+    assert html =~ "Projects"
+
+    assert :ok = Boss.LocalAccess.forget_browser()
+    assert html_response(get(local_recycle(remembered), "/unlock"), 200) =~ "One-use token"
   end
 
   test "foreign origin cannot consume a valid token", %{conn: conn, token: token} do

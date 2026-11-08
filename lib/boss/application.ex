@@ -15,7 +15,7 @@ defmodule Boss.Application do
       BossWeb.Telemetry,
       Boss.Repo,
       {Ecto.Migrator, repos: [Boss.Repo]},
-      {Boss.LocalAccess, announce: server?},
+      {Boss.LocalAccess, announce: server?, data_dir: Application.fetch_env!(:boss, :data_dir)},
       {Phoenix.PubSub, name: Boss.PubSub},
       Boss.FolderPicker,
       Boss.Agents.Detector,

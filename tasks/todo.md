@@ -98,6 +98,8 @@ generator создаёт согласованный skeleton; ручные featu
 - [x] Browser session проходит локальный bootstrap; mutating endpoints требуют
   session/CSRF; WebSocket проверяет origin; произвольный сайт не может запускать CLI.
 - [x] Закрытие вкладки не останавливает backend, повторное открытие восстанавливает UI.
+- [x] Opt-in remembered browser reconnects across server restarts. Ordinary and
+  fresh browsers still need a valid bootstrap token.
 
 **Проверка:** Phoenix request/LiveView tests и browser smoke чужого Origin.
 **Сбой:** отказ в доступе, без side effect. Токены не пишутся в логи.
