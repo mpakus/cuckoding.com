@@ -830,6 +830,23 @@ defmodule Boss.Deliveries do
   end
 
   @doc false
+  def return_to_integration(id) do
+    result =
+      transaction(fn ->
+        delivery = owned!(id)
+        current_task!(delivery)
+        review = publication_approved!(delivery)
+
+        unless delivery.status == "reviewing" and review.kind == "review",
+          do: Repo.rollback(:invalid_step)
+
+        delivery |> save!(status: "integrating") |> sync_task!("conflict-repair")
+      end)
+
+    broadcast_result(result)
+  end
+
+  @doc false
   def authorize_publication(id) do
     case transaction(fn ->
            d = owned!(id)
@@ -1261,6 +1278,11 @@ defmodule Boss.Deliveries do
             implementation_base?(d, source) and
             fresh_resolution_workspace?(d, source, previous, i)
 
+        "merge" ->
+          i["plan_step_id"] == source.input["plan_step_id"] and
+            i["candidate_commit"] == source.input["target_commit"] and
+            conflict_workspace?(d, source, previous, i)
+
         _ ->
           i["plan_step_id"] == source.input["plan_step_id"] and
             i["workspace"] == source.input["workspace"] and
@@ -1286,6 +1308,13 @@ defmodule Boss.Deliveries do
        )
        when kind in ["timeout_check", "checkpoint_check"],
        do: ExecutionRetry.check?(s)
+
+  defp recoverable_source?(
+         %Delivery{autonomy_version: 1},
+         %Step{kind: "merge", status: "failed", receipt: receipt}
+       ) do
+    receipt["outcome"] == "merge_conflict" and receipt["cleanup"] == "group_empty"
+  end
 
   defp recoverable_source?(%Delivery{routing_version: 2}, %Step{kind: "implement"} = source),
     do:
@@ -1530,7 +1559,108 @@ defmodule Boss.Deliveries do
 
   defp merge_review_input?(_, _, _, _), do: false
 
+  defp conflict_merge(all) do
+    case Enum.filter(all, &(&1.kind == "merge")) do
+      [
+        %Step{
+          status: "failed",
+          receipt: %{"outcome" => "merge_conflict", "cleanup" => "group_empty"}
+        } = merge
+      ] ->
+        merge
+
+      _ ->
+        nil
+    end
+  end
+
+  defp conflict_publication!(d, merge) do
+    all = steps(d.id)
+
+    original =
+      Enum.find(all, &(&1.kind == "review")) || Repo.rollback(:missing_evidence)
+
+    review =
+      Enum.find(Enum.reverse(all), &(&1.kind == "review" and &1.number > merge.number)) ||
+        Repo.rollback(:missing_evidence)
+
+    check =
+      Enum.find(all, &(&1.id == review.input["check_step_id"])) ||
+        Repo.rollback(:missing_evidence)
+
+    plan =
+      Enum.find(all, &(&1.id == review.input["plan_step_id"])) || Repo.rollback(:missing_evidence)
+
+    report = decoded_review!(review.receipt["report"])
+    criteria = Enum.map(report["acceptance"], & &1["criterion"])
+
+    unless original.id != review.id and original.status == "finished" and
+             original.input["candidate_commit"] == merge.input["original_candidate"] and
+             get_in(original.receipt, ["report", "verdict"]) == "approved" and
+             review.status == "finished" and check.kind == "check" and check.status == "finished" and
+             check.number > merge.number and plan.kind == "plan" and plan.status == "finished" and
+             process_passed?(review.receipt) and process_passed?(check.receipt) and
+             review.receipt["cleanup"] == "group_empty" and
+             check.receipt["cleanup"] == "group_empty" and report["verdict"] == "approved" and
+             review.cycle == d.cycle and check.cycle == d.cycle and
+             review.input["candidate_commit"] == check.input["candidate_commit"] and
+             review.input["candidate_commit"] not in [
+               merge.input["original_candidate"],
+               merge.input["target_commit"]
+             ] and
+             review.input["original_base"] == d.intent["base_commit"] and
+             review.input["publication_base"] == merge.input["target_commit"] and
+             sha?(review.input["publication_base"]) and
+             review.input["config_hash"] == d.config_hash and
+             check.input["config_hash"] == d.config_hash and
+             check.receipt["output_complete"] == true and
+             hash?(check.receipt["output_hash"]) and
+             MapSet.new(criteria) == MapSet.new(plan.receipt["report"]["acceptance"]),
+           do: Repo.rollback(:missing_evidence)
+
+    review
+  end
+
+  defp conflict_workspace?(d, source, previous, input) do
+    workspace = input["workspace"]
+    target = source.input["target_commit"]
+    old = source.input["workspace"]
+
+    with true <- is_map(workspace) and map_size(workspace) == 8 and is_map(old),
+         true <- sha?(target) and workspace["base_commit"] == target,
+         true <- workspace["path"] != old["path"] and workspace["path"] != d.intent["path"],
+         true <- workspace["branch"] == "codex/boss-run-#{workspace["run_id"]}",
+         true <-
+           Enum.all?(
+             ~w(project_id repo_path git_common_dir base_branch),
+             &(workspace[&1] == d.intent[&1])
+           ) do
+      if input["resolution_attempt"] == 2 do
+        workspace == previous.input["workspace"] and previous.input["candidate_commit"] == target
+      else
+        Enum.all?(steps(d.id), fn step ->
+          Enum.all?([step.input["workspace"], step.receipt["workspace"]], fn
+            saved when is_map(saved) ->
+              saved["path"] != workspace["path"] and saved["branch"] != workspace["branch"]
+
+            _ ->
+              true
+          end)
+        end)
+      end
+    else
+      _ -> false
+    end
+  end
+
   defp publication_approved!(d) do
+    case conflict_merge(steps(d.id)) do
+      nil -> approved_publication!(d)
+      merge -> conflict_publication!(d, merge)
+    end
+  end
+
+  defp approved_publication!(d) do
     original = approved!(d)
     all = steps(d.id)
 
@@ -1578,6 +1708,10 @@ defmodule Boss.Deliveries do
   end
 
   defp publication_base(_d, %Step{kind: "merge_review", input: input}), do: input["target_commit"]
+
+  defp publication_base(_d, %Step{input: %{"publication_base" => base}}) when is_binary(base),
+    do: base
+
   defp publication_base(d, _review), do: d.intent["base_commit"]
 
   defp publication_candidate(%Step{kind: "merge_review", input: input}),

@@ -1,7 +1,8 @@
 defmodule Boss.Deliveries.IntegrationWorker do
   @moduledoc false
   alias Boss.{Deliveries, Repo}
-  alias Boss.Deliveries.{Integration, Protocol, Worker}
+  alias Boss.Deliveries.{Delivery, Integration, Protocol, Worker}
+  alias Boss.Deliveries.ModelPolicy
   alias Boss.Agents.Workspace
   alias Boss.Checks.Candidate
 
@@ -85,7 +86,19 @@ defmodule Boss.Deliveries.IntegrationWorker do
         fn ->
           ok!(Integration.preflight(project, delivery.id, target))
           ok!(Candidate.verify(original, approved))
-          merged = ok!(Candidate.prepare_merge(candidate, target, approved))
+
+          merged =
+            case Candidate.prepare_merge(candidate, target, approved) do
+              {:ok, merged} ->
+                merged
+
+              {:error, :merge_conflict} ->
+                throw({:halt, {:merge_conflict, target}})
+
+              error ->
+                ok!(error)
+            end
+
           ok!(Integration.preflight(project, delivery.id, target))
 
           {%{
@@ -224,6 +237,34 @@ defmodule Boss.Deliveries.IntegrationWorker do
       %{"cleanup" => "unknown"} -> throw({:halt, :cleanup_unknown})
       %{"status" => "cancelled"} -> throw({:halt, :cancelled})
       _ -> throw({:halt, {:stage_failed, kind, receipt}})
+    end
+  end
+
+  defp halt(delivery, {:merge_conflict, target}) do
+    case finish_open_step(delivery.id, :merge_conflict) do
+      :ok ->
+        delivery = Repo.get!(Delivery, delivery.id)
+
+        if conflict_repairable?(delivery) do
+          case Worker.repair_merge_conflict(delivery, target) do
+            {:ready, candidate, sha, review} ->
+              publish_repair(delivery, candidate, sha, review, target)
+
+            {:finished, saved} ->
+              {:ok, saved}
+
+            {:error, {:needs_input, message}} ->
+              note(delivery, "needs_input", message)
+
+            {:error, reason} ->
+              note(delivery, "blocked", reason)
+          end
+        else
+          stop(delivery, :merge_conflict)
+        end
+
+      {:error, reason} ->
+        note(delivery, "blocked", reason)
     end
   end
 
@@ -410,6 +451,74 @@ defmodule Boss.Deliveries.IntegrationWorker do
         "blocked",
         "Integration could not verify the saved candidate, target or ownership. Workspaces retained; no automatic retry."
       )
+
+  defp finish_open_step(delivery_id, reason) when is_atom(reason) do
+    id =
+      Process.delete(:integration_step) ||
+        case Enum.find(Enum.reverse(Deliveries.steps(delivery_id)), &(&1.status == "running")) do
+          %{id: id} -> id
+          _ -> nil
+        end
+
+    case id do
+      nil ->
+        :ok
+
+      id ->
+        case Deliveries.finish_step(id, %{
+               "status" => "failed",
+               "cleanup" => "group_empty",
+               "outcome" => Atom.to_string(reason)
+             }) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  defp note(delivery, status, reason) do
+    _ = finish_open_step(delivery.id, :stage_failed)
+
+    message =
+      case reason do
+        text when is_binary(text) -> text
+        atom when is_atom(atom) -> "Conflict repair stopped: #{atom}."
+        _ -> "Conflict repair stopped."
+      end
+
+    case Deliveries.complete(delivery.id, status, message) do
+      {:ok, saved} -> {:ok, saved}
+      _ -> Deliveries.interrupt(delivery.id)
+    end
+  end
+
+  defp conflict_repairable?(%Delivery{
+         autonomy_version: 1,
+         cleanup: cleanup,
+         cycle: cycle
+       })
+       when cleanup in ["pending", "group_empty"] do
+    cycle < ModelPolicy.max_cycles(1)
+  end
+
+  defp conflict_repairable?(_), do: false
+
+  defp publish_repair(delivery, candidate, sha, review, target) do
+    with {:ok, _} <- Deliveries.return_to_integration(delivery.id),
+         %Delivery{} = delivery <- Repo.get!(Delivery, delivery.id),
+         {project, _} <- Deliveries.inputs(delivery),
+         {:ok, intent} <- Integration.plan(project, delivery.id, candidate, sha, target),
+         {:ok, _} <- Deliveries.set_integration_intent(delivery.id, intent),
+         {:ok, step} <-
+           Deliveries.begin_step(delivery.id, "publish", delivery.cycle, %{
+             "intent" => intent,
+             "review_step_id" => review.id
+           }) do
+      publish(delivery, step, intent)
+    else
+      {:error, reason} -> stop(delivery, reason)
+    end
+  end
 
   defp continue do
     receive do

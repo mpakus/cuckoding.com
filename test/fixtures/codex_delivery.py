@@ -98,10 +98,13 @@ if kind == "implement":
         assert "CHECK_STDOUT_SECRET_SENTINEL" in feedback["check_output"]["stdout"]
         assert "CHECK_STDERR_SECRET_SENTINEL" in feedback["check_output"]["stderr"]
     if cycle > 1:
-        assert data["previous_feedback"]["kind"] in ("checks", "review", "implementation")
+        assert data["previous_feedback"]["kind"] in ("checks", "review", "implementation", "merge_conflict")
         if data["previous_feedback"]["kind"] == "implementation":
             assert Path("result.txt").read_text() == "base"
             assert not Path("partial-only.txt").exists()
+        elif data["previous_feedback"]["kind"] == "merge_conflict":
+            assert data["base_commit"] == data["previous_feedback"]["target_commit"]
+            assert Path("result.txt").read_text() != "candidate-1\n"
         else:
             assert Path("first-only.txt").read_text() == "retained first attempt\n"
             check = data["previous_feedback"]["check_receipt"]
@@ -124,6 +127,11 @@ else:
         if feedback["kind"] == "implementation":
             assert Path("result.txt").read_text() == "base"
             assert not Path("partial-only.txt").exists()
+        elif feedback["kind"] == "merge_conflict":
+            assert feedback["outcome"] == "merge_conflict"
+            assert len(feedback["target_commit"]) in (40, 64)
+            assert len(feedback["original_candidate"]) in (40, 64)
+            assert feedback["target_commit"] != feedback["original_candidate"]
         elif feedback["kind"] != "plan":
             assert (feedback.get("check_receipt") or feedback["receipt"])["output_complete"] is True
             check_output = feedback.get("check_output") or feedback["output"]

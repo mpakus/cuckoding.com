@@ -514,6 +514,96 @@ defmodule Boss.Deliveries.Worker do
   end
 
   @doc false
+  def repair_merge_conflict(delivery, target) do
+    Process.put(:conflict_repair, true)
+    Process.put(:conflict_target, target)
+
+    try do
+      repair_conflict(delivery, target)
+    rescue
+      _ ->
+        close_repair_step()
+        {:error, :conflict_repair_failed}
+    catch
+      :throw, {:repaired, candidate, sha, review} ->
+        {:ready, candidate, sha, review}
+
+      :throw, {:halt, {:needs_input, message}} ->
+        {:error, {:needs_input, message}}
+
+      :throw, {:halt, reason} ->
+        close_repair_step()
+        {:error, reason}
+
+      _, _ ->
+        close_repair_step()
+        {:error, :conflict_repair_failed}
+    after
+      Process.delete(:conflict_repair)
+      Process.delete(:conflict_target)
+    end
+  end
+
+  defp close_repair_step do
+    if id = Process.delete(:delivery_step) do
+      Deliveries.finish_step(id, %{
+        "status" => "failed",
+        "cleanup" => "group_empty",
+        "outcome" => "stage_failed"
+      })
+    end
+  end
+
+  defp repair_conflict(delivery, target) do
+    {project, revision} = Deliveries.inputs(delivery)
+    steps = Deliveries.steps(delivery.id)
+    merge = Enum.find(steps, &(&1.kind == "merge" and &1.status == "failed"))
+    review = Enum.find(steps, &(&1.id == merge.input["original_review_step_id"]))
+    plan_step = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
+    source = revision.original_text
+    plan = plan_step.receipt["report"]
+    workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
+    unless workspace["base_commit"] == target, do: throw({:halt, :target_changed})
+    ok!(Workspace.prepare(workspace))
+    ok!(Candidate.verify_tree(workspace["path"], target))
+
+    feedback = %{
+      "kind" => "merge_conflict",
+      "outcome" => "merge_conflict",
+      "target_commit" => target,
+      "original_candidate" => merge.input["original_candidate"],
+      "original_base" => merge.input["original_base"]
+    }
+
+    {resolution, advice} =
+      resolve(delivery, plan_step, plan, merge, workspace, target, feedback, source)
+
+    case cycle(
+           delivery,
+           project,
+           source,
+           plan_step,
+           plan,
+           merge.cycle + 1,
+           %{
+             candidate_commit: target,
+             step_id: resolution.id,
+             resolution_step_id: resolution.id,
+             source_step_id: merge.id
+           },
+           Map.put(feedback, "resolution", advice),
+           MapSet.new()
+         ) do
+      {:ok, %{status: status} = saved}
+      when status in ~w(blocked needs_input failed cancelled interrupted) ->
+        {:finished, saved}
+
+      other ->
+        other
+    end
+  end
+
+  @doc false
   def prepare_retry_snapshot(seed, check_id, source_sha) do
     ok!(Workspace.prepare(seed))
     ok!(Candidate.verify_tree(seed["path"], source_sha))
@@ -1044,23 +1134,31 @@ defmodule Boss.Deliveries.Worker do
     prompt = ok!(Protocol.prompt(kind, input))
     profile = if delivery.reviewer == "codex", do: profile(delivery, :review, cycle, plan_step)
 
+    review_input = %{
+      "plan_step_id" => plan_step.id,
+      "check_step_id" => check.id,
+      "workspace" => candidate,
+      "original_base" => base,
+      "candidate_commit" => sha,
+      "config_hash" => delivery.config_hash,
+      "output_hash" => check.receipt["output_hash"],
+      "feedback_hash" => Protocol.digest(feedback),
+      "input_hash" => Protocol.digest(input),
+      "model_profile" => profile
+    }
+
+    review_input =
+      case Process.get(:conflict_target) do
+        target when is_binary(target) -> Map.put(review_input, "publication_base", target)
+        _ -> review_input
+      end
+
     {review, report} =
       step(
         delivery,
         "review",
         cycle,
-        %{
-          "plan_step_id" => plan_step.id,
-          "check_step_id" => check.id,
-          "workspace" => candidate,
-          "original_base" => base,
-          "candidate_commit" => sha,
-          "config_hash" => delivery.config_hash,
-          "output_hash" => check.receipt["output_hash"],
-          "feedback_hash" => Protocol.digest(feedback),
-          "input_hash" => Protocol.digest(input),
-          "model_profile" => profile
-        },
+        review_input,
         fn ->
           continue!()
           ok!(Candidate.verify(candidate, sha))
@@ -1077,7 +1175,11 @@ defmodule Boss.Deliveries.Worker do
 
     case {review.status, report && report["verdict"]} do
       {"finished", "approved"} ->
-        Deliveries.complete(delivery.id, "ready_to_merge", nil)
+        if Process.get(:conflict_repair) do
+          throw({:repaired, candidate, sha, review})
+        else
+          Deliveries.complete(delivery.id, "ready_to_merge", nil)
+        end
 
       {"finished", "needs_spec_revision"} when not is_nil(report) ->
         if autonomous?(delivery) do
@@ -1274,7 +1376,7 @@ defmodule Boss.Deliveries.Worker do
     prepare? = problem.kind == "implement" and attempt == 1
 
     verify = fn ->
-      if problem.kind in ["plan", "implement"],
+      if problem.kind in ["plan", "implement", "merge"],
         do: Candidate.verify_tree(workspace["path"], sha),
         else: Candidate.verify(workspace, sha)
     end

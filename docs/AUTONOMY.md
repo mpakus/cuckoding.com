@@ -97,9 +97,13 @@ The latest valid plan hash binds task creation; historical planning version 0 an
 failed requests are unchanged. Stop, unknown cleanup, drift and shared provider
 failures halt this bounded loop. See [Autopilot](AUTOPILOT.md).
 
-Integration still stops on conflicts, candidate/target drift
-or failed publication checks; it does not automatically rewrite the approved
-candidate. These are explicit remaining autonomy work, alongside provider testing.
+A merge conflict on an autonomy version 1 delivery keeps the original approval.
+Another model repairs from the current target in a fresh worktree. Fresh checks
+and a new review must approve that descendant before publication. Publication
+still uses compare-and-swap from the recorded target, and only the new commit
+can move the branch. Rewritten history, target drift during publication,
+unknown cleanup, an exhausted cycle budget and a failed postcheck still stop.
+A published commit is not rolled back. Real-provider acceptance remains separate.
 
 ## Continue retained work after an implementation timeout
 

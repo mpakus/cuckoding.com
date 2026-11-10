@@ -30,7 +30,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_106_130_000, Boss.Repo.Migrations.AddIntakeRecovery},
     {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
     {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery},
-    {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery}
+    {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery},
+    {20_261_110_120_000, Boss.Repo.Migrations.RepairMergeConflicts}
   ]
 
   setup do
@@ -209,21 +210,56 @@ defmodule Boss.MergeIntegrationWorkerTest do
     end
   end
 
-  test "conflicting target records failed merge without checks, review or publication", ctx do
+  test "conflicting target repairs from that target and publishes only the new review", ctx do
     {manager, delivery} = ready(ctx)
+    original = step(delivery, "review")
+    original_sha = candidate(delivery)
     target = advance(ctx, "result.txt", "conflicting target\n")
     user = preserve_checkout(ctx)
     saved = integrate(ctx, manager, delivery)
-    assert saved.status == "blocked" and saved.cleanup == "group_empty", inspect(saved)
-    assert saved.reason =~ "conflicts"
+
+    assert saved.status == "done" and saved.cleanup == "group_empty",
+           inspect(
+             %{
+               status: saved.status,
+               reason: saved.reason,
+               steps:
+                 Enum.map(Deliveries.steps(saved.id), fn step ->
+                   {step.number, step.kind, step.cycle, step.status, step.receipt["outcome"],
+                    step.receipt["reason"]}
+                 end)
+             },
+             pretty: true,
+             limit: :infinity
+           )
+
     merge = step(saved, "merge")
     assert merge.status == "failed"
     assert merge.receipt["outcome"] == "merge_conflict"
-    assert length(calls(ctx, "calls")) == 3
-    assert length(calls(ctx, "check-calls")) == 1
     refute step(saved, "merge_check")
     refute step(saved, "merge_review")
-    assert_unpublished(ctx, saved, target, user)
+    reviews = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "review"))
+    assert hd(reviews) == original
+    repair = List.last(reviews)
+    assert repair.id != original.id
+    assert repair.receipt["report"]["verdict"] == "approved"
+    assert repair.input["publication_base"] == target
+    assert repair.input["candidate_commit"] not in [target, original_sha]
+    published = saved.integration_intent["candidate_commit"]
+    assert published == repair.input["candidate_commit"]
+    assert git(ctx.source, ["rev-parse", "main"]) == published
+
+    assert git(ctx.source, ["rev-list", "--parents", "-n", "1", published]) ==
+             "#{published} #{target}"
+
+    assert File.read!(Path.join(saved.integration_intent["path"], "result.txt")) ==
+             "candidate-2\n"
+
+    assert :ok = Candidate.verify(step(saved, "check").input["workspace"], original_sha)
+    assert checkout(ctx) == user
+    assert Enum.any?(calls(ctx, "calls"), &(&1["kind"] == "resolve"))
+    assert Enum.count(calls(ctx, "calls"), &(&1["kind"] == "implement")) == 2
+    refute inspect(Deliveries.steps(saved.id), limit: :infinity) =~ "SECRET_SENTINEL"
   end
 
   test "rewritten target history is rejected before merge effects", ctx do
