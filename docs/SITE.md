@@ -2,17 +2,21 @@
 
 The standalone `site/` directory is the GitHub Pages artifact for cuckoding.com.
 It has no build dependencies, external font requests, analytics or application
-connection. BOSS runtime/assets and local user data are outside this artifact.
+connection. Application runtime, assets and local user data are outside this artifact.
 
 ## Design and content
 
 The user-directed satire imagines AI enjoying the rewards while people supervise
 and serve it. Warm editorial typography and original robot-resort/spa artwork
-carry the joke. The BOSS section describes verified local behavior: Markdown
-specifications, isolated Git worktrees, user checks, independent review and
-explicit integration. Its interactive four-stage example is labeled illustrative.
-No fake usage metrics, testimonials or public installer are presented. Update
-release/provider/platform statements only against corresponding acceptance evidence.
+carry the joke. Visitor-facing prose calls the product B\*SS. The product
+section describes verified local behavior: Markdown specifications or committed
+documentation, isolated Git worktrees, user checks, independent review, bounded
+recovery and explicit integration. Its interactive five-stage example is labeled
+illustrative. Model names are routing preferences, available only when the
+installed CLI advertises them. Platform copy stays at macOS task execution, with
+a public installer and Linux execution still open. No fake usage metrics,
+testimonials or public installer are presented. Update release/provider/platform
+statements only against corresponding acceptance evidence.
 
 All content is present without JavaScript; native FAQs and ordinary anchor links
 remain usable. JavaScript progressively shows one workflow example at a time,

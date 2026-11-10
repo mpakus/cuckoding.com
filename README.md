@@ -1,19 +1,41 @@
-# BOSS
+# B\*SS
 
-Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
+Local coding-agent orchestration for macOS. The public introduction is
+[cuckoding.com](https://cuckoding.com/). Behavior is specified in
+[BOSS_PLAN.md](BOSS_PLAN.md).
 
-BOSS provides a Phoenix LiveView server, local browser access,
-native folder selection, validated project registration, automatic Markdown sync,
-transactional spec/revision/task history and versioned task commands with immutable
-receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
-manual Codex attempts, explicit commit-bound checks and fresh read-only Codex review
-in retained Git worktrees on macOS.
-Managed workflows add a typed plan, bounded fixes, Codex or Claude independent
-review, explicit integration and postchecks before Done. Task source adoption
-and Done-only dependency readiness keep execution pinned to reviewed inputs.
+B\*SS runs a Phoenix LiveView dashboard on your machine. You register a Git
+repository, provide Markdown specs or committed documentation, and choose a
+check command you trust. It plans, implements, checks and reviews in retained
+Git worktrees, then integrates an exact checked commit. A model's "done"
+message is not Done. Done requires that published SHA, passing postchecks and
+the retained checkout.
 
-For the local macOS beta, see the [build and installation guide](docs/RELEASE.md)
-and [release notes](CHANGELOG.md).
+You start the work, choose the reviewer, and keep Pause and Stop. A merge
+conflict, unknown cleanup, an unresolved decision or a provider outage still
+waits for you. The dashboard binds to loopback. Coding agents use your
+installed CLIs and provider accounts, which can send data to those services
+and incur charges.
+
+Task execution is macOS. Linux task execution is not available, and the Linux
+folder picker has not been verified on a desktop. `0.1.0-rc.2` is a local beta
+you build yourself. There is no public installer, notarized download or stable
+release tag. See the [build and installation guide](docs/RELEASE.md) and
+[release notes](CHANGELOG.md).
+
+The running program still uses `Boss.*` modules, `BOSS_DATA_DIR` and `~/.boss`.
+This page uses B\*SS for the product name.
+
+Under that name, the app provides local browser access, native folder
+selection, validated project registration, automatic Markdown sync,
+transactional spec/revision/task history and versioned task commands with
+immutable receipts, a Kanban board, a revision-aware task drawer, local CLI
+discovery and manual Codex attempts, and fresh read-only Codex review in
+retained Git worktrees. Managed workflows add a typed plan, bounded fixes,
+Codex or Claude independent review, explicit integration and postchecks before
+Done. Claude reviews supplied evidence and does not receive model filesystem
+or shell tools. Task source adoption and Done-only dependency readiness keep
+execution pinned to reviewed inputs.
 
 ## Run locally
 
@@ -37,13 +59,13 @@ validation on the development machine. No system security setting is changed.
 Open **http://127.0.0.1:4000** and enter the one-use token printed in the terminal.
 It expires after ten minutes. The token is submitted with CSRF protection and is
 never included in the URL. The browser receives a signed, HttpOnly, SameSite=Strict
-cookie. Closing a tab does not stop BOSS. Without **Remember this browser**, a
+cookie. Closing a tab does not stop B\*SS. Without **Remember this browser**, a
 restart or expiration of the 12-hour browser session requires a new token.
 
 Select **Remember this browser for 30 days** at unlock to reconnect automatically
-on the same loopback address and port, including after a BOSS restart. BOSS
+on the same loopback address and port, including after a B\*SS restart. B\*SS
 remembers one browser per data directory. A new remembered unlock replaces the
-previous one. BOSS keeps a hash and expiry in its private data directory and
+previous one. B\*SS keeps a hash and expiry in its private data directory and
 issues a fresh ordinary session on automatic unlock. Clearing the browser’s
 site data removes its saved access. To revoke automatic unlock on the server,
 run `Boss.LocalAccess.forget_browser()` from its local IEx console.
@@ -60,20 +82,20 @@ with `rtk proxy iex -S mix phx.server` when you need this capability.
 After connecting the browser, click **Choose repository…** and select a folder in
 the operating system dialog. Paths are read-only in the browser. The specs folder
 defaults to `specs` inside that repository; use **Choose specs folder…** to change
-it. Both folders must already exist. BOSS accepts a local Git working tree
+it. Both folders must already exist. B\*SS accepts a local Git working tree
 with at least one commit; the optional base branch defaults to its current branch.
 The base must be an existing local branch. A detached checkout needs an explicit
 base branch. The optional project name defaults to the folder name.
 
-The dialog opens on the computer running BOSS: macOS uses its built-in folder
+The dialog opens on the computer running B\*SS: macOS uses its built-in folder
 chooser; Linux requires a graphical desktop session and `zenity` on PATH.
 A graphical desktop session is required; an unavailable picker reports an error.
 Only one dialog can be open at a time. Cancel keeps the form unchanged; a dialog
 times out after two minutes. Closing its requesting browser session or stopping
-BOSS terminates the owned picker helper. Selected paths stay in the LiveView
+B\*SS terminates the owned picker helper. Selected paths stay in the LiveView
 process and are validated again before registration.
 
-BOSS stores canonical paths in its own database without editing the repository.
+B\*SS stores canonical paths in its own database without editing the repository.
 The specs directory must be strictly inside the repository, with no symlink
 components. Registering the same repository through another path or linked
 worktree returns an error. Projects survive tab closure and backend restart.
@@ -86,12 +108,12 @@ Its fixture results do not certify other adapters or detached process trees.
 
 ## Sync specs
 
-BOSS reads registered projects' `.md` files automatically, including subfolders.
+B\*SS reads registered projects' `.md` files automatically, including subfolders.
 Open a project to see imported tasks, the latest source revision and pinned task
 snapshot; **Sync specs** checks immediately. Source Markdown is stored exactly
 and is never rewritten.
 
-One background sweep starts with BOSS and processes projects sequentially. The
+One background sweep starts with B\*SS and processes projects sequentially. The
 next sweep starts two seconds after the previous one finishes; new projects join
 that sweep. Changed files are read again after 300 ms and must have the same
 identity/path/source before import. A changing or invalid scan keeps the previous
@@ -99,7 +121,7 @@ snapshot and is retried on the next sweep. This coalesces short save bursts; it
 cannot observe every intermediate edit or guarantee an atomic filesystem snapshot.
 
 Set `config :boss, spec_poll_interval_ms: 2000` to change the gap between sweeps,
-or `spec_auto_sync: false` to use manual Sync only. Restart BOSS after changing
+or `spec_auto_sync: false` to use manual Sync only. Restart B\*SS after changing
 configuration. A large or slow project increases the time until later projects
 are checked. Unchanged scans perform no database writes. Errors appear on the
 project page, including when it is opened after a failed background scan. Open
@@ -209,8 +231,26 @@ cleanup. Shared provider failures and unsafe integration outcomes stop the
 batch. Watch the saved task list and board, or use Pause/Resume/Stop. Later imports
 are excluded. For a specs project, select an existing target branch that is free
 in every worktree before starting. For example, run `git branch boss-delivery` from
-the desired base commit, then select `boss-delivery` at registration. Documentation
-mode creates a free target when left blank. See [Autopilot](docs/AUTOPILOT.md).
+the desired base commit, then select `boss-delivery` at registration. See
+[Autopilot](docs/AUTOPILOT.md).
+
+A documentation project uses **Plan tasks from documentation**, which B\*SS
+suggests for a repository with a `docs/` folder. Leaving the publication target
+blank creates a local branch at the current commit. **Start Autopilot** runs one
+read-only planning pass: at most three attempts under one 20-minute deadline.
+It saves up to 32 tasks in dependency order, then dispatches the first eligible
+task. Original Markdown stays on disk. Later starts continue the remaining
+eligible cards and do not call the planner again. The same check, independent
+review and exact-commit publication gates still decide Done.
+
+New managed workflows read the installed Codex CLI's model catalog before the
+first stage. When those models are advertised, planning and ordinary
+implementation prefer Sol, an explicitly small first implementation prefers
+Luna, and a second opinion prefers Astra or Terra at extra-high reasoning. A
+CLI that only advertises the 5.6 series uses those exact models. A catalog
+entry is metadata, not proof the account can call the model. At least two
+distinct strong models are required. See
+[autonomous delivery](docs/AUTONOMY.md).
 
 The saved check runs from a fresh candidate worktree. If dependencies are required,
 point the check at a trusted, committed script that installs the locked dependencies
@@ -221,7 +261,7 @@ exit 0 alone cannot approve a changed candidate. See
 [check integrity and recovery](docs/MANAGED_DELIVERIES.md).
 
 Open a task, enter a trusted **Workflow check command**, select a reviewer, then choose **Start
-workflow**. BOSS saves a plan, implements in an isolated worktree, checks the
+workflow**. B\*SS saves a plan, implements in an isolated worktree, checks the
 snapshot and requests a fresh review. Failed checks or requested changes can
 trigger model-assisted fixes, up to five implementation cycles on new starts.
 Codex plans/implements/fixes; the independent
@@ -239,26 +279,26 @@ scope predictions show a conflict warning; predictions cannot guarantee safe mer
 See [queue behavior](docs/WORKFLOW_QUEUE.md).
 
 With manual Start/Queue, an approved result waits for **Integrate approved result**. The target branch must
-not be checked out by you. If it advanced, BOSS creates a merge candidate and runs
+not be checked out by you. If it advanced, B\*SS creates a merge candidate and runs
 the saved checks and a fresh selected review before publication. The original
 approval stays in history. An unchanged target fast-forwards to its approved commit.
 Integrating an advanced target makes another reviewer call and may incur charges.
-BOSS publishes only the validated commit, reruns checks, retains its checkout and
+B\*SS publishes only the validated commit, reruns checks, retains its checkout and
 frees the branch before **Done**. Conflicts, failed validation or further target
 drift stop the attempt. Failed postchecks retain the published result for inspection;
-BOSS never resets your checkout. Current execution: macOS, up to three managed workflows
+B\*SS never resets your checkout. Current execution: macOS, up to three managed workflows
 and exclusive integration. See
 [managed delivery behavior and limits](docs/MANAGED_DELIVERIES.md).
 
 ## Run Codex manually on a task
 
 Open a project, open a task card, then choose **Start Codex**. Install and sign in
-through the official Codex CLI first; BOSS uses the `codex` on its own PATH.
+through the official Codex CLI first; B\*SS uses the `codex` on its own PATH.
 Starting an actual run uses your local account and may incur provider charges.
-BOSS runs the task's pinned revision even when another source revision is selected.
+B\*SS runs the task's pinned revision even when another source revision is selected.
 
 Manual execution remains exclusive with managed workflows and integration.
-Each attempt gets a fresh `codex/boss-run-…` branch and worktree under the BOSS
+Each attempt gets a fresh `codex/boss-run-…` branch and worktree under the B\*SS
 data directory. Closing the drawer, reloading or closing
 the browser does not stop the attempt. **Stop** cancels the owned process group
 and retains files. The drawer shows the last ten attempts, retained paths, event
@@ -274,7 +314,7 @@ macOS. See [manual run behavior and limits](docs/MANUAL_RUNS.md).
 ## Check a Codex result
 
 On a finished Codex attempt, enter a **Check command** and select **Snapshot and
-run checks**. BOSS captures current changes without altering the original run,
+run checks**. B\*SS captures current changes without altering the original run,
 then executes the explicitly entered command in a separate retained worktree.
 The receipt shows its candidate commit, arguments and exit status. Exit 0 with
 modified files or a moved HEAD fails verification. **Checks passed — review
@@ -298,20 +338,21 @@ manual flow. See [review inputs, validation and limits](docs/MANUAL_REVIEWS.md).
 
 ## Detect agents
 
-Open **Agents** from Projects, then click **Detect agents**. BOSS checks Codex and
+Open **Agents** from Projects, then click **Detect agents**. B\*SS checks Codex and
 Claude Code on its own PATH and shows recognized versions, local sign-in reports
 and capabilities advertised by their help. Detection does not run a model or
 change credentials. Follow the official setup/sign-in guidance if a tool is
 missing or reports that it is signed out, then detect again.
 
 A sign-in report does not verify model access or quota. Advertised flags do not
-mean a BOSS execution adapter is ready. Results are temporary; reloading the page
+mean a B\*SS execution adapter is ready. Results are temporary; reloading the page
 requires another explicit scan. A failed rescan retains the previous results with
-a failure notice. Role assignment remains future work; explicit Codex task runs
-are available from the task drawer on macOS.
+a failure notice. The Agents screen does not assign roles. Managed workflows
+choose models from the saved catalog. Explicit Codex task runs are available
+from the task drawer on macOS.
 
 Probes run outside registered projects with fixed commands, bounded time/output,
-one scan at a time and cleanup of the tracked direct child. BOSS never reads
+one scan at a time and cleanup of the tracked direct child. B\*SS never reads
 credential files or displays raw CLI output. See
 [agent discovery boundaries and verification](docs/AGENT_DETECTION.md).
 
@@ -335,7 +376,7 @@ The directory is private to the user (mode 0700). SQLite runs with foreign keys,
 WAL, full synchronization, two pool connections (required by Ecto migrations) and
 a five-second busy timeout.
 Migrations run on application startup, after obtaining ownership. A dedicated
-`.owner.sqlite3` transaction permits one BOSS instance per directory. The lock
+`.owner.sqlite3` transaction permits one B\*SS instance per directory. The lock
 is held in application callback state until all supervised children stop. A second
 instance fails explicitly; stopping the process releases the OS-held lock.
 There is no stale-PID signalling or lock-file deletion. Do not remove the lock
@@ -359,7 +400,9 @@ rtk proxy mix assets.deploy
 
 Tests ignore `BOSS_DATA_DIR`, exclusively create a random temporary data directory
 and delete only that directory after stopping the test application. No existing
-`~/.boss` data is used by tests. Live provider tests will be opt-in when implemented.
+`~/.boss` data is used by tests. `mix test` does not call a live provider. The
+release guide records one earlier opt-in Codex smoke of a single tiny task. It
+does not establish acceptance for the current beta, Claude, or arbitrary work.
 Folder-picker process tests use Python 3 fixtures; they do not open desktop dialogs.
 Linux/Zenity GUI behavior has not yet been verified on a Linux desktop.
 
@@ -368,7 +411,7 @@ See [tasks/plan.md](tasks/plan.md), [tasks/todo.md](tasks/todo.md) and
 
 ## License
 
-BOSS is licensed under the [Apache License, Version 2.0](LICENSE).
+B\*SS is licensed under the [Apache License, Version 2.0](LICENSE).
 Third-party components retain their own licenses and notices, included in the
 release archive's `LICENSES/` directory. Reference repositories in `examples/`
 remain separately licensed research inputs.
