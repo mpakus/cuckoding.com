@@ -193,7 +193,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
     case report["verdict"] do
       "approved" -> {candidate, sha, review}
       "needs_spec_revision" -> throw({:halt, {:merge_needs_spec, report}})
-      _ -> throw({:halt, {:merge_changes_requested, report}})
+      _ -> throw({:halt, {:merge_changes_requested, review.id, output}})
     end
   end
 
@@ -246,25 +246,24 @@ defmodule Boss.Deliveries.IntegrationWorker do
         delivery = Repo.get!(Delivery, delivery.id)
 
         if conflict_repairable?(delivery) do
-          case Worker.repair_merge_conflict(delivery, target) do
-            {:ready, candidate, sha, review} ->
-              publish_repair(delivery, candidate, sha, review, target)
-
-            {:finished, saved} ->
-              {:ok, saved}
-
-            {:error, {:needs_input, message}} ->
-              note(delivery, "needs_input", message)
-
-            {:error, reason} ->
-              note(delivery, "blocked", reason)
-          end
+          continue_repair(delivery, Worker.repair_merge_conflict(delivery, target), target)
         else
           stop(delivery, :merge_conflict)
         end
 
       {:error, reason} ->
         note(delivery, "blocked", reason)
+    end
+  end
+
+  defp halt(delivery, {:merge_changes_requested, review_id, output}) do
+    delivery = Repo.get!(Delivery, delivery.id)
+
+    if conflict_repairable?(delivery) do
+      continue_repair(delivery, Worker.repair_rejected_merge(delivery, review_id, output), nil)
+    else
+      review = Enum.find(Deliveries.steps(delivery.id), &(&1.id == review_id))
+      stop(delivery, {:merge_changes_requested, review.receipt["report"]})
     end
   end
 
@@ -290,6 +289,28 @@ defmodule Boss.Deliveries.IntegrationWorker do
     _ -> {:error, :storage_error}
   catch
     _, _ -> {:error, :storage_error}
+  end
+
+  defp continue_repair(delivery, result, target) do
+    case result do
+      {:ready, candidate, sha, review} ->
+        publish_repair(
+          delivery,
+          candidate,
+          sha,
+          review,
+          target || review.input["publication_base"]
+        )
+
+      {:finished, saved} ->
+        {:ok, saved}
+
+      {:error, {:needs_input, message}} ->
+        note(delivery, "needs_input", message)
+
+      {:error, reason} ->
+        note(delivery, "blocked", reason)
+    end
   end
 
   defp ok!(:ok), do: :ok

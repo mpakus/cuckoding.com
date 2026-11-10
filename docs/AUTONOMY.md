@@ -98,7 +98,10 @@ failed requests are unchanged. Stop, unknown cleanup, drift and shared provider
 failures halt this bounded loop. See [Autopilot](AUTOPILOT.md).
 
 A merge conflict on an autonomy version 1 delivery keeps the original approval.
-Another model repairs from the current target in a fresh worktree. Fresh checks
+Another model repairs from the current target in a fresh worktree. A fresh
+integration review that requests changes sends that merge to the same debate:
+another model diagnoses it, a new implementation is checked, and only an
+approved descendant is published. Fresh checks
 and a new review must approve that descendant before publication. Publication
 still uses compare-and-swap from the recorded target, and only the new commit
 can move the branch. Rewritten history, target drift during publication,

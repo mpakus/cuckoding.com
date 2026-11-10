@@ -189,7 +189,7 @@ else:
                 while not (root / "integration-review-release").exists():
                     time.sleep(0.05)
         first = Path("result.txt").read_text() == "candidate-1\n"
-        reject = mode in ("reject_always", "repeated", "retry_unchanged", "retry_reject_always") or (mode in ("reject_once", "autonomy_wait_resolve") and first) or (mode == "autonomy_repeated" and Path("result.txt").read_text() == "unchanged\n")
+        reject = mode in ("reject_always", "repeated", "retry_unchanged", "retry_reject_always") or (mode in ("reject_once", "autonomy_wait_resolve") and first) or (mode == "autonomy_repeated" and Path("result.txt").read_text() == "unchanged\n") or (mode == "merge_repair" and "target_commit" in data)
         unclear = mode == "needs_spec" or (mode == "autonomy_review" and first)
         criterion = "Another criterion" if mode == "coverage" else "Create result.txt"
         report = {

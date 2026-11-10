@@ -31,7 +31,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
     {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery},
     {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery},
-    {20_261_110_120_000, Boss.Repo.Migrations.RepairMergeConflicts}
+    {20_261_110_120_000, Boss.Repo.Migrations.RepairMergeConflicts},
+    {20_261_110_140_000, Boss.Repo.Migrations.RepairRejectedMergeReview}
   ]
 
   setup do
@@ -297,8 +298,42 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert_unpublished(ctx, saved, target, user)
   end
 
+  @tag timeout: 120_000
+  test "integration review changes are repaired from the merge and only the new commit publishes",
+       ctx do
+    {manager, delivery} = ready(ctx)
+    original = step(delivery, "review")
+    target = advance(ctx)
+    user = preserve_checkout(ctx)
+    System.put_env("BOSS_DELIVERY_MODE", "merge_repair")
+
+    assert {:ok, _} =
+             Deliveries.integrate(ctx.project.id, delivery.id, Ecto.UUID.generate(), manager)
+
+    eventually(
+      fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, delivery.id)) end,
+      8_000
+    )
+
+    saved = Deliveries.get(ctx.project.id, delivery.id)
+    assert saved.status == "done" and saved.cleanup == "group_empty", inspect(saved.reason)
+    assert step(saved, "merge_review").receipt["report"]["verdict"] == "changes_requested"
+    repair = Deliveries.steps(saved.id) |> Enum.filter(&(&1.kind == "review")) |> List.last()
+    assert repair.id != original.id
+    assert repair.receipt["report"]["verdict"] == "approved"
+    published = saved.integration_intent["candidate_commit"]
+    assert published == repair.input["candidate_commit"]
+    assert git(ctx.source, ["merge-base", "--is-ancestor", target, published]) == ""
+
+    assert File.read!(Path.join(saved.integration_intent["path"], "result.txt")) ==
+             "candidate-2\n"
+
+    assert checkout(ctx) == user
+    assert Enum.any?(calls(ctx, "calls"), &(&1["kind"] == "resolve"))
+    refute inspect(Deliveries.steps(saved.id), limit: :infinity) =~ "SECRET_SENTINEL"
+  end
+
   for {mode, status, verdict} <- [
-        {"reject_always", "blocked", "changes_requested"},
         {"needs_spec", "needs_input", "needs_spec_revision"}
       ] do
     @tag mode: mode, status: status, verdict: verdict

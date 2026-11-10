@@ -515,11 +515,24 @@ defmodule Boss.Deliveries.Worker do
 
   @doc false
   def repair_merge_conflict(delivery, target) do
+    with_repair(target, fn -> repair_conflict(delivery, target) end)
+  end
+
+  @doc false
+  def repair_rejected_merge(delivery, review_id, output) do
+    review = Enum.find(Deliveries.steps(delivery.id), &(&1.id == review_id))
+
+    with_repair(review.input["target_commit"], fn ->
+      repair_rejection(delivery, review, output)
+    end)
+  end
+
+  defp with_repair(publication_base, fun) do
     Process.put(:conflict_repair, true)
-    Process.put(:conflict_target, target)
+    Process.put(:conflict_target, publication_base)
 
     try do
-      repair_conflict(delivery, target)
+      fun.()
     rescue
       _ ->
         close_repair_step()
@@ -590,6 +603,57 @@ defmodule Boss.Deliveries.Worker do
              step_id: resolution.id,
              resolution_step_id: resolution.id,
              source_step_id: merge.id
+           },
+           Map.put(feedback, "resolution", advice),
+           MapSet.new()
+         ) do
+      {:ok, %{status: status} = saved}
+      when status in ~w(blocked needs_input failed cancelled interrupted) ->
+        {:finished, saved}
+
+      other ->
+        other
+    end
+  end
+
+  defp repair_rejection(delivery, review, output) do
+    {project, revision} = Deliveries.inputs(delivery)
+    steps = Deliveries.steps(delivery.id)
+    check = Enum.find(steps, &(&1.id == review.input["merge_check_step_id"]))
+    plan_step = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
+    source = revision.original_text
+    plan = plan_step.receipt["report"]
+    base = review.input["candidate_commit"]
+    target = review.input["target_commit"]
+    workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
+    unless workspace["base_commit"] == target, do: throw({:halt, :target_changed})
+    workspace = Map.put(workspace, "base_commit", base)
+    ok!(Workspace.prepare(workspace))
+    ok!(Candidate.verify_tree(workspace["path"], base))
+
+    feedback = %{
+      "kind" => "review",
+      "report" => review.receipt["report"],
+      "receipt" => review.receipt,
+      "check_receipt" => check.receipt,
+      "check_output" => output
+    }
+
+    {resolution, advice} =
+      resolve(delivery, plan_step, plan, review, workspace, base, feedback, source)
+
+    case cycle(
+           delivery,
+           project,
+           source,
+           plan_step,
+           plan,
+           review.cycle + 1,
+           %{
+             candidate_commit: base,
+             step_id: resolution.id,
+             resolution_step_id: resolution.id,
+             source_step_id: review.id
            },
            Map.put(feedback, "resolution", advice),
            MapSet.new()
@@ -1376,7 +1440,7 @@ defmodule Boss.Deliveries.Worker do
     prepare? = problem.kind == "implement" and attempt == 1
 
     verify = fn ->
-      if problem.kind in ["plan", "implement", "merge"],
+      if problem.kind in ["plan", "implement", "merge", "merge_review"],
         do: Candidate.verify_tree(workspace["path"], sha),
         else: Candidate.verify(workspace, sha)
     end

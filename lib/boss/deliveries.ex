@@ -1283,6 +1283,11 @@ defmodule Boss.Deliveries do
             i["candidate_commit"] == source.input["target_commit"] and
             conflict_workspace?(d, source, previous, i)
 
+        "merge_review" ->
+          i["plan_step_id"] == source.input["plan_step_id"] and
+            i["candidate_commit"] == source.input["candidate_commit"] and
+            fresh_repair_workspace?(d, source.input["candidate_commit"], previous, i)
+
         _ ->
           i["plan_step_id"] == source.input["plan_step_id"] and
             i["workspace"] == source.input["workspace"] and
@@ -1314,6 +1319,14 @@ defmodule Boss.Deliveries do
          %Step{kind: "merge", status: "failed", receipt: receipt}
        ) do
     receipt["outcome"] == "merge_conflict" and receipt["cleanup"] == "group_empty"
+  end
+
+  defp recoverable_source?(
+         %Delivery{autonomy_version: 1},
+         %Step{kind: "merge_review", status: "finished", receipt: receipt}
+       ) do
+    get_in(receipt, ["report", "verdict"]) == "changes_requested" and
+      receipt["cleanup"] == "group_empty"
   end
 
   defp recoverable_source?(%Delivery{routing_version: 2}, %Step{kind: "implement"} = source),
@@ -1653,10 +1666,83 @@ defmodule Boss.Deliveries do
     end
   end
 
+  defp fresh_repair_workspace?(d, base, previous, input) do
+    workspace = input["workspace"]
+
+    with true <- is_map(workspace) and map_size(workspace) == 8,
+         true <- sha?(base) and workspace["base_commit"] == base,
+         true <- workspace["path"] != d.intent["path"],
+         true <- workspace["branch"] == "codex/boss-run-#{workspace["run_id"]}",
+         true <-
+           Enum.all?(
+             ~w(project_id repo_path git_common_dir base_branch),
+             &(workspace[&1] == d.intent[&1])
+           ) do
+      if input["resolution_attempt"] == 2 do
+        workspace == previous.input["workspace"] and previous.input["candidate_commit"] == base
+      else
+        Enum.all?(steps(d.id), fn step ->
+          Enum.all?([step.input["workspace"], step.receipt["workspace"]], fn
+            saved when is_map(saved) ->
+              saved["path"] != workspace["path"] and saved["branch"] != workspace["branch"]
+
+            _ ->
+              true
+          end)
+        end)
+      end
+    else
+      _ -> false
+    end
+  end
+
   defp publication_approved!(d) do
-    case conflict_merge(steps(d.id)) do
-      nil -> approved_publication!(d)
-      merge -> conflict_publication!(d, merge)
+    all = steps(d.id)
+
+    cond do
+      merge = conflict_merge(all) -> conflict_publication!(d, merge)
+      review = rejected_merge_publication(d, all) -> review
+      true -> approved_publication!(d)
+    end
+  end
+
+  defp rejected_merge_publication(d, all) do
+    with %Step{status: "finished"} = merge <- Enum.find(all, &(&1.kind == "merge")),
+         %Step{status: "finished", receipt: %{"report" => %{"verdict" => "changes_requested"}}} =
+           rejected <- Enum.find(Enum.reverse(all), &(&1.kind == "merge_review")),
+         %Step{} = review <-
+           Enum.find(Enum.reverse(all), &(&1.kind == "review" and &1.number > rejected.number)) do
+      check = Enum.find(all, &(&1.id == review.input["check_step_id"]))
+      plan = Enum.find(all, &(&1.id == review.input["plan_step_id"]))
+      original = Enum.find(all, &(&1.kind == "review"))
+      report = decoded_review!(review.receipt["report"])
+      criteria = Enum.map(report["acceptance"], & &1["criterion"])
+      merged = merge.receipt["candidate_commit"]
+
+      unless original.id != review.id and original.status == "finished" and
+               get_in(original.receipt, ["report", "verdict"]) == "approved" and
+               review.status == "finished" and check.kind == "check" and
+               check.status == "finished" and check.number > rejected.number and
+               plan.kind == "plan" and plan.status == "finished" and
+               process_passed?(review.receipt) and process_passed?(check.receipt) and
+               review.receipt["cleanup"] == "group_empty" and
+               check.receipt["cleanup"] == "group_empty" and report["verdict"] == "approved" and
+               review.cycle == d.cycle and check.cycle == d.cycle and
+               review.input["candidate_commit"] == check.input["candidate_commit"] and
+               review.input["candidate_commit"] not in [merged, merge.input["target_commit"]] and
+               review.input["original_base"] == d.intent["base_commit"] and
+               review.input["publication_base"] == merge.input["target_commit"] and
+               sha?(review.input["publication_base"]) and
+               review.input["config_hash"] == d.config_hash and
+               check.input["config_hash"] == d.config_hash and
+               check.receipt["output_complete"] == true and
+               hash?(check.receipt["output_hash"]) and
+               MapSet.new(criteria) == MapSet.new(plan.receipt["report"]["acceptance"]),
+             do: Repo.rollback(:missing_evidence)
+
+      review
+    else
+      _ -> nil
     end
   end
 
