@@ -87,14 +87,25 @@ defmodule BossWeb.AgentsLive do
         {:noreply,
          assign(socket, roles: Roles.list(), role_error: "That role is no longer available.")}
 
+      {:error, :standard} ->
+        {:noreply, assign(socket, role_error: standard_message())}
+
       {:error, changeset} ->
         {:noreply, assign(socket, role_error: role_error(changeset))}
     end
   end
 
   def handle_event("delete_role", %{"role_id" => id}, socket) do
-    Roles.delete(id)
-    {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
+    case Roles.delete(id) do
+      {:ok, _} ->
+        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
+
+      {:error, :standard} ->
+        {:noreply, assign(socket, role_error: standard_message())}
+
+      {:error, :not_found} ->
+        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
+    end
   end
 
   def handle_event("assign_role", %{"role_id" => id} = params, socket) do
@@ -164,10 +175,10 @@ defmodule BossWeb.AgentsLive do
     <section id="roles" aria-labelledby="roles-title" class="mt-8">
       <h2 id="roles-title" class="app-panel-heading">Roles</h2>
       <p id="roles-help" class="mt-2 max-w-3xl text-sm leading-6 text-body">
-        A role can include any of the agents below, and an agent can belong to
-        several roles. Creating, renaming, or removing a role is saved on this
-        computer. An assignment records the roster. A workflow still runs an
-        agent only through that agent's existing runner.
+        Reviewer, Implementer, and Analytic are the standard roles. A role can
+        include any of the agents below, and an agent can belong to several
+        roles. An assignment records the roster. A workflow still runs an agent
+        only through that agent's existing runner.
       </p>
       <form id="create-role" phx-submit="create_role" class="mt-4 flex flex-wrap items-end gap-3">
         <div class="min-w-0 flex-1">
@@ -189,12 +200,16 @@ defmodule BossWeb.AgentsLive do
       <p :if={@role_error} id="role-error" role="alert" class="mt-3 text-sm text-warning">
         {@role_error}
       </p>
-      <p :if={@roles == []} id="roles-empty" class="mt-4 text-sm text-muted">
-        No roles yet. Create one, then choose the agents that hold it.
-      </p>
       <div class="mt-4 grid min-w-0 gap-4">
         <article :for={role <- @roles} id={"role-#{role.id}"} class="app-panel">
+          <div :if={role.standard}>
+            <h3 id={"role-#{role.id}-title"} class="text-base font-semibold">{role.name}</h3>
+            <p id={"role-#{role.id}-purpose"} class="mt-1 text-sm leading-6 text-body">
+              {role.purpose}
+            </p>
+          </div>
           <form
+            :if={!role.standard}
             id={"role-#{role.id}-name"}
             phx-submit="update_role"
             class="flex flex-wrap items-end gap-3"
@@ -391,6 +406,8 @@ defmodule BossWeb.AgentsLive do
 
     "#{stage} check #{reason}."
   end
+
+  defp standard_message, do: "Reviewer, Implementer, and Analytic stay in place."
 
   defp role_error(%Ecto.Changeset{} = changeset) do
     options = changeset.errors |> Keyword.get_values(:name) |> Enum.map(&elem(&1, 1))

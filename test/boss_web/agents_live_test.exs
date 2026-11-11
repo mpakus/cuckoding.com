@@ -155,45 +155,42 @@ defmodule BossWeb.AgentsLiveTest do
     assert has_element?(view, "#agents-status", "Detection complete")
   end
 
-  test "roles can be created, assigned, renamed, and removed", %{conn: conn} do
+  test "standard roles stay, and custom roles can be assigned, renamed, and removed", %{
+    conn: conn
+  } do
     {:ok, view, _} = live(conn, "/agents")
-    assert has_element?(view, "#roles-empty", "No roles yet")
+    roles = Map.new(Boss.Agents.Roles.list(), &{&1.kind, &1})
+    reviewer = roles["reviewer"]
+    implementer = roles["implementer"]
+    analytic = roles["analytic"]
 
-    view |> form("#create-role", %{name: "Reviewer"}) |> render_submit()
-    refute has_element?(view, "#roles-empty")
-    [%{id: id, name: "Reviewer"}] = Boss.Agents.Roles.list()
-    assert has_element?(view, "#role-#{id}-name-input[value='Reviewer']")
-
-    view |> form("#create-role", %{name: "Reviewer"}) |> render_submit()
-    assert has_element?(view, "#role-error", "already exists")
-
-    view |> form("#role-#{id}-agents", %{agents: ["codex", "cursor"]}) |> render_change()
-    assert has_element?(view, "#role-#{id}-agent-codex[checked]")
-    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
-    refute has_element?(view, "#role-#{id}-agent-claude[checked]")
-
-    view |> form("#role-#{id}-name", %{name: "Independent reviewer"}) |> render_submit()
-    assert has_element?(view, "#role-#{id}-name-input[value='Independent reviewer']")
-    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
-
-    view |> form("#create-role", %{name: "Developer"}) |> render_submit()
-    developer = Enum.find(Boss.Agents.Roles.list(), &(&1.name == "Developer"))
+    assert has_element?(view, "#role-#{reviewer.id}-purpose", "Reviews specs and code")
+    assert has_element?(view, "#role-#{implementer.id}-purpose", "Writes code and tests")
+    assert has_element?(view, "#role-#{analytic.id}-purpose", "helps the Reviewer")
+    refute has_element?(view, "#role-#{reviewer.id}-delete")
 
     view
-    |> form("#role-#{developer.id}-agents", %{agents: ["cursor", "codex"]})
+    |> form("#role-#{reviewer.id}-agents", %{agents: ["claude", "cursor"]})
     |> render_change()
 
-    assert has_element?(view, "#role-#{developer.id}-agent-cursor[checked]")
-    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
-    view |> form("#role-#{developer.id}-agents", %{agents: ["codex"]}) |> render_change()
-    refute has_element?(view, "#role-#{developer.id}-agent-cursor[checked]")
-    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
+    view
+    |> form("#role-#{implementer.id}-agents", %{agents: ["cursor", "codex"]})
+    |> render_change()
 
-    view |> element("#role-#{id}-delete") |> render_click()
-    view |> element("#role-#{developer.id}-delete") |> render_click()
-    assert has_element?(view, "#roles-empty")
-    refute has_element?(view, "#role-#{id}")
-    refute has_element?(view, "#role-#{developer.id}")
+    assert has_element?(view, "#role-#{reviewer.id}-agent-cursor[checked]")
+    assert has_element?(view, "#role-#{implementer.id}-agent-cursor[checked]")
+
+    view |> form("#role-#{implementer.id}-agents", %{agents: ["codex"]}) |> render_change()
+    refute has_element?(view, "#role-#{implementer.id}-agent-cursor[checked]")
+    assert has_element?(view, "#role-#{reviewer.id}-agent-cursor[checked]")
+
+    view |> form("#create-role", %{name: "Planner"}) |> render_submit()
+    planner = Enum.find(Boss.Agents.Roles.list(), &(&1.name == "Planner"))
+    view |> form("#role-#{planner.id}-name", %{name: "Architect"}) |> render_submit()
+    assert has_element?(view, "#role-#{planner.id}-name-input[value='Architect']")
+    view |> element("#role-#{planner.id}-delete") |> render_click()
+    refute has_element?(view, "#role-#{planner.id}")
+    assert has_element?(view, "#role-#{reviewer.id}-title", "Reviewer")
   end
 
   test "an async exit becomes a sanitized retryable error", %{conn: conn} do

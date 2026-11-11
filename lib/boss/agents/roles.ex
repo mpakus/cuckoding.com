@@ -4,37 +4,65 @@ defmodule Boss.Agents.Roles do
   alias Boss.Agents.{Metadata, Role, RoleMember}
   alias Boss.Repo
 
+  @standard [
+    %{
+      kind: "reviewer",
+      name: "Reviewer",
+      purpose: "Reviews specs and code."
+    },
+    %{
+      kind: "implementer",
+      name: "Implementer",
+      purpose: "Writes code and tests from the specs."
+    },
+    %{
+      kind: "analytic",
+      name: "Analytic",
+      purpose:
+        "Analyzes prompts, specs, and the project to create specs, and helps the Reviewer with questions or when work is stuck."
+    }
+  ]
+  @kind_order %{"reviewer" => 0, "implementer" => 1, "analytic" => 2}
+
+  def standard, do: @standard
+
   def list do
+    ensure_standard()
+
     Role
-    |> order_by([role], asc: role.name, asc: role.id)
     |> preload(:members)
     |> Repo.all()
-    |> Enum.map(fn role ->
-      %{
-        id: role.id,
-        name: role.name,
-        agent_ids: role.members |> Enum.map(& &1.agent_id) |> Enum.sort()
-      }
-    end)
+    |> Enum.map(&present/1)
+    |> Enum.sort_by(&{Map.get(@kind_order, &1.kind, 3), &1.name, &1.id})
   end
 
-  def create(name), do: %Role{} |> Role.changeset(%{name: name}) |> Repo.insert()
+  def create(name) do
+    ensure_standard()
+    %Role{} |> Role.changeset(%{name: name}) |> Repo.insert()
+  end
 
   def update(id, name) do
+    ensure_standard()
+
     case fetch(id) do
       nil -> {:error, :not_found}
+      %{kind: kind} when is_binary(kind) -> {:error, :standard}
       role -> role |> Role.changeset(%{name: name}) |> Repo.update()
     end
   end
 
   def delete(id) do
+    ensure_standard()
+
     case fetch(id) do
       nil -> {:error, :not_found}
+      %{kind: kind} when is_binary(kind) -> {:error, :standard}
       role -> Repo.delete(role)
     end
   end
 
   def assign(id, agent_ids) when is_list(agent_ids) do
+    ensure_standard()
     ids = agent_ids |> Enum.map(&to_string/1) |> Enum.uniq() |> Enum.sort()
     allowed = MapSet.new(Metadata.ids(), &Atom.to_string/1)
 
@@ -54,6 +82,40 @@ defmodule Boss.Agents.Roles do
       end)
     else
       {:error, :unknown_agent}
+    end
+  end
+
+  defp present(role) do
+    %{
+      id: role.id,
+      name: role.name,
+      kind: role.kind,
+      purpose: purpose(role.kind),
+      standard: is_binary(role.kind),
+      agent_ids: role.members |> Enum.map(& &1.agent_id) |> Enum.sort()
+    }
+  end
+
+  defp purpose(kind), do: Enum.find_value(@standard, &(&1.kind == kind && &1.purpose))
+
+  defp ensure_standard do
+    Enum.each(@standard, fn spec ->
+      case Repo.get_by(Role, kind: spec.kind) do
+        nil -> insert_standard(spec)
+        _role -> :ok
+      end
+    end)
+  end
+
+  defp insert_standard(spec) do
+    case Repo.get_by(Role, name: spec.name) do
+      nil ->
+        %Role{}
+        |> Role.standard_changeset(Map.take(spec, [:name, :kind]))
+        |> Repo.insert!()
+
+      role ->
+        role |> Ecto.Changeset.change(kind: spec.kind) |> Repo.update!()
     end
   end
 
