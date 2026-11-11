@@ -3,7 +3,9 @@ defmodule Boss.Agents.Claude do
   @line_limit 262_144
   @output_limit 8_388_608
 
-  def stage_args(:implement) do
+  def stage_args(kind, selection \\ %{})
+
+  def stage_args(:implement, selection) do
     [
       "--print",
       "--input-format",
@@ -23,10 +25,10 @@ defmodule Boss.Agents.Claude do
       "mcp__*",
       "--disable-slash-commands",
       "--no-session-persistence"
-    ]
+    ] ++ selection_flags(selection)
   end
 
-  def stage_args(kind) when kind in [:plan, :resolve, :intake] do
+  def stage_args(kind, selection) when kind in [:plan, :resolve, :intake] do
     schema_file =
       case kind do
         :plan -> "priv/plan_schema.json"
@@ -57,7 +59,7 @@ defmodule Boss.Agents.Claude do
       "mcp__*",
       "--disable-slash-commands",
       "--no-session-persistence"
-    ]
+    ] ++ selection_flags(selection)
   end
 
   def stage_report(output) when is_binary(output) do
@@ -160,7 +162,7 @@ defmodule Boss.Agents.Claude do
     }
   end
 
-  def args do
+  def args(selection \\ %{}) do
     [
       "--print",
       "--input-format",
@@ -185,8 +187,26 @@ defmodule Boss.Agents.Claude do
       "mcp__*",
       "--disable-slash-commands",
       "--no-session-persistence"
-    ]
+    ] ++ selection_flags(selection)
   end
+
+  defp selection_flags(selection) when is_map(selection) do
+    model =
+      case selection[:model_id] || selection["model_id"] do
+        m when is_binary(m) and m != "" -> ["--model", m]
+        _ -> []
+      end
+
+    effort =
+      case selection[:reasoning_effort] || selection["reasoning_effort"] do
+        e when is_binary(e) and e != "" -> ["--effort", e]
+        _ -> []
+      end
+
+    model ++ effort
+  end
+
+  defp selection_flags(_), do: []
 
   def new do
     %{

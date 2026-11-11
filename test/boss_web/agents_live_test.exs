@@ -14,15 +14,96 @@ defmodule BossWeb.AgentsLiveTest do
     end
   end
 
+  defmodule FakeDiscovery do
+    def fetch(:codex, _path) do
+      {:ok,
+       [
+         %{
+           "id" => "gpt-6.1-sol",
+           "name" => "GPT-6.1 Sol",
+           "reasoning" => true,
+           "reasoning_efforts" => ["medium", "high", "xhigh"],
+           "default_effort" => "high",
+           "context_window" => 500_000,
+           "pricing" => %{
+             "input" => 2.0,
+             "output" => 10.0,
+             "cached_input" => 0.1,
+             "unit" => "1M tokens"
+           }
+         }
+       ]}
+    end
+
+    def fetch(:claude, _path) do
+      {:ok, Boss.Agents.ModelDiscovery.claude_models(["low", "medium", "high", "xhigh"])}
+    end
+
+    def fetch(:cursor, _path) do
+      {:ok,
+       [
+         %{
+           "id" => "claude-sonnet-4-thinking",
+           "name" => "Claude Sonnet Thinking",
+           "reasoning" => true,
+           "reasoning_efforts" => ["low", "medium", "high"],
+           "default_effort" => "high",
+           "context_window" => nil,
+           "pricing" => %{"input" => 3.0, "output" => 15.0, "unit" => "1M tokens"}
+         }
+       ]}
+    end
+
+    def fetch(_, _), do: {:ok, []}
+  end
+
+  defmodule FakeAuthorizer do
+    def authorize(id, _mode) do
+      {:ok, models} = FakeDiscovery.fetch(id, "/tools/#{id}")
+
+      saved =
+        Boss.Agents.Detections.save_agent(%{
+          id: id,
+          name: Atom.to_string(id),
+          path: "/tools/#{id}",
+          version: "1.2.3",
+          probe_status: :ok,
+          auth_status: :configured,
+          capabilities: %{},
+          errors: [],
+          models: models
+        })
+
+      {:ok, saved}
+    end
+
+    def verify_and_fetch(id), do: authorize(id, :auto)
+    def fetch_models(id), do: authorize(id, :auto)
+  end
+
   setup %{conn: conn} do
     previous = Application.fetch_env(:boss, :agent_detector)
+    prev_disc = Application.fetch_env(:boss, :agent_model_discovery)
+    prev_auth = Application.fetch_env(:boss, :agent_authorizer)
     Application.put_env(:boss, :agent_detector, Detector)
+    Application.put_env(:boss, :agent_model_discovery, FakeDiscovery)
+    Application.put_env(:boss, :agent_authorizer, FakeAuthorizer)
     start_supervised!({Detector, self()})
 
     on_exit(fn ->
       case previous do
         {:ok, value} -> Application.put_env(:boss, :agent_detector, value)
         :error -> Application.delete_env(:boss, :agent_detector)
+      end
+
+      case prev_disc do
+        {:ok, value} -> Application.put_env(:boss, :agent_model_discovery, value)
+        :error -> Application.delete_env(:boss, :agent_model_discovery)
+      end
+
+      case prev_auth do
+        {:ok, value} -> Application.put_env(:boss, :agent_authorizer, value)
+        :error -> Application.delete_env(:boss, :agent_authorizer)
       end
     end)
 
@@ -155,9 +236,8 @@ defmodule BossWeb.AgentsLiveTest do
     assert has_element?(view, "#agents-status", "Detection complete")
   end
 
-  test "standard roles stay, and custom roles can be assigned, renamed, and removed", %{
-    conn: conn
-  } do
+  test "standard roles stay, connect only to detected-authorized models-agents, and persist detections across reloads",
+       %{conn: conn} do
     {:ok, view, _} = live(conn, "/agents")
     roles = Map.new(Boss.Agents.Roles.list(), &{&1.kind, &1})
     reviewer = roles["reviewer"]
@@ -169,28 +249,87 @@ defmodule BossWeb.AgentsLiveTest do
     assert has_element?(view, "#role-#{analytic.id}-purpose", "helps the Reviewer")
     refute has_element?(view, "#role-#{reviewer.id}-delete")
 
+    # Before detection/authorization, roles cannot connect to undetected agents
+    assert has_element?(view, "#role-#{reviewer.id}-empty-authorized")
+    refute has_element?(view, "#role-#{reviewer.id}-agent-codex")
+
+    # Detect: Codex & Cursor configured, Claude not_configured
+    [codex, claude] = rows()
+    cursor = %{codex | id: :cursor, name: "Cursor Agent", path: "/tools/agent"}
+    detect(view, [codex, claude, cursor])
+
+    # Supported models with pricing and reasoning are fetched for authorized agents
+    assert has_element?(view, "#agent-models-codex", "GPT-6.1 Sol")
+    assert has_element?(view, "#agent-models-codex", "$2.00 in · $10.00 out")
+    assert has_element?(view, "#agent-models-codex", "medium · high · xhigh")
+
+    # Unauthorized Claude shows authorization action and is excluded from role checkboxes
+    assert has_element?(view, "#agent-auth-box-claude")
+    refute has_element?(view, "#role-#{reviewer.id}-agent-claude")
+    assert has_element?(view, "#role-#{reviewer.id}-agent-codex")
+    assert has_element?(view, "#role-#{reviewer.id}-agent-cursor")
+
+    # Authorize Claude directly from its card -> fetches Claude models and unlocks role connection
+    view |> element("#authorize-claude") |> render_click()
+    render_async(view, 2_000)
+    assert has_element?(view, "#agent-models-claude", "Claude Opus 4.6")
+    assert has_element?(view, "#role-#{reviewer.id}-agent-claude")
+
     view
-    |> form("#role-#{reviewer.id}-agents", %{agents: ["claude", "cursor"]})
+    |> form("#role-#{reviewer.id}-agents", %{
+      agents: ["claude", "cursor"]
+    })
     |> render_change()
 
     view
-    |> form("#role-#{implementer.id}-agents", %{agents: ["cursor", "codex"]})
+    |> form("#role-#{implementer.id}-agents", %{
+      agents: ["cursor", "codex"]
+    })
     |> render_change()
 
     assert has_element?(view, "#role-#{reviewer.id}-agent-cursor[checked]")
     assert has_element?(view, "#role-#{implementer.id}-agent-cursor[checked]")
 
-    view |> form("#role-#{implementer.id}-agents", %{agents: ["codex"]}) |> render_change()
+    # Select specific model + reasoning effort on Implementer Codex
+    view
+    |> form("#role-#{implementer.id}-agents", %{
+      agents: ["codex"],
+      models: %{"codex" => "gpt-6.1-sol"},
+      efforts: %{"codex" => "xhigh"}
+    })
+    |> render_change()
+
     refute has_element?(view, "#role-#{implementer.id}-agent-cursor[checked]")
     assert has_element?(view, "#role-#{reviewer.id}-agent-cursor[checked]")
 
-    view |> form("#create-role", %{name: "Planner"}) |> render_submit()
+    assert has_element?(
+             view,
+             "#role-#{implementer.id}-model-codex option[value='gpt-6.1-sol'][selected]"
+           )
+
+    assert has_element?(
+             view,
+             "#role-#{implementer.id}-effort-codex option[value='xhigh'][selected]"
+           )
+
+    # Reload /agents in a fresh LiveView: saved detections, models, and role model bindings persist!
+    {:ok, reloaded, _} = live(conn, "/agents")
+    refute_receive {:scan, _}
+    assert has_element?(reloaded, "#agents-checked-at[datetime]")
+    assert has_element?(reloaded, "#agent-models-codex", "GPT-6.1 Sol")
+
+    assert has_element?(
+             reloaded,
+             "#role-#{implementer.id}-model-codex option[value='gpt-6.1-sol'][selected]"
+           )
+
+    reloaded |> form("#create-role", %{name: "Planner"}) |> render_submit()
     planner = Enum.find(Boss.Agents.Roles.list(), &(&1.name == "Planner"))
-    view |> form("#role-#{planner.id}-name", %{name: "Architect"}) |> render_submit()
-    assert has_element?(view, "#role-#{planner.id}-name-input[value='Architect']")
-    view |> element("#role-#{planner.id}-delete") |> render_click()
-    refute has_element?(view, "#role-#{planner.id}")
-    assert has_element?(view, "#role-#{reviewer.id}-title", "Reviewer")
+    reloaded |> form("#role-#{planner.id}-name", %{name: "Architect"}) |> render_submit()
+    assert has_element?(reloaded, "#role-#{planner.id}-name-input[value='Architect']")
+    reloaded |> element("#role-#{planner.id}-delete") |> render_click()
+    refute has_element?(reloaded, "#role-#{planner.id}")
+    assert has_element?(reloaded, "#role-#{reviewer.id}-title", "Reviewer")
   end
 
   test "an async exit becomes a sanitized retryable error", %{conn: conn} do

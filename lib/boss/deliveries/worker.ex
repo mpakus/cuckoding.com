@@ -1829,7 +1829,9 @@ defmodule Boss.Deliveries.Worker do
       end
 
       result =
-        Runner.run(executable, Cursor.args(),
+        Runner.run(
+          executable,
+          Cursor.args(Boss.Agents.Roles.selection_for("reviewer", "cursor")),
           cd: path,
           input: prompt,
           timeout_ms: 1_200_000,
@@ -1896,7 +1898,9 @@ defmodule Boss.Deliveries.Worker do
       end
 
       result =
-        Runner.run(executable, Claude.args(),
+        Runner.run(
+          executable,
+          Claude.args(Boss.Agents.Roles.selection_for("reviewer", "claude")),
           cd: path,
           input: prompt,
           timeout_ms: 1_200_000,
@@ -1968,7 +1972,13 @@ defmodule Boss.Deliveries.Worker do
   defp run_cursor_stage(kind, path, prompt, decode, opts) do
     continue!()
     executable = Metadata.find_executable(:cursor) || throw({:halt, :cursor_unavailable})
-    args = if kind == :implement, do: Cursor.implement_args(), else: Cursor.args()
+    role_kind = if kind in [:resolve, :intake], do: "analytic", else: "implementer"
+    selection = Boss.Agents.Roles.selection_for(role_kind, "cursor")
+
+    args =
+      if kind == :implement,
+        do: Cursor.implement_args(selection),
+        else: Cursor.args(selection)
 
     run_envelope_stage(
       executable,
@@ -1985,7 +1995,8 @@ defmodule Boss.Deliveries.Worker do
   defp run_claude_stage(kind, path, prompt, decode, opts) do
     continue!()
     executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
-    args = Claude.stage_args(kind)
+    role_kind = if kind in [:resolve, :intake], do: "analytic", else: "implementer"
+    args = Claude.stage_args(kind, Boss.Agents.Roles.selection_for(role_kind, "claude"))
 
     run_envelope_stage(
       executable,

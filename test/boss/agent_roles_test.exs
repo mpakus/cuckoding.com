@@ -1,6 +1,11 @@
 defmodule Boss.AgentRolesTest do
   use Boss.DataCase, async: false
-  alias Boss.Agents.Roles
+  alias Boss.Agents.{Detections, ModelDiscovery, Roles}
+
+  setup do
+    authorize_agents([:codex, :claude, :cursor])
+    :ok
+  end
 
   test "Analytic prefers an independent agent from the Implementer when available, and supports Claude" do
     roles = Map.new(Roles.list(), &{&1.kind, &1})
@@ -32,21 +37,121 @@ defmodule Boss.AgentRolesTest do
     assert MapSet.new(Enum.map(Roles.list(), & &1.kind)) |> MapSet.member?("analytic")
   end
 
-  test "roles keep many agents and agents keep many roles" do
+  test "roles keep many agents, persist model and reasoning choices, and reject unauthorized or unsupported models" do
     roles = Map.new(Roles.list(), &{&1.kind, &1})
     reviewer = roles["reviewer"]
     implementer = roles["implementer"]
-    assert {:ok, _} = Roles.assign(implementer.id, ["codex", "cursor"])
-    assert {:ok, _} = Roles.assign(reviewer.id, ["cursor", "claude"])
 
-    roles = Map.new(Roles.list(), &{&1.kind, &1.agent_ids})
-    assert roles["implementer"] == ["codex", "cursor"]
-    assert roles["reviewer"] == ["claude", "cursor"]
+    assert {:ok, _} =
+             Roles.assign(implementer.id, ["codex", "cursor"], %{
+               "codex" => %{"model_id" => "gpt-6.1-sol", "reasoning_effort" => "high"},
+               "cursor" => %{
+                 "model_id" => "claude-sonnet-4-thinking",
+                 "reasoning_effort" => "high"
+               }
+             })
 
-    assert {:ok, _} = Roles.assign(implementer.id, ["codex"])
-    roles = Map.new(Roles.list(), &{&1.kind, &1.agent_ids})
-    assert roles["implementer"] == ["codex"]
-    assert roles["reviewer"] == ["claude", "cursor"]
+    assert {:ok, _} =
+             Roles.assign(reviewer.id, ["cursor", "claude"], %{
+               "claude" => %{"model_id" => "claude-opus-4-6", "reasoning_effort" => "xhigh"}
+             })
+
+    loaded = Map.new(Roles.list(), &{&1.kind, &1})
+    assert loaded["implementer"].agent_ids == ["codex", "cursor"]
+    assert loaded["reviewer"].agent_ids == ["claude", "cursor"]
+
+    assert Roles.selection_for("implementer", "codex") == %{
+             model_id: "gpt-6.1-sol",
+             reasoning_effort: "high"
+           }
+
+    assert Roles.selection_for("reviewer", "claude") == %{
+             model_id: "claude-opus-4-6",
+             reasoning_effort: "xhigh"
+           }
+
+    # Undetected / unauthorized agents are rejected
+    assert {:error, :agent_not_authorized} = Roles.assign(reviewer.id, ["hermes"])
+
+    Detections.mark_auth_status(:cursor, :stale)
+    assert {:error, :agent_not_authorized} = Roles.assign(implementer.id, ["cursor"])
+    # Active role resolution also skips stale/unauthorized agents
+    assert Enum.map(Roles.agents_for("implementer"), & &1.id) == ["codex"]
+
+    # Unsupported model IDs or efforts are rejected
+    assert {:error, :model_not_supported} =
+             Roles.assign(implementer.id, ["codex"], %{
+               "codex" => %{"model_id" => "nonexistent-model"}
+             })
+
+    assert {:error, :invalid_reasoning_effort} =
+             Roles.assign(implementer.id, ["codex"], %{
+               "codex" => %{"model_id" => "gpt-6.1-sol", "reasoning_effort" => "impossible"}
+             })
+  end
+
+  test "model discovery parses Codex, Cursor, Claude, and OpenCode models with pricing and reasoning" do
+    codex_json =
+      Jason.encode!(%{
+        "models" => [
+          %{
+            "slug" => "gpt-6.1-sol",
+            "display_name" => "GPT-6.1 Sol",
+            "visibility" => "list",
+            "context_window" => 500_000,
+            "default_reasoning_level" => "high",
+            "supported_reasoning_levels" => [%{"effort" => "medium"}, %{"effort" => "high"}]
+          },
+          %{"slug" => "gpt-reserve", "visibility" => "hide"}
+        ]
+      })
+
+    assert {:ok, [m1]} = ModelDiscovery.parse_codex_models(codex_json)
+    assert m1["id"] == "gpt-6.1-sol"
+    assert m1["reasoning"] == true
+    assert m1["reasoning_efforts"] == ["medium", "high"]
+    assert m1["pricing"]["input"] == 2.0
+    assert m1["pricing"]["output"] == 10.0
+
+    cursor_text = """
+    Available models
+    claude-sonnet-4-thinking - Claude 4 Sonnet Thinking (current)
+    gpt-4o - GPT-4o
+    Tip: pass --model <id>
+    """
+
+    assert {:ok, [c1, c2]} = ModelDiscovery.parse_cursor_models(cursor_text)
+    assert c1["id"] == "claude-sonnet-4-thinking"
+    assert c1["name"] == "Claude 4 Sonnet Thinking"
+    assert c1["reasoning"] == true
+    assert c1["pricing"]["input"] == 3.0
+    assert c2["id"] == "gpt-4o"
+
+    opencode_text = """
+    opencode-go/gpt-6-luna
+    {
+      "id": "gpt-6-luna",
+      "providerID": "opencode-go",
+      "name": "GPT-6 Luna",
+      "cost": {"input": 0.1, "output": 0.5, "cache": {"read": 0.01}},
+      "limit": {"context": 272000},
+      "capabilities": {"reasoning": true},
+      "variants": {"low": {}, "high": {}}
+    }
+    """
+
+    assert {:ok, [o1]} = ModelDiscovery.parse_opencode_models(opencode_text)
+    assert o1["id"] == "opencode-go/gpt-6-luna"
+    assert o1["pricing"]["input"] == 0.1
+    assert o1["pricing"]["output"] == 0.5
+    assert o1["reasoning_efforts"] == ["low", "high"]
+
+    claude_list = ModelDiscovery.claude_models(["low", "high", "max"])
+
+    assert Enum.any?(
+             claude_list,
+             &(&1["id"] == "claude-opus-4-6" and &1["pricing"]["input"] == 5.0)
+           )
   end
 
   test "custom names can be created, renamed, and removed" do
@@ -66,5 +171,52 @@ defmodule Boss.AgentRolesTest do
     reviewer = Enum.find(Roles.list(), &(&1.kind == "reviewer"))
     assert {:error, :unknown_agent} = Roles.assign(reviewer.id, ["cursor", "editor"])
     assert reviewer.agent_ids == []
+  end
+
+  defp authorize_agents(ids) do
+    rows =
+      Enum.map(ids, fn id ->
+        models =
+          case id do
+            :codex ->
+              [
+                %{
+                  "id" => "gpt-6.1-sol",
+                  "name" => "GPT-6.1 Sol",
+                  "reasoning" => true,
+                  "reasoning_efforts" => ["medium", "high", "xhigh"],
+                  "pricing" => %{"input" => 2.0, "output" => 10.0, "unit" => "1M tokens"}
+                }
+              ]
+
+            :claude ->
+              ModelDiscovery.claude_models()
+
+            :cursor ->
+              [
+                %{
+                  "id" => "claude-sonnet-4-thinking",
+                  "name" => "Claude Sonnet Thinking",
+                  "reasoning" => true,
+                  "reasoning_efforts" => ["low", "medium", "high"],
+                  "pricing" => %{"input" => 3.0, "output" => 15.0, "unit" => "1M tokens"}
+                }
+              ]
+          end
+
+        %{
+          id: id,
+          name: Atom.to_string(id),
+          path: "/tools/#{id}",
+          version: "1.0.0",
+          probe_status: :ok,
+          auth_status: :configured,
+          capabilities: %{},
+          errors: [],
+          models: models
+        }
+      end)
+
+    Detections.save_scan(rows)
   end
 end

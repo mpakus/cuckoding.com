@@ -164,6 +164,29 @@ defmodule BossWeb.AutopilotLiveTest do
   end
 
   test "Independent reviewer offers the agents assigned to Reviewer", c do
+    Boss.Agents.Detections.save_scan([
+      %{
+        id: :cursor,
+        name: "Cursor Agent",
+        path: "/tools/agent",
+        version: "1.0.0",
+        probe_status: :ok,
+        auth_status: :configured,
+        capabilities: %{},
+        errors: []
+      },
+      %{
+        id: :claude,
+        name: "Claude Code",
+        path: "/tools/claude",
+        version: "1.0.0",
+        probe_status: :ok,
+        auth_status: :configured,
+        capabilities: %{},
+        errors: []
+      }
+    ])
+
     reviewer = Enum.find(Boss.Agents.Roles.list(), &(&1.kind == "reviewer"))
     assert {:ok, _} = Boss.Agents.Roles.assign(reviewer.id, ["cursor", "claude"])
     {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")

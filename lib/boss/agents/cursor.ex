@@ -1,11 +1,11 @@
 defmodule Boss.Agents.Cursor do
   @moduledoc false
 
-  def implement_args do
-    ["--print", "--force", "--output-format", "json", "--trust"]
+  def implement_args(selection \\ %{}) do
+    ["--print", "--force", "--output-format", "json", "--trust"] ++ model_flags(selection)
   end
 
-  def args do
+  def args(selection \\ %{}) do
     [
       "--print",
       "--output-format",
@@ -15,8 +15,13 @@ defmodule Boss.Agents.Cursor do
       "--sandbox",
       "enabled",
       "--trust"
-    ]
+    ] ++ model_flags(selection)
   end
+
+  defp model_flags(%{model_id: model}) when is_binary(model) and model != "",
+    do: ["--model", model]
+
+  defp model_flags(_), do: []
 
   def report(output) when is_binary(output) do
     with true <- String.valid?(output),

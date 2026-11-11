@@ -19,6 +19,19 @@ defmodule Boss.Agents.Detector do
     :exit, _ -> {:error, :unavailable}
   end
 
+  def scan_agent(id, server \\ __MODULE__) when is_atom(id) do
+    if id in Metadata.ids() do
+      case GenServer.call(server, {:scan_agent, id}, :infinity) do
+        {:ok, [result]} -> {:ok, result}
+        {:error, _} = error -> error
+      end
+    else
+      {:error, :unknown_agent}
+    end
+  catch
+    :exit, _ -> {:error, :unavailable}
+  end
+
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
@@ -35,16 +48,24 @@ defmodule Boss.Agents.Detector do
   end
 
   @impl true
-  def handle_call(:scan, _from, %{active: active} = state) when active != nil,
+  def handle_call(_request, _from, %{active: active} = state) when active != nil,
     do: {:reply, {:error, :busy}, state}
 
   def handle_call(:scan, from, state) do
     if state.os_type in [{:unix, :darwin}, {:unix, :linux}] do
-      begin_scan(from, state)
+      begin_scan(from, Metadata.ids(), state)
     else
       {:reply,
        {:ok, Enum.map(Metadata.ids(), &%{Metadata.new(&1, nil) | probe_status: :unsupported})},
        state}
+    end
+  end
+
+  def handle_call({:scan_agent, id}, from, state) do
+    if state.os_type in [{:unix, :darwin}, {:unix, :linux}] do
+      begin_scan(from, [id], state)
+    else
+      {:reply, {:ok, [%{Metadata.new(id, nil) | probe_status: :unsupported}]}, state}
     end
   end
 
@@ -84,7 +105,7 @@ defmodule Boss.Agents.Detector do
   @impl true
   def format_status(status), do: Map.new(status, fn {key, _} -> {key, :redacted} end)
 
-  defp begin_scan(from, state) do
+  defp begin_scan(from, ids, state) do
     case create_directory() do
       {:ok, directory} ->
         monitor = Process.monitor(elem(from, 0))
@@ -95,7 +116,7 @@ defmodule Boss.Agents.Detector do
           monitor: monitor,
           scan_timer: scan_timer,
           directory: directory,
-          remaining: Metadata.ids(),
+          remaining: ids,
           results: [],
           agent: nil,
           steps: [],

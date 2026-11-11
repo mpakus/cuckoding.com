@@ -25,11 +25,25 @@ Codex, Claude Code and Cursor Agent can run those stages today.
   These observations do not certify a BOSS adapter. Usage reporting remains
   unknown until a real adapter validates its event protocol.
 
-The six tools are deliberately explicit. There is no plugin registry or database
-agent table. Cursor Agent is the `agent` executable, or `cursor-agent` when
-`agent` is not on PATH. The `cursor` editor binary is not the agent CLI.
-Results belong to the current page and expire when it is reloaded.
-A failed rescan keeps the earlier results with a notice that the latest scan failed.
+The six tools are deliberately explicit. Cursor Agent is the `agent` executable,
+or `cursor-agent` when `agent` is not on PATH. The `cursor` editor binary is not
+the agent CLI. Sanitized detection results, authorization status, and fetched
+model catalogs are saved locally in SQLite (`agent_detections`) and survive page
+reloads and restarts. A failed rescan keeps the earlier saved scan with a notice
+that the latest scan failed.
+
+## Authorization, model catalogs, and role bindings
+
+- **Authorization:** When a detected CLI is not authorized or its session is
+  expired, its card provides **Authorize** (native browser OAuth where supported)
+  and **Open login in Terminal** (macOS Terminal), plus **Verify & fetch models**.
+  BOSS never captures terminal I/O or stores credentials in SQLite.
+- **Supported models, pricing, and reasoning:** After authorization (and during
+  Detect for authorized CLIs), BOSS queries each CLI's supported model list
+  alongside reasoning effort levels and USD per 1M token reference/inline pricing.
+- **Role connections:** Roles (`Reviewer`, `Implementer`, `Analytic`, and custom
+  roles) connect **only to detected and authorized agents and their supported
+  models** (enforced both in `Boss.Agents.Roles` and SQLite triggers).
 
 ## Probe boundary
 

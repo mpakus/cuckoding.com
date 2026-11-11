@@ -40,7 +40,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_110_230_000, Boss.Repo.Migrations.AllowCursorReviewer},
     {20_261_110_240_000, Boss.Repo.Migrations.PinCursorImplementer},
     {20_261_110_250_000, Boss.Repo.Migrations.PinCursorAnalytic},
-    {20_261_110_260_000, Boss.Repo.Migrations.AllowClaudeAndIntakePlanner}
+    {20_261_110_260_000, Boss.Repo.Migrations.AllowClaudeAndIntakePlanner},
+    {20_261_110_270_000, Boss.Repo.Migrations.PersistAgentDetectionsAndRoleModels}
   ]
 
   setup do
