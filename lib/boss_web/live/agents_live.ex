@@ -13,6 +13,30 @@ defmodule BossWeb.AgentsLive do
       name: "Claude Code",
       docs: "https://code.claude.com/docs/en/setup",
       login: "claude auth login"
+    },
+    %{
+      id: :cursor,
+      name: "Cursor Agent",
+      docs: "https://cursor.com/docs/cli/overview",
+      login: "agent login"
+    },
+    %{
+      id: :hermes,
+      name: "Hermes",
+      docs: "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
+      login: "hermes auth add"
+    },
+    %{
+      id: :pi,
+      name: "Pi",
+      docs: "https://pi.dev/docs/latest/quickstart",
+      login: "pi auth login"
+    },
+    %{
+      id: :opencode,
+      name: "OpenCode",
+      docs: "https://opencode.ai/docs/cli/",
+      login: "opencode auth login"
     }
   ]
   @capabilities [

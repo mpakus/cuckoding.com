@@ -1,7 +1,8 @@
 # Agent discovery
 
-The Agents page checks the Codex and Claude Code executables visible to the
-running BOSS process. Detection starts only when the user presses **Detect agents**.
+The Agents page checks the Codex, Claude Code, Cursor Agent, Hermes, Pi and
+OpenCode executables visible to the running BOSS process. Detection starts only
+when the user presses **Detect agents**.
 Installing a CLI in another shell may require restarting BOSS to update its PATH.
 This page does not select workflow roles or start agent tasks.
 
@@ -15,8 +16,10 @@ This page does not select workflow roles or start agent tasks.
   These observations do not certify a BOSS adapter. Usage reporting remains
   unknown until a real adapter validates its event protocol.
 
-The two tools are deliberately explicit. There is no plugin registry or database
-agent table. Results belong to the current page and expire when it is reloaded.
+The six tools are deliberately explicit. There is no plugin registry or database
+agent table. Cursor Agent is the `agent` executable, or `cursor-agent` when
+`agent` is not on PATH. The `cursor` editor binary is not the agent CLI.
+Results belong to the current page and expire when it is reloaded.
 A failed rescan keeps the earlier results with a notice that the latest scan failed.
 
 ## Probe boundary
@@ -43,12 +46,22 @@ independent stream EOF and transport backpressure guarantees remain runner gates
 
 ## Setup
 
-Use the official [Codex CLI instructions](https://developers.openai.com/codex/cli/)
-or [Claude Code setup](https://code.claude.com/docs/en/setup). Sign in yourself with
-`codex login` or `claude auth login`, then detect again. BOSS never runs those
-commands on your behalf. Status syntax is checked against installed help and the
-[Codex CLI reference](https://developers.openai.com/codex/cli/reference/) and
-[Claude CLI reference](https://code.claude.com/docs/en/cli-reference).
+Use the official setup for
+[Codex](https://developers.openai.com/codex/cli/),
+[Claude Code](https://code.claude.com/docs/en/setup),
+[Cursor Agent](https://cursor.com/docs/cli/overview),
+[Hermes](https://hermes-agent.nousresearch.com/docs/getting-started/installation),
+[Pi](https://pi.dev/docs/latest/quickstart) or
+[OpenCode](https://opencode.ai/docs/cli/). Sign in yourself, then detect again.
+BOSS never runs those login commands on your behalf. Cursor sign-in is read only
+from `agent status --format json` after that command's help advertises JSON, and
+only the `isAuthenticated`/`status` pair is kept. Hermes status text, Pi's
+per-provider `auth check`, and OpenCode's account list are not probed, so their
+sign-in report stays unknown. Status syntax is checked against installed help and
+the [Codex CLI reference](https://developers.openai.com/codex/cli/reference/),
+[Claude CLI reference](https://code.claude.com/docs/en/cli-reference),
+[Cursor CLI reference](https://cursor.com/docs/cli/reference/parameters) and
+[Pi command line](https://pi.dev/docs/latest/cli).
 
 ## Verification
 

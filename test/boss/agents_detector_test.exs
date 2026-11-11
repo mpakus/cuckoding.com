@@ -19,7 +19,9 @@ defmodule Boss.Agents.DetectorTest do
 
   test "observes only advertised capabilities and configured credentials", %{root: root} do
     detector = detector(root)
-    assert {:ok, [codex, claude]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    codex = agent(results, :codex)
+    claude = agent(results, :claude)
     assert codex.version == "0.146.0"
     assert claude.version == "2.1.142"
 
@@ -52,13 +54,21 @@ defmodule Boss.Agents.DetectorTest do
   test "missing and unsupported installations do not run help or auth", %{root: root} do
     unsupported = fixture(root, :codex, %{"--version" => {"unrelated-tool 1.2.3", 0}})
     detector = detector_with(executables: %{codex: unsupported, claude: nil})
-    assert {:ok, [codex, claude]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    codex = agent(results, :codex)
+    claude = agent(results, :claude)
     assert codex.probe_status == :unsupported
     assert codex.version == nil
     assert codex.errors == [%{stage: :version, reason: :unrecognized}]
     assert claude.probe_status == :missing
     assert claude.path == nil
     assert claude.auth_status == :unknown
+
+    assert Enum.all?(
+             [:cursor, :hermes, :pi, :opencode],
+             &(agent(results, &1).probe_status == :missing)
+           )
+
     assert File.read!(Path.join(root, "calls")) == "codex|--version\n"
   end
 
@@ -73,7 +83,8 @@ defmodule Boss.Agents.DetectorTest do
     for output <- [@secret, "codex-cli 0.146.0\n" <> @secret, "codex-cli " <> @secret, <<255>>] do
       executable = fixture(root, :codex, %{"--version" => {output, 0}})
       detector = detector_with(executables: %{codex: executable})
-      assert {:ok, [agent, _]} = Detector.scan(detector)
+      assert {:ok, results} = Detector.scan(detector)
+      agent = agent(results, :codex)
       assert agent.probe_status == :unsupported
       assert agent.version == nil
       refute inspect(agent) =~ @secret
@@ -82,15 +93,17 @@ defmodule Boss.Agents.DetectorTest do
     executable = fixture(root, :claude, %{"--version" => {@secret, 9}})
     detector = detector_with(executables: %{claude: executable})
 
-    assert {:ok,
-            [_, %{probe_status: :failed, errors: [%{stage: :version, reason: :exit_status}]}]} =
-             Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+
+    assert %{probe_status: :failed, errors: [%{stage: :version, reason: :exit_status}]} =
+             agent(results, :claude)
   end
 
   test "help failure preserves recognized version but cannot claim capabilities", %{root: root} do
     executable = fixture(root, :codex, %{"--help" => {@secret, 7}})
     detector = detector_with(executables: %{codex: executable})
-    assert {:ok, [agent, _]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    agent = agent(results, :codex)
     assert agent.version == "0.146.0"
     assert agent.probe_status == :failed
     assert Enum.all?(agent.capabilities, fn {_, status} -> status == :unknown end)
@@ -108,7 +121,8 @@ defmodule Boss.Agents.DetectorTest do
       })
 
     detector = detector_with(executables: %{codex: executable})
-    assert {:ok, [agent, _]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    agent = agent(results, :codex)
     assert agent.probe_status == :ok
     assert agent.auth_status == :unknown
     assert agent.capabilities.headless == :not_advertised
@@ -152,7 +166,8 @@ defmodule Boss.Agents.DetectorTest do
       detector = detector_with([executables: %{codex: executable}] ++ opts)
       task = Task.async(fn -> Detector.scan(detector) end)
       pid = wait_for_pid(root)
-      assert {:ok, [agent, _]} = Task.await(task)
+      assert {:ok, results} = Task.await(task)
+      agent = agent(results, :codex)
       assert agent.errors == [%{stage: :version, reason: expected}]
       assert_stopped(pid)
       File.rm!(Path.join(root, "pid"))
@@ -170,7 +185,8 @@ defmodule Boss.Agents.DetectorTest do
     Process.exit(owner, :kill)
     assert_stopped(pid)
     fixture(root, :codex, %{}) |> File.cp!(executable)
-    assert {:ok, [agent, _]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    agent = agent(results, :codex)
     assert agent.probe_status == :ok
   end
 
@@ -229,7 +245,9 @@ defmodule Boss.Agents.DetectorTest do
     detector = detector(root)
 
     for _ <- 1..5 do
-      assert {:ok, [%{probe_status: :ok}, %{probe_status: :ok}]} = Detector.scan(detector)
+      assert {:ok, results} = Detector.scan(detector)
+      assert agent(results, :codex).probe_status == :ok
+      assert agent(results, :claude).probe_status == :ok
       assert :sys.get_state(detector).active == nil
     end
   end
@@ -247,7 +265,8 @@ defmodule Boss.Agents.DetectorTest do
       })
 
     detector = detector_with(executables: %{codex: executable})
-    assert {:ok, [agent, _]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    agent = agent(results, :codex)
     assert agent.capabilities.headless == :not_advertised
     assert agent.capabilities.approval_support == :not_advertised
     assert File.read!(Path.join(root, "calls")) == "codex|--version\ncodex|--help\n"
@@ -257,7 +276,8 @@ defmodule Boss.Agents.DetectorTest do
     for output <- [~s({"loggedIn":false,"loggedIn":true}), ~s({"loggedIn":true,"loggedIn":false})] do
       executable = fixture(root, :claude, %{"auth status --json" => {output, 0}})
       detector = detector_with(executables: %{claude: executable})
-      assert {:ok, [_, agent]} = Detector.scan(detector)
+      assert {:ok, results} = Detector.scan(detector)
+      agent = agent(results, :claude)
       assert agent.auth_status == :unknown
       assert agent.errors == [%{stage: :auth, reason: :unrecognized}]
     end
@@ -268,7 +288,8 @@ defmodule Boss.Agents.DetectorTest do
     File.write!(path, @secret)
     File.chmod!(path, 0o600)
     detector = detector_with(executables: %{codex: path})
-    assert {:ok, [agent, _]} = Detector.scan(detector)
+    assert {:ok, results} = Detector.scan(detector)
+    agent = agent(results, :codex)
     assert agent.probe_status == :failed
     assert agent.errors == [%{stage: :version, reason: :spawn_failed}]
   end
@@ -282,9 +303,60 @@ defmodule Boss.Agents.DetectorTest do
         ] do
       executable = fixture(root, :claude, %{"--help" => {help, 0}})
       detector = detector_with(executables: %{claude: executable})
-      assert {:ok, [_, agent]} = Detector.scan(detector)
+      assert {:ok, results} = Detector.scan(detector)
+      agent = agent(results, :claude)
       assert agent.capabilities.streaming == expected
     end
+  end
+
+  test "recognizes desktop agents from their own help without retaining account text", %{
+    root: root
+  } do
+    detector =
+      detector_with(
+        executables: %{
+          cursor: fixture(root, :cursor, %{}),
+          hermes: fixture(root, :hermes, %{}),
+          pi: fixture(root, :pi, %{}),
+          opencode: fixture(root, :opencode, %{})
+        }
+      )
+
+    assert {:ok, results} = Detector.scan(detector)
+    cursor = agent(results, :cursor)
+    assert cursor.version == "2026.09.15-d2fe57e"
+    assert cursor.probe_status == :ok
+    assert cursor.auth_status == :configured
+    assert cursor.capabilities.headless == :advertised
+    assert cursor.capabilities.streaming == :advertised
+    assert cursor.capabilities.session_resume == :advertised
+    assert cursor.capabilities.structured_output == :not_advertised
+    assert cursor.capabilities.approval_support == :advertised
+    assert cursor.capabilities.usage_reporting == :unknown
+    refute inspect(cursor) =~ @secret
+
+    hermes = agent(results, :hermes)
+    assert hermes.version == "0.20.0"
+    assert hermes.auth_status == :unknown
+    assert hermes.capabilities.headless == :advertised
+    assert hermes.capabilities.approval_support == :advertised
+    refute File.read!(Path.join(root, "calls")) =~ "hermes|status"
+
+    pi = agent(results, :pi)
+    assert pi.version == "1.0.2"
+    assert pi.auth_status == :unknown
+    assert pi.capabilities.streaming == :advertised
+    refute File.read!(Path.join(root, "calls")) =~ "print-api-key"
+
+    opencode = agent(results, :opencode)
+    assert opencode.version == "1.18.30"
+    assert opencode.probe_status == :ok
+    assert opencode.auth_status == :unknown
+    assert opencode.capabilities.headless == :advertised
+    assert opencode.capabilities.streaming == :not_advertised
+    assert opencode.capabilities.session_resume == :advertised
+    assert opencode.capabilities.approval_support == :advertised
+    refute File.read!(Path.join(root, "calls")) =~ "auth list"
   end
 
   defp detector(root, opts \\ []) do
@@ -293,6 +365,8 @@ defmodule Boss.Agents.DetectorTest do
         opts
     )
   end
+
+  defp agent(results, id), do: Enum.find(results, &(&1.id == id))
 
   defp detector_with(opts) do
     start_supervised!(Supervisor.child_spec({Detector, [name: nil] ++ opts}, id: make_ref()))
@@ -327,6 +401,47 @@ defmodule Boss.Agents.DetectorTest do
             "auth status --help" =>
               {"Usage: claude auth status [options]\nOptions:\n  --json Output JSON", 0},
             "auth status --json" => {~s({"loggedIn":true,"email":"#{@secret}"}), 0}
+          }
+
+        :cursor ->
+          %{
+            "--version" => {"2026.09.15-d2fe57e", 0},
+            "--help" =>
+              {"Usage: agent [options] [command]\nOptions:\n  -p, --print                  Print responses\n  --output-format <format>     text | json | stream-json\n  --resume [chatId]            Select a session\n  -f, --force                  Force allow commands\nCommands:\n  login                        Authenticate\n  status|whoami [options]      View authentication status\n  resume                       Resume the latest chat session",
+               0},
+            "status --help" =>
+              {"Usage: agent status|whoami [options]\nOptions:\n  --format <format>  Output format (choices: \"text\", \"json\")",
+               0},
+            "status --format json" =>
+              {~s({"status":"authenticated","isAuthenticated":true,"userInfo":{"email":"#{@secret}"}}),
+               0}
+          }
+
+        :hermes ->
+          %{
+            "--version" => {"Hermes Agent v0.20.0 (2026.8.3)\nPython: 3.11.14", 0},
+            "--help" =>
+              {"usage: hermes [options] <command>\nOptions:\n  --resume ID\n  --query TEXT\n  --yolo\nCommands:\n  auth",
+               0}
+          }
+
+        :pi ->
+          %{
+            "--version" => {"1.0.2", 0},
+            "--help" =>
+              {"Usage: pi [options]\nOptions:\n  -p, --print\n  --mode <mode> text, json, rpc\n  --approve\nCommands:\n  auth",
+               0}
+          }
+
+        :opencode ->
+          %{
+            "--version" => {"1.18.30", 0},
+            "--help" =>
+              {"Commands:\n  opencode run [message..]     run opencode with a message\nOptions:\n  -c, --continue      continue the last session\n      --auto          auto-approve permissions",
+               0},
+            "run --help" =>
+              {"opencode run [message..]\nOptions:\n      --format       format: default (formatted) or json (raw JSON events)\n  -c, --continue     continue the last session",
+               0}
           }
       end
 

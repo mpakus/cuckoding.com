@@ -338,9 +338,9 @@ manual flow. See [review inputs, validation and limits](docs/MANUAL_REVIEWS.md).
 
 ## Detect agents
 
-Open **Agents** from Projects, then click **Detect agents**. B\*SS checks Codex and
-Claude Code on its own PATH and shows recognized versions, local sign-in reports
-and capabilities advertised by their help. Detection does not run a model or
+Open **Agents** from Projects, then click **Detect agents**. B\*SS checks Codex,
+Claude Code, Cursor Agent, Hermes, Pi and OpenCode on its own PATH and shows
+recognized versions, local sign-in reports and capabilities advertised by their help. Detection does not run a model or
 change credentials. Follow the official setup/sign-in guidance if a tool is
 missing or reports that it is signed out, then detect again.
 

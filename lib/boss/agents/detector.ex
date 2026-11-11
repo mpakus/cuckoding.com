@@ -43,7 +43,7 @@ defmodule Boss.Agents.Detector do
       begin_scan(from, state)
     else
       {:reply,
-       {:ok, Enum.map([:codex, :claude], &%{Metadata.new(&1, nil) | probe_status: :unsupported})},
+       {:ok, Enum.map(Metadata.ids(), &%{Metadata.new(&1, nil) | probe_status: :unsupported})},
        state}
     end
   end
@@ -95,7 +95,7 @@ defmodule Boss.Agents.Detector do
           monitor: monitor,
           scan_timer: scan_timer,
           directory: directory,
-          remaining: [:codex, :claude],
+          remaining: Metadata.ids(),
           results: [],
           agent: nil,
           steps: [],
@@ -154,7 +154,7 @@ defmodule Boss.Agents.Detector do
         path =
           if state.executables,
             do: Map.get(state.executables, id),
-            else: System.find_executable(Atom.to_string(id))
+            else: Metadata.find_executable(id)
 
         agent = Metadata.new(id, path)
 

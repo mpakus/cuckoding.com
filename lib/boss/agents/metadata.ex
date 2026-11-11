@@ -3,10 +3,30 @@ defmodule Boss.Agents.Metadata do
 
   @capabilities ~w(headless streaming session_resume structured_output approval_support usage_reporting)a
 
+  @catalog [
+    %{id: :codex, name: "Codex", executable: "codex"},
+    %{id: :claude, name: "Claude Code", executable: "claude"},
+    %{id: :cursor, name: "Cursor Agent", executable: "agent"},
+    %{id: :hermes, name: "Hermes", executable: "hermes"},
+    %{id: :pi, name: "Pi", executable: "pi"},
+    %{id: :opencode, name: "OpenCode", executable: "opencode"}
+  ]
+
+  def catalog, do: @catalog
+  def ids, do: Enum.map(@catalog, & &1.id)
+
+  def find_executable(:cursor) do
+    System.find_executable("agent") || System.find_executable("cursor-agent")
+  end
+
+  def find_executable(id) do
+    System.find_executable(Enum.find(@catalog, &(&1.id == id)).executable)
+  end
+
   def new(id, path) do
     %{
       id: id,
-      name: if(id == :codex, do: "Codex", else: "Claude Code"),
+      name: Enum.find(@catalog, &(&1.id == id)).name,
       path: path,
       version: nil,
       probe_status: if(path, do: :unsupported, else: :missing),
@@ -24,6 +44,9 @@ defmodule Boss.Agents.Metadata do
   def argv(:claude, :auth_help), do: ["auth", "--help"]
   def argv(:claude, :auth_status_help), do: ["auth", "status", "--help"]
   def argv(:claude, :auth), do: ["auth", "status", "--json"]
+  def argv(:cursor, :status_help), do: ["status", "--help"]
+  def argv(:cursor, :auth), do: ["status", "--format", "json"]
+  def argv(:opencode, :run_help), do: ["run", "--help"]
 
   def consume(agent, step, output, code) do
     cond do
@@ -55,15 +78,14 @@ defmodule Boss.Agents.Metadata do
   end
 
   defp interpret(agent, :version, output, _) do
-    pattern =
-      case agent.id do
-        :codex -> ~r/\Acodex-cli ([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4})\z/
-        :claude -> ~r/\A([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}) \(Claude Code\)\z/
-      end
+    line =
+      if agent.id == :hermes,
+        do: output |> String.split(~r/\r?\n/, parts: 2) |> hd(),
+        else: output
 
-    case Regex.run(pattern, output) do
-      [_, version] -> {%{agent | version: version}, [:help]}
-      _ -> {failure(agent, :version, :unrecognized), []}
+    case version(agent.id, line) do
+      {:ok, version} -> {%{agent | version: version}, [:help]}
+      :error -> {failure(agent, :version, :unrecognized), []}
     end
   end
 
@@ -75,21 +97,49 @@ defmodule Boss.Agents.Metadata do
   end
 
   defp interpret(agent, step, output, _) do
-    command =
-      case {agent.id, step} do
-        {:codex, :help} -> "codex"
-        {:codex, :exec_help} -> "codex exec"
-        {:codex, :auth_help} -> "codex login"
-        {:claude, :help} -> "claude"
-        {:claude, :auth_help} -> "claude auth"
-        {:claude, :auth_status_help} -> "claude auth status"
-      end
-
-    if Regex.match?(~r/^Usage: #{Regex.escape(command)}(?:\s|$)/m, output) and
-         Regex.match?(~r/^(?:Options|Commands):\r?$/m, output) do
+    if help_identity?(agent, step, output) and
+         Regex.match?(~r/^(?:Options|Commands|Positionals):\r?$/m, output) do
       help(agent, step, output)
     else
       {failure(agent, step, :unrecognized), []}
+    end
+  end
+
+  defp version(:codex, output) do
+    case Regex.run(~r/\Acodex-cli ([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4})\z/, output) do
+      [_, version] -> {:ok, version}
+      _ -> :error
+    end
+  end
+
+  defp version(:claude, output) do
+    case Regex.run(~r/\A([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}) \(Claude Code\)\z/, output) do
+      [_, version] -> {:ok, version}
+      _ -> :error
+    end
+  end
+
+  defp version(:cursor, output) do
+    case Regex.run(~r/\A(\d{4}\.\d{2}\.\d{2}-[0-9a-f]{7,40})\z/, output) do
+      [_, version] -> {:ok, version}
+      _ -> :error
+    end
+  end
+
+  defp version(:hermes, output) do
+    case Regex.run(
+           ~r/\AHermes Agent v(\d{1,4}\.\d{1,4}\.\d{1,4}) \(\d{4}\.\d{1,2}\.\d{1,2}\)\z/,
+           output
+         ) do
+      [_, version] -> {:ok, version}
+      _ -> :error
+    end
+  end
+
+  defp version(id, output) when id in [:pi, :opencode] do
+    case Regex.run(~r/\A(\d{1,4}\.\d{1,4}\.\d{1,4})\z/, output) do
+      [_, version] -> {:ok, version}
+      _ -> :error
     end
   end
 
@@ -143,8 +193,99 @@ defmodule Boss.Agents.Metadata do
     {agent, if(command?(output, "status"), do: [next], else: [])}
   end
 
+  defp help(%{id: :cursor} = agent, :help, output) do
+    format = flag_block(output, "--output-format") || ""
+
+    caps =
+      Map.merge(agent.capabilities, %{
+        headless: advertised(flag?(output, "--print")),
+        streaming: advertised(String.contains?(format, "stream-json")),
+        session_resume: advertised(flag?(output, "--resume") or command?(output, "resume")),
+        structured_output:
+          advertised(flag?(output, "--output-schema") or flag?(output, "--json-schema")),
+        approval_support: advertised(flag?(output, "--force") or flag?(output, "--sandbox"))
+      })
+
+    {%{agent | probe_status: :ok, capabilities: caps},
+     if(command?(output, "status"), do: [:status_help], else: [])}
+  end
+
+  defp help(%{id: :cursor} = agent, :status_help, output) do
+    format = flag_block(output, "--format") || ""
+    {agent, if(String.contains?(format, "json"), do: [:auth], else: [])}
+  end
+
+  defp help(%{id: :hermes} = agent, :help, output) do
+    caps =
+      Map.merge(agent.capabilities, %{
+        headless: advertised(flag?(output, "--query")),
+        streaming: :not_advertised,
+        session_resume: advertised(flag?(output, "--resume") or flag?(output, "--continue")),
+        structured_output: :not_advertised,
+        approval_support: advertised(flag?(output, "--yolo"))
+      })
+
+    {%{agent | probe_status: :ok, capabilities: caps}, []}
+  end
+
+  defp help(%{id: :pi} = agent, :help, output) do
+    mode = flag_block(output, "--mode") || ""
+
+    caps =
+      Map.merge(agent.capabilities, %{
+        headless: advertised(flag?(output, "--print")),
+        streaming: advertised(String.contains?(mode, "json")),
+        session_resume: :not_advertised,
+        structured_output: :not_advertised,
+        approval_support: advertised(flag?(output, "--approve"))
+      })
+
+    {%{agent | probe_status: :ok, capabilities: caps}, []}
+  end
+
+  defp help(%{id: :opencode} = agent, :help, output) do
+    run? = command?(output, "run")
+
+    caps =
+      Map.merge(agent.capabilities, %{
+        headless: advertised(run?),
+        streaming: if(run?, do: :unknown, else: :not_advertised),
+        session_resume: advertised(flag?(output, "--continue") or flag?(output, "--session")),
+        structured_output: :not_advertised,
+        approval_support: advertised(flag?(output, "--auto"))
+      })
+
+    {%{agent | probe_status: :ok, capabilities: caps}, if(run?, do: [:run_help], else: [])}
+  end
+
+  defp help(%{id: :opencode} = agent, :run_help, output) do
+    format = flag_block(output, "--format") || ""
+
+    caps =
+      Map.merge(agent.capabilities, %{
+        streaming: advertised(String.contains?(format, "stream-json")),
+        session_resume:
+          advertised(
+            agent.capabilities.session_resume == :advertised or flag?(output, "--continue")
+          )
+      })
+
+    {%{agent | capabilities: caps}, []}
+  end
+
   defp help(agent, :auth_status_help, output),
     do: {agent, if(flag?(output, "--json"), do: [:auth], else: [])}
+
+  defp help_identity?(%{id: :opencode}, :run_help, output),
+    do: Regex.match?(~r/^opencode run(?:\s|$)/m, output)
+
+  defp help_identity?(agent, _step, output) do
+    Regex.match?(~r/^[Uu]sage: #{Regex.escape(usage_name(agent))}(?:\s|$)/m, output) or
+      (agent.id == :opencode and Regex.match?(~r/^ {2,}opencode(?:\s|$)/m, output))
+  end
+
+  defp usage_name(%{id: :cursor}), do: "agent"
+  defp usage_name(%{id: id}), do: Atom.to_string(id)
 
   defp auth(:codex, "Not logged in", 1), do: :not_configured
   defp auth(:codex, "Logged in using ChatGPT", 0), do: :configured
@@ -154,6 +295,24 @@ defmodule Boss.Agents.Metadata do
       do: :configured,
       else: :unknown
   end
+
+  defp auth(:cursor, output, 0) do
+    case Jason.decode(output, objects: :ordered_objects) do
+      {:ok, %Jason.OrderedObject{values: values}} ->
+        case {
+          Enum.filter(values, fn {key, _} -> key == "isAuthenticated" end),
+          Enum.filter(values, fn {key, _} -> key == "status" end)
+        } do
+          {[{"isAuthenticated", true}], [{"status", "authenticated"}]} -> :configured
+          _ -> :unknown
+        end
+
+      _ ->
+        :unknown
+    end
+  end
+
+  defp auth(:cursor, _, _), do: :unknown
 
   defp auth(:claude, output, code) do
     case Jason.decode(output, objects: :ordered_objects) do
@@ -176,7 +335,7 @@ defmodule Boss.Agents.Metadata do
   defp command?(output, command) do
     Enum.any?(
       section(output, "Commands"),
-      &Regex.match?(~r/^ {2,}#{Regex.escape(command)}(?:\s|\[|$)/, &1)
+      &Regex.match?(~r/^ {2,}(?:opencode\s+)?#{Regex.escape(command)}(?:\s|\[|\||$)/, &1)
     )
   end
 
