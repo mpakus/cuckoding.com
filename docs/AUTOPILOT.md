@@ -64,7 +64,9 @@ still determine Done.
 ## Start from existing task specifications
 
 On a project page, choose **Autopilot** beside **Sync specs**, enter a trusted
-check command and choose the independent reviewer. **Start Autopilot** authorizes
+check command and choose the independent reviewer. The menu lists the agents
+assigned to Reviewer. When that role has no agents yet, Codex and Claude remain
+available. **Start Autopilot** authorizes
 a fresh snapshot of all eligible present unfinished tasks: New, Failed, Blocked
 and Needs Input, up to 256. Previously failed tasks receive new workflow UUIDs;
 old receipts remain immutable and Done tasks are excluded. Tasks with active work,

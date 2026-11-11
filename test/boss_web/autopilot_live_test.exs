@@ -163,6 +163,25 @@ defmodule BossWeb.AutopilotLiveTest do
     assert Repo.aggregate(Deliveries.Delivery, :count) == 3
   end
 
+  test "Independent reviewer offers the agents assigned to Reviewer", c do
+    reviewer = Enum.find(Boss.Agents.Roles.list(), &(&1.kind == "reviewer"))
+    assert {:ok, _} = Boss.Agents.Roles.assign(reviewer.id, ["cursor", "claude"])
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+    settle(view)
+    view |> element("#project-autopilot") |> render_click()
+    assert has_element?(view, "#autopilot-reviewer option[value='cursor']", "Cursor Agent")
+    assert has_element?(view, "#autopilot-reviewer option[value='claude']", "Claude Code")
+    refute has_element?(view, "#autopilot-reviewer option[value='codex']")
+
+    view
+    |> form("#autopilot-form", %{"command" => "mix test", "reviewer" => "cursor"})
+    |> render_submit()
+
+    settle(view)
+    assert has_element?(view, "#autopilot-error", "Cursor Agent")
+    assert {:ok, nil} = Engine.current(c.project.id)
+  end
+
   test "invalid check commands produce a recoverable error without authorizing the Backlog", c do
     {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
     settle(view)

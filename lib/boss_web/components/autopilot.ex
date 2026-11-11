@@ -1,5 +1,6 @@
 defmodule BossWeb.Autopilot do
   use BossWeb, :live_component
+  alias Boss.Agents.Roles
   alias Boss.Deliveries.Autopilot, as: Engine
   alias Boss.Projects.{Documentation, Intake}
 
@@ -21,6 +22,7 @@ defmodule BossWeb.Autopilot do
        generation: 0,
        text: "",
        reviewer: "codex",
+       reviewers: Roles.reviewer_choices(),
        command: Ecto.UUID.generate(),
        pending: nil,
        acting: false,
@@ -93,26 +95,43 @@ defmodule BossWeb.Autopilot do
 
     planning? = plans_from_docs?(socket.assigns)
 
-    if ready?(socket.assigns) and (planning? or length(tasks) in 1..256) do
-      request = %{
-        kind: if(planning?, do: :intake_start, else: :start),
-        id: socket.assigns.command,
-        tasks: tasks,
-        text: value(params, "command", ""),
-        reviewer: value(params, "reviewer", "codex")
-      }
+    reviewer = value(params, "reviewer", socket.assigns.reviewer)
+    offered = Enum.map(socket.assigns.reviewers, & &1.id)
 
-      {:noreply,
-       socket
-       |> assign(text: request.text, reviewer: request.reviewer)
-       |> act(request)}
-    else
-      message =
-        if planning?,
-          do: "Wait for the current Autopilot action or inspect its saved status.",
-          else: "Autopilot requires 1–256 eligible unfinished tasks for a new Start."
+    cond do
+      reviewer not in offered ->
+        {:noreply, assign(socket, error: "Choose an agent from the Independent reviewer list.")}
 
-      {:noreply, assign(socket, error: message)}
+      reviewer not in ~w(codex claude) ->
+        name = reviewer_name(socket.assigns.reviewers, reviewer)
+
+        {:noreply,
+         assign(socket,
+           reviewer: reviewer,
+           error: "#{name} is assigned as Reviewer. Only Codex and Claude can run that review."
+         )}
+
+      ready?(socket.assigns) and (planning? or length(tasks) in 1..256) ->
+        request = %{
+          kind: if(planning?, do: :intake_start, else: :start),
+          id: socket.assigns.command,
+          tasks: tasks,
+          text: value(params, "command", ""),
+          reviewer: reviewer
+        }
+
+        {:noreply,
+         socket
+         |> assign(text: request.text, reviewer: request.reviewer)
+         |> act(request)}
+
+      true ->
+        message =
+          if planning?,
+            do: "Wait for the current Autopilot action or inspect its saved status.",
+            else: "Autopilot requires 1–256 eligible unfinished tasks for a new Start."
+
+        {:noreply, assign(socket, error: message)}
     end
   end
 
@@ -194,6 +213,13 @@ defmodule BossWeb.Autopilot do
   def handle_async({:load, generation}, result, %{assigns: %{generation: generation}} = socket) do
     socket =
       case result do
+        {:ok, {batch, intake, selection, conversion, attempts, reviewers}} ->
+          socket
+          |> assign(intake_attempts: attempts)
+          |> keep_reviewer(reviewers)
+          |> confirm_conversion(conversion)
+          |> apply_selection(batch, intake, selection)
+
         {:ok, {batch, intake, selection, conversion, attempts}} ->
           socket
           |> assign(intake_attempts: attempts)
@@ -358,8 +384,28 @@ defmodule BossWeb.Autopilot do
           _ -> nil
         end
 
-      {batch, intake, Engine.selection(project), conversion, attempts}
+      {batch, intake, Engine.selection(project), conversion, attempts, Roles.reviewer_choices()}
     end)
+  end
+
+  defp keep_reviewer(socket, reviewers) do
+    ids = Enum.map(reviewers, & &1.id)
+    current = socket.assigns.reviewer
+
+    chosen =
+      cond do
+        current in ids -> current
+        "codex" in ids -> "codex"
+        "claude" in ids -> "claude"
+        ids != [] -> hd(ids)
+        true -> "codex"
+      end
+
+    assign(socket, reviewers: reviewers, reviewer: chosen)
+  end
+
+  defp reviewer_name(reviewers, id) do
+    Enum.find_value(reviewers, id, &(&1.id == id && &1.name))
   end
 
   defp value(params, key, default) do

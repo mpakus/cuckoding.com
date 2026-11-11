@@ -2,7 +2,12 @@ defmodule BossWeb.AutopilotPanel do
   use BossWeb, :html
 
   def panel(assigns) do
-    assigns = assign_new(assigns, :intake_attempts, fn -> [] end)
+    assigns =
+      assigns
+      |> assign_new(:intake_attempts, fn -> [] end)
+      |> assign_new(:reviewers, fn ->
+        [%{id: "codex", name: "Codex"}, %{id: "claude", name: "Claude Code"}]
+      end)
 
     ~H"""
     <section
@@ -112,7 +117,7 @@ defmodule BossWeb.AutopilotPanel do
         </p>
         <div :if={@batch} id="autopilot-batch" class="min-w-0 space-y-3">
           <p class="text-sm text-body">
-            Saved reviewer: {if @batch.reviewer == "claude", do: "Claude", else: "Codex"}
+            Saved reviewer: {agent_name(@batch.reviewer)}
           </p>
           <code class="block break-all text-xs text-muted">{JSON.encode!(@batch.check_config["argv"])}</code>
           <p
@@ -247,9 +252,21 @@ defmodule BossWeb.AutopilotPanel do
               name="reviewer"
               class="app-field mt-1 max-w-full px-3 py-2 text-sm"
             >
-              <option value="codex" selected={@reviewer == "codex"}>Codex</option>
-              <option value="claude" selected={@reviewer == "claude"}>Claude</option>
+              <option
+                :for={agent <- @reviewers}
+                value={agent.id}
+                selected={@reviewer == agent.id}
+              >
+                {agent.name}
+              </option>
             </select>
+            <p id="autopilot-reviewer-help" class="mt-1 text-xs text-muted">
+              <%= if Enum.any?(@reviewers, &(&1.id not in ~w(codex claude))) do %>
+                The list is the agents assigned to Reviewer. Codex and Claude can run the review.
+              <% else %>
+                Assign agents to Reviewer on the Agents page to choose from that roster. Codex and Claude can run the review.
+              <% end %>
+            </p>
           </fieldset>
           <p
             id="autopilot-authorization"
@@ -325,6 +342,12 @@ defmodule BossWeb.AutopilotPanel do
   defp attempt_reason(%{status: "cancelled"}), do: "Planning stopped."
   defp attempt_reason(%{status: "interrupted"}), do: "Process cleanup needs verification."
   defp attempt_reason(_), do: "The model attempt could not complete."
+
+  defp agent_name(id) do
+    Enum.find_value(Boss.Agents.Metadata.catalog(), id, fn agent ->
+      Atom.to_string(agent.id) == id && agent.name
+    end)
+  end
 
   defp label("ready_to_merge"), do: "Awaiting integration"
   defp label("needs_input"), do: "Needs input"

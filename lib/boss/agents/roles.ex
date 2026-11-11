@@ -26,6 +26,33 @@ defmodule Boss.Agents.Roles do
 
   def standard, do: @standard
 
+  def reviewer_choices do
+    assigned = agents_for("reviewer")
+
+    if assigned == [] do
+      [
+        %{id: "codex", name: "Codex"},
+        %{id: "claude", name: "Claude Code"}
+      ]
+    else
+      assigned
+    end
+  end
+
+  def agents_for(kind) when kind in ~w(reviewer implementer analytic) do
+    assigned =
+      list()
+      |> Enum.find(&(&1.kind == kind))
+      |> then(fn
+        nil -> []
+        role -> role.agent_ids
+      end)
+
+    Metadata.catalog()
+    |> Enum.filter(&(Atom.to_string(&1.id) in assigned))
+    |> Enum.map(&%{id: Atom.to_string(&1.id), name: &1.name})
+  end
+
   def list do
     ensure_standard()
 
