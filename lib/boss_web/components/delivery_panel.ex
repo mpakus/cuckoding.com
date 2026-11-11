@@ -31,12 +31,12 @@ defmodule BossWeb.DeliveryPanel do
       <h3 id="task-deliveries-heading" class="app-panel-heading">Task workflow</h3>
       <p id="delivery-help" class="mt-3 text-sm leading-6 text-body">
         Plan, implement, check and review task snapshot revision {@details.pinned_revision.number}.
-        Codex plans and implements. New workflows resolve questions with another model
-        and can use up to five implementation/check/review cycles.
+        The Implementer role plans and writes the code. The Analytic role answers questions when work is stuck.
+        New workflows can use up to five implementation/check/review cycles.
         An approved result waits for you to integrate it.
       </p>
       <p id="delivery-account" class="mt-3 text-xs leading-5 text-muted">
-        Uses your local Codex account for planning and implementation, and the selected reviewer's account for review.
+        Uses the Implementer and Analytic accounts you assigned, and the selected reviewer's account for review.
         These calls may incur charges for multiple runs.
         Source, plans, diffs, check output and prior feedback are sent to the selected agents.
         Closing this drawer keeps the workflow active.
@@ -82,9 +82,13 @@ defmodule BossWeb.DeliveryPanel do
         <p id="delivery-reviewer-help" class="text-xs text-muted">
           <%= if @request.reviewer == "claude" do %>
             Claude reviews the supplied spec, plan, full diff, check output and prior feedback.
-            It has no model filesystem or shell tools. Planning and implementation use Codex.
+            It has no model filesystem or shell tools. The Implementer role plans and writes the code.
           <% else %>
-            Codex reviews the supplied evidence and can inspect the candidate's source read-only.
+            <%= if @request.reviewer == "cursor" do %>
+              Cursor Agent reviews the supplied evidence in ask mode and does not write the candidate.
+            <% else %>
+              Codex reviews the supplied evidence and can inspect the candidate's source read-only.
+            <% end %>
           <% end %>
         </p>
         <label for="delivery-command" class="block pt-3 text-sm font-medium">Workflow check command</label>
@@ -243,7 +247,9 @@ defmodule BossWeb.DeliveryPanel do
             )}
           </p>
           <p class="text-xs text-muted">
-            Planner and implementer: Codex · Reviewer: {reviewer(delivery.reviewer)}
+            Implementer: {reviewer(Map.get(delivery, :implementer) || "codex")} · Analytic: {reviewer(
+              Map.get(delivery, :analytic) || "codex"
+            )} · Reviewer: {reviewer(delivery.reviewer)}
           </p>
           <p :if={delivery.check_config["argv"]} class="text-xs text-muted">
             Saved check command

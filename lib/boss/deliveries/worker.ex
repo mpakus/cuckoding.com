@@ -1573,7 +1573,7 @@ defmodule Boss.Deliveries.Worker do
           ok!(verify.())
 
           receipt =
-            run_resolution(workspace["path"], prompt, profile, implementer: delivery.implementer)
+            run_resolution(workspace["path"], prompt, profile, implementer: delivery.analytic)
 
           receipt = verify_agent(receipt, verify)
           {Map.put(receipt, "candidate_commit", sha), receipt["report"]}

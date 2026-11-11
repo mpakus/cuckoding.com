@@ -1,5 +1,5 @@
 defmodule BossWeb.DeliveryPanelTest do
-  use ExUnit.Case, async: true
+  use Boss.DataCase, async: false
   import Phoenix.LiveViewTest
   alias BossWeb.DeliveryPanel
 
@@ -7,15 +7,15 @@ defmodule BossWeb.DeliveryPanelTest do
     html = panel([])
     assert html =~ "Start workflow"
     assert html =~ "up to five implementation/check/review cycles"
-    assert html =~ "resolve questions with another model"
-    assert html =~ "local Codex account"
+    assert html =~ "The Analytic role answers questions"
+    assert html =~ "Implementer and Analytic accounts"
     assert html =~ "may incur charges for multiple runs"
     assert html =~ "without shell expansion"
     assert html =~ "Keep secrets out of arguments and output"
     assert html =~ ~s(name="command_id" value="start-request")
     assert html =~ ~s(for="delivery-reviewer")
     assert html =~ ~s(value="codex" selected)
-    assert html =~ "Codex plans and implements"
+    assert html =~ "The Implementer role plans and writes the code"
   end
 
   test "active workflow exposes Stop and its saved command and candidate" do
@@ -98,7 +98,7 @@ defmodule BossWeb.DeliveryPanelTest do
       )
 
     assert html =~ "Reviewer: Claude"
-    assert html =~ "Codex account for planning and implementation"
+    assert html =~ "Implementer and Analytic accounts"
     assert html =~ "selected reviewer's account for review"
     refute html =~ "Uses your local Codex account and may incur charges"
     refute html =~ ~s(id="delivery-form")

@@ -59,7 +59,8 @@ defmodule Boss.Deliveries do
 
     if d.autonomy_version == 0 or
          (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) or
-         (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) do
+         (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) or
+         (Map.get(d, :analytic) == "cursor" and kind == "resolve") do
       {:ok, nil}
     else
       saved_plan =
@@ -565,6 +566,8 @@ defmodule Boss.Deliveries do
         Repo.rollback(:task_unavailable)
     end
 
+    implementer = Boss.Agents.Roles.implementer()
+
     Repo.insert!(%Delivery{
       id: Ecto.UUID.generate(),
       project_id: project,
@@ -582,7 +585,8 @@ defmodule Boss.Deliveries do
       execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
-      implementer: Boss.Agents.Roles.implementer(),
+      implementer: implementer,
+      analytic: Boss.Agents.Roles.analytic(implementer),
       autonomy_version: autonomy_version,
       routing_version: routing_version,
       model_catalog: model_catalog,
@@ -1242,7 +1246,8 @@ defmodule Boss.Deliveries do
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
          not (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) and
-         not (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) do
+         not (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) and
+         not (Map.get(d, :analytic) == "cursor" and kind == "resolve") do
       route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
       unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
 
