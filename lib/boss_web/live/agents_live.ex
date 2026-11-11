@@ -1,5 +1,6 @@
 defmodule BossWeb.AgentsLive do
   use BossWeb, :live_view
+  alias Boss.Agents.Roles
 
   @agents [
     %{
@@ -54,6 +55,9 @@ defmodule BossWeb.AgentsLive do
      assign(socket,
        page_title: "Agents · BOSS",
        agents: @agents,
+       roles: Roles.list(),
+       role_name: "",
+       role_error: nil,
        results: %{},
        detecting: false,
        checked_at: nil,
@@ -63,6 +67,55 @@ defmodule BossWeb.AgentsLive do
 
   @impl true
   def handle_event("detect", _, %{assigns: %{detecting: true}} = socket), do: {:noreply, socket}
+
+  def handle_event("create_role", %{"name" => name}, socket) do
+    case Roles.create(name) do
+      {:ok, _} ->
+        {:noreply, assign(socket, roles: Roles.list(), role_name: "", role_error: nil)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, role_name: name || "", role_error: role_error(changeset))}
+    end
+  end
+
+  def handle_event("update_role", %{"role_id" => id, "name" => name}, socket) do
+    case Roles.update(id, name) do
+      {:ok, _} ->
+        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
+
+      {:error, :not_found} ->
+        {:noreply,
+         assign(socket, roles: Roles.list(), role_error: "That role is no longer available.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, role_error: role_error(changeset))}
+    end
+  end
+
+  def handle_event("delete_role", %{"role_id" => id}, socket) do
+    Roles.delete(id)
+    {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
+  end
+
+  def handle_event("assign_role", %{"role_id" => id} = params, socket) do
+    agents =
+      case params["agents"] do
+        list when is_list(list) -> list
+        _ -> []
+      end
+
+    case Roles.assign(id, agents) do
+      {:ok, _} ->
+        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
+
+      {:error, :not_found} ->
+        {:noreply,
+         assign(socket, roles: Roles.list(), role_error: "That role is no longer available.")}
+
+      {:error, :unknown_agent} ->
+        {:noreply, assign(socket, role_error: "Choose an agent from the installed list.")}
+    end
+  end
 
   def handle_event("detect", _, socket) do
     detector = Application.get_env(:boss, :agent_detector, Boss.Agents.Detector)
@@ -108,7 +161,94 @@ defmodule BossWeb.AgentsLive do
         class="app-button-primary shrink-0 px-5 py-3 font-semibold disabled:opacity-50"
       >{if @detecting, do: "Detecting…", else: "Detect agents"}</button>
     </header>
-    <div class="border-y border-line py-5">
+    <section id="roles" aria-labelledby="roles-title" class="mt-8">
+      <h2 id="roles-title" class="app-panel-heading">Roles</h2>
+      <p id="roles-help" class="mt-2 max-w-3xl text-sm leading-6 text-body">
+        A role can include any of the agents below, and an agent can belong to
+        several roles. Creating, renaming, or removing a role is saved on this
+        computer. An assignment records the roster. A workflow still runs an
+        agent only through that agent's existing runner.
+      </p>
+      <form id="create-role" phx-submit="create_role" class="mt-4 flex flex-wrap items-end gap-3">
+        <div class="min-w-0 flex-1">
+          <label for="role-name" class="block text-sm font-medium">New role</label>
+          <input
+            id="role-name"
+            name="name"
+            value={@role_name}
+            required
+            maxlength="80"
+            autocomplete="off"
+            class="app-field mt-1 w-full min-w-0 px-3 py-2 text-sm"
+          />
+        </div>
+        <button type="submit" class="app-button-secondary px-4 py-2 text-sm font-semibold">
+          Create role
+        </button>
+      </form>
+      <p :if={@role_error} id="role-error" role="alert" class="mt-3 text-sm text-warning">
+        {@role_error}
+      </p>
+      <p :if={@roles == []} id="roles-empty" class="mt-4 text-sm text-muted">
+        No roles yet. Create one, then choose the agents that hold it.
+      </p>
+      <div class="mt-4 grid min-w-0 gap-4">
+        <article :for={role <- @roles} id={"role-#{role.id}"} class="app-panel">
+          <form
+            id={"role-#{role.id}-name"}
+            phx-submit="update_role"
+            class="flex flex-wrap items-end gap-3"
+          >
+            <input type="hidden" name="role_id" value={role.id} />
+            <div class="min-w-0 flex-1">
+              <label for={"role-#{role.id}-name-input"} class="block text-sm font-medium">
+                Role name
+              </label>
+              <input
+                id={"role-#{role.id}-name-input"}
+                name="name"
+                value={role.name}
+                required
+                maxlength="80"
+                autocomplete="off"
+                class="app-field mt-1 w-full min-w-0 px-3 py-2 text-sm"
+              />
+            </div>
+            <button type="submit" class="app-button-secondary px-4 py-2 text-sm font-semibold">
+              Save name
+            </button>
+            <button
+              type="button"
+              id={"role-#{role.id}-delete"}
+              phx-click="delete_role"
+              phx-value-role_id={role.id}
+              class="app-button-danger px-4 py-2 text-sm font-semibold"
+            >
+              Remove role
+            </button>
+          </form>
+          <form id={"role-#{role.id}-agents"} phx-change="assign_role" class="mt-4">
+            <input type="hidden" name="role_id" value={role.id} />
+            <fieldset>
+              <legend class="text-sm font-medium">Agents in this role</legend>
+              <div class="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                <label :for={agent <- @agents} class="flex items-center gap-2 text-sm">
+                  <input
+                    id={"role-#{role.id}-agent-#{agent.id}"}
+                    type="checkbox"
+                    name="agents[]"
+                    value={agent.id}
+                    checked={Atom.to_string(agent.id) in role.agent_ids}
+                  />
+                  {agent.name}
+                </label>
+              </div>
+            </fieldset>
+          </form>
+        </article>
+      </div>
+    </section>
+    <div class="mt-8 border-y border-line py-5">
       <p id="agents-help" class="max-w-3xl text-sm leading-6 text-body">
         Detect checks the CLIs installed on this computer. It makes no model request and
         does not verify provider access or quota. Sign-in status is reported by each CLI;
@@ -250,6 +390,17 @@ defmodule BossWeb.AgentsLive do
       }[error.reason] || "could not finish"
 
     "#{stage} check #{reason}."
+  end
+
+  defp role_error(%Ecto.Changeset{} = changeset) do
+    options = changeset.errors |> Keyword.get_values(:name) |> Enum.map(&elem(&1, 1))
+
+    cond do
+      Enum.any?(options, &(&1[:validation] == :required)) -> "Enter a role name."
+      Enum.any?(options, &(&1[:constraint] == :unique)) -> "A role with that name already exists."
+      Enum.any?(options, &(&1[:validation] == :length)) -> "Use 80 characters or fewer."
+      true -> "The role could not be saved."
+    end
   end
 
   defp scan_error(:busy), do: "Another detection is running. Try Detect agents again shortly."

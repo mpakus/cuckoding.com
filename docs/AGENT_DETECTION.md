@@ -4,7 +4,11 @@ The Agents page checks the Codex, Claude Code, Cursor Agent, Hermes, Pi and
 OpenCode executables visible to the running BOSS process. Detection starts only
 when the user presses **Detect agents**.
 Installing a CLI in another shell may require restarting BOSS to update its PATH.
-This page does not select workflow roles or start agent tasks.
+This page does not start agent tasks. Saved roles record which detected
+agents belong to which role. A role can include many agents, and an agent can
+belong to many roles. Creating, renaming, or removing a role changes that
+roster only. A workflow still runs an agent through that agent's existing
+runner.
 
 ## What a result means
 

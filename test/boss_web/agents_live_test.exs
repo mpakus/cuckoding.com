@@ -155,6 +155,47 @@ defmodule BossWeb.AgentsLiveTest do
     assert has_element?(view, "#agents-status", "Detection complete")
   end
 
+  test "roles can be created, assigned, renamed, and removed", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/agents")
+    assert has_element?(view, "#roles-empty", "No roles yet")
+
+    view |> form("#create-role", %{name: "Reviewer"}) |> render_submit()
+    refute has_element?(view, "#roles-empty")
+    [%{id: id, name: "Reviewer"}] = Boss.Agents.Roles.list()
+    assert has_element?(view, "#role-#{id}-name-input[value='Reviewer']")
+
+    view |> form("#create-role", %{name: "Reviewer"}) |> render_submit()
+    assert has_element?(view, "#role-error", "already exists")
+
+    view |> form("#role-#{id}-agents", %{agents: ["codex", "cursor"]}) |> render_change()
+    assert has_element?(view, "#role-#{id}-agent-codex[checked]")
+    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
+    refute has_element?(view, "#role-#{id}-agent-claude[checked]")
+
+    view |> form("#role-#{id}-name", %{name: "Independent reviewer"}) |> render_submit()
+    assert has_element?(view, "#role-#{id}-name-input[value='Independent reviewer']")
+    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
+
+    view |> form("#create-role", %{name: "Developer"}) |> render_submit()
+    developer = Enum.find(Boss.Agents.Roles.list(), &(&1.name == "Developer"))
+
+    view
+    |> form("#role-#{developer.id}-agents", %{agents: ["cursor", "codex"]})
+    |> render_change()
+
+    assert has_element?(view, "#role-#{developer.id}-agent-cursor[checked]")
+    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
+    view |> form("#role-#{developer.id}-agents", %{agents: ["codex"]}) |> render_change()
+    refute has_element?(view, "#role-#{developer.id}-agent-cursor[checked]")
+    assert has_element?(view, "#role-#{id}-agent-cursor[checked]")
+
+    view |> element("#role-#{id}-delete") |> render_click()
+    view |> element("#role-#{developer.id}-delete") |> render_click()
+    assert has_element?(view, "#roles-empty")
+    refute has_element?(view, "#role-#{id}")
+    refute has_element?(view, "#role-#{developer.id}")
+  end
+
   test "an async exit becomes a sanitized retryable error", %{conn: conn} do
     {:ok, view, _} = live(conn, "/agents")
     detect(view, rows())
