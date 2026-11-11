@@ -371,6 +371,66 @@ defmodule Boss.Deliveries.IntegrationWorker do
     end
   end
 
+  defp prepare_integration(intent) do
+    case Integration.prepare(intent) do
+      :ok -> :ok
+      {:error, :integration_exists} -> :ok
+      other -> other
+    end
+  end
+
+  defp repair_published(delivery, sha, output, receipt) do
+    if postcheck_repair?(delivery, receipt) do
+      case Worker.repair_failed_postcheck(delivery, sha, output) do
+        {:ready, candidate, new_sha, review} ->
+          publish_successor(delivery, candidate, new_sha, review, sha)
+
+        _ ->
+          keep_published(delivery)
+      end
+    else
+      keep_published(delivery)
+    end
+  end
+
+  defp postcheck_repair?(delivery, receipt) do
+    failed =
+      delivery.id
+      |> Deliveries.steps()
+      |> Enum.count(&(&1.kind == "post_check" and &1.status == "failed"))
+
+    failed == 1 and delivery.autonomy_version == 1 and receipt["cleanup"] == "group_empty" and
+      receipt["outcome"] == "checks_failed" and receipt["output_complete"] == true and
+      is_integer(receipt["exit_code"]) and receipt["exit_code"] != 0 and
+      delivery.cycle < Boss.Deliveries.ModelPolicy.max_cycles(1)
+  end
+
+  defp publish_successor(delivery, candidate, sha, review, published) do
+    delivery = Repo.get!(Delivery, delivery.id)
+    {project, _} = Deliveries.inputs(delivery)
+
+    with {:ok, _} <- Deliveries.return_to_integration(delivery.id),
+         {:ok, intent} <- Integration.plan(project, delivery.id, candidate, sha, published),
+         {:ok, _} <- Deliveries.set_integration_intent(delivery.id, intent),
+         {:ok, step} <-
+           Deliveries.begin_step(delivery.id, "publish", delivery.cycle, %{
+             "intent" => intent,
+             "review_step_id" => review.id
+           }) do
+      publish(delivery, step, intent)
+    else
+      _ -> keep_published(delivery)
+    end
+  end
+
+  defp keep_published(delivery) do
+    Deliveries.complete(
+      delivery.id,
+      "blocked",
+      "The commit was published, but post-integration checks did not pass. Target was not rolled back; inspect the retained checkout."
+    )
+  end
+
   defp ok!(:ok), do: :ok
   defp ok!({:ok, value}), do: value
   defp ok!({:error, reason}), do: throw({:halt, reason})
@@ -378,7 +438,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
   defp publish(delivery, step, intent) do
     result =
       with :ok <- continue(),
-           :ok <- Integration.prepare(intent),
+           :ok <- prepare_integration(intent),
            :ok <- continue(),
            do:
              Integration.publish(intent,
@@ -400,7 +460,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
                  "publish_step_id" => step.id,
                  "config_hash" => delivery.config_hash
                }) do
-          {receipt, _output} =
+          {receipt, output} =
             Worker.run_check(intent["path"], delivery.check_config, fn ->
               Integration.verify_published(intent)
             end)
@@ -423,11 +483,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
                 Deliveries.interrupt(delivery.id)
 
               _ ->
-                Deliveries.complete(
-                  delivery.id,
-                  "blocked",
-                  "The commit was published, but post-integration checks did not pass. Target was not rolled back; inspect the retained checkout."
-                )
+                repair_published(delivery, sha, output, receipt)
             end
           end
         else

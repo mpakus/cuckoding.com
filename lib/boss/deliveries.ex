@@ -670,7 +670,7 @@ defmodule Boss.Deliveries do
         current == value ->
           delivery
 
-        current != %{} ->
+        current != %{} and not postcheck_successor?(delivery, field, value) ->
           Repo.rollback(:immutable_intent)
 
         field == :intent and delivery.status == "planning" ->
@@ -1305,6 +1305,16 @@ defmodule Boss.Deliveries do
             i["candidate_commit"] == source.input["candidate_commit"] and
             fresh_repair_workspace?(d, source.input["candidate_commit"], previous, i)
 
+        "post_check" ->
+          plan = Enum.find(steps(d.id), &(&1.kind == "plan" and &1.status == "finished"))
+
+          source.status == "failed" and source.receipt["outcome"] == "checks_failed" and
+            source.receipt["output_complete"] == true and
+            source.receipt["cleanup"] == "group_empty" and
+            plan != nil and i["plan_step_id"] == plan.id and
+            i["candidate_commit"] == source.receipt["candidate_commit"] and
+            fresh_repair_workspace?(d, source.receipt["candidate_commit"], previous, i)
+
         _ ->
           i["plan_step_id"] == source.input["plan_step_id"] and
             i["workspace"] == source.input["workspace"] and
@@ -1343,6 +1353,14 @@ defmodule Boss.Deliveries do
          %Step{kind: "merge_review", status: "finished", receipt: receipt}
        ) do
     get_in(receipt, ["report", "verdict"]) == "changes_requested" and
+      receipt["cleanup"] == "group_empty"
+  end
+
+  defp recoverable_source?(
+         %Delivery{autonomy_version: 1},
+         %Step{kind: "post_check", status: "failed", receipt: receipt}
+       ) do
+    receipt["outcome"] == "checks_failed" and receipt["output_complete"] == true and
       receipt["cleanup"] == "group_empty"
   end
 
@@ -1720,6 +1738,7 @@ defmodule Boss.Deliveries do
       merge = conflict_merge(all) -> conflict_publication!(d, merge)
       review = rejected_merge_publication(d, all) -> review
       review = drifted_merge_publication(d, all) -> review
+      review = postcheck_publication(d, all) -> review
       true -> approved_publication!(d)
     end
   end
@@ -1780,6 +1799,43 @@ defmodule Boss.Deliveries do
 
       _ ->
         nil
+    end
+  end
+
+  defp postcheck_publication(d, all) do
+    post =
+      all
+      |> Enum.filter(&(&1.kind == "post_check" and &1.status == "failed"))
+      |> List.last()
+
+    review =
+      post &&
+        Enum.find(
+          Enum.reverse(all),
+          &(&1.kind == "review" and &1.status == "finished" and &1.number > post.number)
+        )
+
+    if match?(%Step{}, review) and get_in(review.receipt, ["report", "verdict"]) == "approved" and
+         review.input["publication_base"] == post.receipt["candidate_commit"] do
+      check = Enum.find(all, &(&1.id == review.input["check_step_id"]))
+      plan = Enum.find(all, &(&1.id == review.input["plan_step_id"]))
+      report = decoded_review!(review.receipt["report"])
+      criteria = Enum.map(report["acceptance"], & &1["criterion"])
+
+      unless match?(%Step{}, check) and match?(%Step{}, plan) and check.status == "finished" and
+               plan.status == "finished" and
+               process_passed?(review.receipt) and process_passed?(check.receipt) and
+               review.cycle == d.cycle and check.cycle == d.cycle and
+               review.input["candidate_commit"] == check.input["candidate_commit"] and
+               review.receipt["cleanup"] == "group_empty" and
+               check.receipt["cleanup"] == "group_empty" and
+               check.receipt["output_complete"] == true and hash?(check.receipt["output_hash"]) and
+               MapSet.new(criteria) == MapSet.new(plan.receipt["report"]["acceptance"]),
+             do: Repo.rollback(:missing_evidence)
+
+      review
+    else
+      nil
     end
   end
 
@@ -1852,6 +1908,18 @@ defmodule Boss.Deliveries do
     end
   end
 
+  defp postcheck_successor?(
+         %Delivery{status: "integrating", integration_intent: old},
+         :integration_intent,
+         value
+       )
+       when is_map(old) and old != %{} do
+    value["base_commit"] == old["candidate_commit"] and
+      value["candidate_commit"] != old["candidate_commit"]
+  end
+
+  defp postcheck_successor?(_, _, _), do: false
+
   defp publication_base(_d, %Step{kind: "merge_review", input: input}), do: input["target_commit"]
 
   defp publication_base(_d, %Step{input: %{"publication_base" => base}}) when is_binary(base),
@@ -1869,7 +1937,11 @@ defmodule Boss.Deliveries do
     review = publication_approved!(d)
     all = steps(d.id)
     post = List.last(all)
-    publish = Enum.find(all, &(&1.kind == "publish"))
+
+    publish =
+      all
+      |> Enum.filter(&(&1.kind == "publish" and &1.status == "finished"))
+      |> List.last()
 
     unless d.status == "integrating" and d.integration_command_id != nil and
              match?(%Step{kind: "publish"}, publish) and match?(%Step{kind: "post_check"}, post) and

@@ -527,6 +527,14 @@ defmodule Boss.Deliveries.Worker do
     end)
   end
 
+  @doc false
+  def repair_failed_postcheck(delivery, published, output) do
+    with_repair(published, fn ->
+      Process.put(:postcheck_repair, true)
+      repair_postcheck(delivery, published, output)
+    end)
+  end
+
   defp with_repair(publication_base, fun) do
     Process.put(:conflict_repair, true)
     Process.put(:conflict_target, publication_base)
@@ -541,6 +549,10 @@ defmodule Boss.Deliveries.Worker do
       :throw, {:repaired, candidate, sha, review} ->
         {:ready, candidate, sha, review}
 
+      :throw, {:halt, :postcheck_unrepaired} ->
+        close_repair_step()
+        {:error, :postcheck_unrepaired}
+
       :throw, {:halt, {:needs_input, message}} ->
         {:error, {:needs_input, message}}
 
@@ -554,6 +566,7 @@ defmodule Boss.Deliveries.Worker do
     after
       Process.delete(:conflict_repair)
       Process.delete(:conflict_target)
+      Process.delete(:postcheck_repair)
     end
   end
 
@@ -665,6 +678,47 @@ defmodule Boss.Deliveries.Worker do
       other ->
         other
     end
+  end
+
+  defp repair_postcheck(delivery, published, output) do
+    {project, revision} = Deliveries.inputs(delivery)
+    steps = Deliveries.steps(delivery.id)
+    post = Enum.find(Enum.reverse(steps), &(&1.kind == "post_check" and &1.status == "failed"))
+    review = Enum.find(steps, &(&1.kind == "review" and &1.status == "finished"))
+    plan_step = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
+    source = revision.original_text
+    plan = plan_step.receipt["report"]
+    workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
+    unless workspace["base_commit"] == published, do: throw({:halt, :target_changed})
+    ok!(Workspace.prepare(workspace))
+    ok!(Candidate.verify_tree(workspace["path"], published))
+
+    feedback = %{
+      "kind" => "checks",
+      "exit_code" => post.receipt["exit_code"],
+      "check_receipt" => post.receipt,
+      "output" => output
+    }
+
+    {resolution, advice} =
+      resolve(delivery, plan_step, plan, post, workspace, published, feedback, source)
+
+    cycle(
+      delivery,
+      project,
+      source,
+      plan_step,
+      plan,
+      post.cycle + 1,
+      %{
+        candidate_commit: published,
+        step_id: resolution.id,
+        resolution_step_id: resolution.id,
+        source_step_id: post.id
+      },
+      Map.put(feedback, "resolution", advice),
+      MapSet.new()
+    )
   end
 
   @doc false
@@ -1355,6 +1409,7 @@ defmodule Boss.Deliveries.Worker do
          feedback,
          failures
        ) do
+    if Process.get(:postcheck_repair), do: throw({:halt, :postcheck_unrepaired})
     continue!()
     tree = ok!(Workspace.git(candidate["path"], ["rev-parse", "#{sha}^{tree}"]))
 
@@ -1440,7 +1495,7 @@ defmodule Boss.Deliveries.Worker do
     prepare? = problem.kind == "implement" and attempt == 1
 
     verify = fn ->
-      if problem.kind in ["plan", "implement", "merge", "merge_review"],
+      if problem.kind in ["plan", "implement", "merge", "merge_review", "post_check"],
         do: Candidate.verify_tree(workspace["path"], sha),
         else: Candidate.verify(workspace, sha)
     end

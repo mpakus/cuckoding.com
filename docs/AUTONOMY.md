@@ -106,7 +106,9 @@ and a new review must approve that descendant before publication. Publication
 still uses compare-and-swap from the recorded target, and only the new commit
 can move the branch. If the target moves once during review and still descends
 from the saved base, integration merges again against that new target. Rewritten history, a second drift,
-unknown cleanup, an exhausted cycle budget and a failed postcheck still stop.
+unknown cleanup and an exhausted cycle budget still stop. A failed
+postcheck keeps the published commit and repairs on top of it; only the new
+approved descendant can move the branch. A postcheck that fails again stops.
 A published commit is not rolled back. Real-provider acceptance remains separate.
 
 ## Continue retained work after an implementation timeout

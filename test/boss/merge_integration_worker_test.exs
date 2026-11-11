@@ -33,7 +33,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery},
     {20_261_110_120_000, Boss.Repo.Migrations.RepairMergeConflicts},
     {20_261_110_140_000, Boss.Repo.Migrations.RepairRejectedMergeReview},
-    {20_261_110_160_000, Boss.Repo.Migrations.RetargetMergeAfterDrift}
+    {20_261_110_160_000, Boss.Repo.Migrations.RetargetMergeAfterDrift},
+    {20_261_110_180_000, Boss.Repo.Migrations.RepairFailedPostcheck}
   ]
 
   setup do
@@ -73,6 +74,17 @@ defmodule Boss.MergeIntegrationWorkerTest do
           calls.write(json.dumps(str(Path.cwd())) + "\\n")
       if os.environ.get("BOSS_POST_CHECK_MODE") == "fail":
           sys.exit(3)
+      if os.environ.get("BOSS_POST_CHECK_MODE") == "fail_once":
+          marker = root / "post-failed-once"
+          if not marker.exists():
+              marker.write_text("1")
+              sys.exit(3)
+      if os.environ.get("BOSS_POST_CHECK_MODE") == "fail_twice":
+          marker = root / "post-fail-count"
+          count = int(marker.read_text()) if marker.exists() else 0
+          marker.write_text(str(count + 1))
+          if count != 1:
+              sys.exit(3)
       if os.environ.get("BOSS_POST_CHECK_MODE") == "wait":
           (root / "post-wait").write_text(str(os.getpid()))
           while True:
@@ -368,6 +380,52 @@ defmodule Boss.MergeIntegrationWorkerTest do
   end
 
   @tag timeout: 180_000
+  test "a failed post-check is repaired on top of the published commit", ctx do
+    {manager, delivery} = ready(ctx)
+    published = candidate(delivery)
+    git(ctx.source, ["switch", "--detach"])
+    user = preserve_checkout(ctx)
+    System.put_env("BOSS_POST_CHECK_MODE", "fail_once")
+    saved = integrate(ctx, manager, delivery, 8_000)
+    assert saved.status == "done" and saved.cleanup == "group_empty", inspect(saved.reason)
+
+    main = git(ctx.source, ["rev-parse", "main"])
+    assert main != published
+    assert git(ctx.source, ["rev-list", "--parents", "-n", "1", main]) == "#{main} #{published}"
+    posts = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "post_check"))
+    assert hd(posts).status == "failed"
+    assert List.last(posts).status == "finished"
+
+    assert File.read!(Path.join(saved.integration_intent["path"], "result.txt")) ==
+             "candidate-2\n"
+
+    assert checkout(ctx) == user
+  end
+
+  @tag timeout: 180_000
+  test "a second post-check failure keeps the repaired commit and stops", ctx do
+    {manager, delivery} = ready(ctx)
+    published = candidate(delivery)
+    git(ctx.source, ["switch", "--detach"])
+    user = preserve_checkout(ctx)
+    System.put_env("BOSS_POST_CHECK_MODE", "fail_twice")
+    saved = integrate(ctx, manager, delivery, 8_000)
+    main = git(ctx.source, ["rev-parse", "main"])
+
+    assert saved.status == "blocked"
+    assert saved.reason =~ "was not rolled back"
+    assert main != published
+    assert git(ctx.source, ["rev-list", "--parents", "-n", "1", main]) == "#{main} #{published}"
+    assert length(Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "resolve"))) == 1
+
+    posts = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "post_check"))
+    assert length(posts) == 2
+    assert Enum.all?(posts, &(&1.status == "failed"))
+    assert File.read!(Path.join(ctx.source, "result.txt")) == "base"
+    assert checkout(ctx) == user
+  end
+
+  @tag timeout: 180_000
   test "a second target advance during fresh review is merged again and published", ctx do
     {manager, delivery, _target, user, command, pid} = waiting_review(ctx)
     target = git(ctx.source, ["rev-parse", "main"])
@@ -514,11 +572,11 @@ defmodule Boss.MergeIntegrationWorkerTest do
     }
   end
 
-  defp integrate(ctx, manager, delivery) do
+  defp integrate(ctx, manager, delivery, left \\ 2_000) do
     assert {:ok, _} =
              Deliveries.integrate(ctx.project.id, delivery.id, Ecto.UUID.generate(), manager)
 
-    await_delivery(ctx, delivery.id)
+    await_delivery(ctx, delivery.id, left)
   end
 
   defp assert_unpublished(ctx, saved, target, user) do
@@ -595,8 +653,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
         )
       )
 
-  defp await_delivery(ctx, id) do
-    eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, id)) end)
+  defp await_delivery(ctx, id, left \\ 2_000) do
+    eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, id)) end, left)
     Deliveries.get(ctx.project.id, id)
   end
 
