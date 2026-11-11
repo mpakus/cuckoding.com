@@ -40,22 +40,18 @@ defmodule Boss.Agents.Roles do
   end
 
   def implementer do
-    case Enum.filter(agents_for("implementer"), &(&1.id in ~w(codex cursor))) do
+    case Enum.filter(agents_for("implementer"), &Metadata.execution_runner?(&1.id)) do
       [%{id: id} | _] -> id
       [] -> "codex"
     end
   end
 
-  def analytic(implementer) when implementer in ~w(codex cursor) do
-    assigned = Enum.filter(agents_for("analytic"), &(&1.id in ~w(codex cursor)))
+  def analytic(implementer) when implementer in ~w(codex claude cursor) do
+    assigned = Enum.filter(agents_for("analytic"), &Metadata.execution_runner?(&1.id))
 
-    if Enum.any?(assigned, &(&1.id == implementer)) do
-      implementer
-    else
-      case assigned do
-        [%{id: id} | _] -> id
-        [] -> "codex"
-      end
+    case Enum.find(assigned, &(&1.id != implementer)) || List.first(assigned) do
+      %{id: id} -> id
+      nil -> "codex"
     end
   end
 
@@ -74,13 +70,25 @@ defmodule Boss.Agents.Roles do
   end
 
   def list do
-    ensure_standard()
+    if roles_table_ready?() do
+      ensure_standard()
 
-    Role
-    |> preload(:members)
-    |> Repo.all()
-    |> Enum.map(&present/1)
-    |> Enum.sort_by(&{Map.get(@kind_order, &1.kind, 3), &1.name, &1.id})
+      Role
+      |> preload(:members)
+      |> Repo.all()
+      |> Enum.map(&present/1)
+      |> Enum.sort_by(&{Map.get(@kind_order, &1.kind, 3), &1.name, &1.id})
+    else
+      []
+    end
+  end
+
+  defp roles_table_ready? do
+    Repo.query!(
+      "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='agent_roles')"
+    ).rows == [[1]]
+  rescue
+    _ -> false
   end
 
   def create(name) do

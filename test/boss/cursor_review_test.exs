@@ -154,4 +154,73 @@ defmodule Boss.CursorReviewTest do
     assert receipt["status"] == "finished"
     assert receipt["report"]["summary"] == "Add a note"
   end
+
+  test "Cursor implement_args passes --force and json_object strips prose around JSON" do
+    assert "--force" in Cursor.implement_args()
+
+    wrapped =
+      Jason.encode!(%{
+        "type" => "result",
+        "subtype" => "success",
+        "is_error" => false,
+        "result" => "Here is the plan:\n{\"summary\":\"ok\"}\nDone."
+      })
+
+    assert {:ok, "{\"summary\":\"ok\"}", _} = Cursor.report(wrapped)
+  end
+
+  test "a Claude implementer plans and diagnoses with structured_output without calling Codex" do
+    root = Path.join(System.tmp_dir!(), "boss-claude-plan-#{System.unique_integer([:positive])}")
+    File.mkdir!(root)
+
+    envelope =
+      Jason.encode!(%{
+        "type" => "result",
+        "subtype" => "success",
+        "is_error" => false,
+        "duration_ms" => 40,
+        "usage" => %{"input_tokens" => 10, "output_tokens" => 5},
+        "structured_output" => %{
+          "summary" => "Claude plan",
+          "steps" => ["Step 1"],
+          "acceptance" => ["Passes check"]
+        }
+      })
+
+    payload = Path.join(root, "claude_payload.json")
+    File.write!(payload, envelope)
+    script = Path.join(root, "claude")
+
+    File.write!(script, """
+    #!/bin/sh
+    cat >/dev/null
+    cat #{payload}
+    printf '\\n'
+    exit 0
+    """)
+
+    File.chmod!(script, 0o700)
+    previous = System.get_env("PATH")
+    System.put_env("PATH", root <> ":" <> previous)
+
+    on_exit(fn ->
+      System.put_env("PATH", previous)
+      File.rm_rf(root)
+    end)
+
+    receipt =
+      Worker.run_agent(
+        :plan,
+        root,
+        "plan via claude",
+        fn text -> Jason.decode(text) end,
+        nil,
+        implementer: "claude",
+        report_diagnostics: true
+      )
+
+    assert receipt["status"] == "finished"
+    assert receipt["validation_code"] == "valid"
+    assert receipt["report"]["summary"] == "Claude plan"
+  end
 end

@@ -7,7 +7,7 @@ defmodule Boss.Projects.Intake.Attempts do
   @keys ~w(status cleanup outcome exit_kind exit_code signal eof usage error_class report_bytes validation_code plan_hash)
   @validation ~w(valid report_empty report_too_large report_unavailable report_replaced invalid_encoding invalid_json invalid_shape duplicate_keys unknown_fields task_limit invalid_task_id invalid_title invalid_specification invalid_acceptance invalid_dependencies invalid_sources duplicate_task_id dependency_cycle)
   @recoverable @validation -- ~w(valid report_unavailable report_replaced)
-  @outcomes ~w(exited invalid_report cancelled interrupted failed timeout timed_out output_limit unsupported codex_unavailable candidate_changed target_changed cleanup_unknown)
+  @outcomes ~w(exited invalid_report cancelled interrupted failed timeout timed_out output_limit unsupported codex_unavailable claude_unavailable cursor_unavailable candidate_changed target_changed cleanup_unknown)
   @errors ~w(model_unavailable auth rate_limit schema transport unknown)
 
   def list(id),
@@ -20,8 +20,14 @@ defmodule Boss.Projects.Intake.Attempts do
       if request.planning_version != 1, do: Repo.rollback(:legacy_planning)
       if request.workspace == %{}, do: Repo.rollback(:invalid_intent)
 
-      unless Boss.Agents.ModelCatalog.validate(request.model_catalog) == :ok,
-        do: Repo.rollback(:catalog_invalid)
+      planner =
+        if request.model_catalog != %{},
+          do: "codex",
+          else: Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer())
+
+      unless planner != "codex" or
+               Boss.Agents.ModelCatalog.validate(request.model_catalog) == :ok,
+             do: Repo.rollback(:catalog_invalid)
 
       previous = list(id)
       last = List.last(previous)
@@ -33,8 +39,8 @@ defmodule Boss.Projects.Intake.Attempts do
         true -> :ok
       end
 
-      if shared_startup?(previous), do: Repo.rollback(:provider_startup)
-      profile = select!(request, previous)
+      if planner == "codex" and shared_startup?(previous), do: Repo.rollback(:provider_startup)
+      profile = select!(request, previous, planner)
 
       attempt =
         Repo.insert!(%Attempt{
@@ -210,11 +216,15 @@ defmodule Boss.Projects.Intake.Attempts do
     |> length() >= 2
   end
 
-  defp select!(request, []) do
+  defp select!(_request, _previous, planner) when planner in ["claude", "cursor"] do
+    %{"model" => planner, "reasoning_effort" => "high"}
+  end
+
+  defp select!(request, [], _planner) do
     request.model_catalog["primary"]
   end
 
-  defp select!(request, previous) do
+  defp select!(request, previous, _planner) do
     prior_model = List.last(previous).model_profile["model"]
 
     unavailable =

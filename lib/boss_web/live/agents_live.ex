@@ -386,6 +386,10 @@ defmodule BossWeb.AgentsLive do
   defp probe_status(_), do: "Detection incomplete"
 
   defp auth_status(:configured), do: "CLI reports credentials configured"
+
+  defp auth_status(:stale),
+    do: "CLI reports expired or unverified session — re-run login in your terminal"
+
   defp auth_status(:not_configured), do: "CLI reports no credentials configured"
   defp auth_status(_), do: "Unknown"
 

@@ -157,6 +157,13 @@ defmodule Boss.Deliveries.Protocol do
           Previous_review applies to previous_review_candidate_commit. Previous_diff shows
           the prepared previous_candidate_commit, which may already address those findings.
           Do not remove, paraphrase or add acceptance criteria for a repeated workflow.
+          Output strictly one raw JSON object (no Markdown fences or surrounding prose)
+          with exact keys: summary (string 1–2000 UTF-8 bytes), steps (array of 1–20 strings,
+          or [] when clarification is non-null), acceptance (array of 1–20 unique strings,
+          or [] when clarification is non-null), file_scopes (null or array of 1–64
+          {"path": "...", "kind": "file"|"directory"}), clarification (null or string 1–500
+          UTF-8 bytes), and complexity ("small", "standard" or "complex"). Total response
+          must fit 32768 UTF-8 bytes with no extra or duplicate keys.
           """
 
         :resolve ->
@@ -178,7 +185,9 @@ defmodule Boss.Deliveries.Protocol do
           prerequisite. A difficult bug or ordinary implementation choice alone is
           not an external_action. Include complete actionable steps in either case.
           Return one complete compact JSON object of at most 32768 UTF-8 bytes total,
-          including JSON keys, punctuation, escaping and whitespace. Field budgets:
+          including JSON keys, punctuation, escaping and whitespace, with no Markdown fences,
+          no extra or duplicate keys, and exact keys: summary, steps, assumptions, external_action.
+          Field budgets:
           summary 1–2000 UTF-8 bytes; steps 1–20 strings of 1–2000 UTF-8 bytes each;
           assumptions 0–20 strings of 1–1000 UTF-8 bytes each; external_action null
           or 1–500 UTF-8 bytes. All strings must be nonblank and contain no NUL.

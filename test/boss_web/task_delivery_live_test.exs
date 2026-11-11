@@ -88,7 +88,13 @@ defmodule BossWeb.TaskDeliveryLiveTest do
 
     assert has_element?(view, "#delivery-reviewer option[value='claude'][selected]")
     assert has_element?(view, "#delivery-reviewer-help", "no model filesystem or shell tools")
-    assert has_element?(view, "#delivery-reviewer-help", "The Implementer role plans and writes the code")
+
+    assert has_element?(
+             view,
+             "#delivery-reviewer-help",
+             "The Implementer role plans and writes the code"
+           )
+
     refute_receive {:workflow, _, _}, 50
     start(view, id, "mix test", "claude")
     assert_receive {:workflow, worker, delivery}, 1_000

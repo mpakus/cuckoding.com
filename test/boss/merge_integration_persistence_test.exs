@@ -308,6 +308,10 @@ defmodule Boss.MergeIntegrationPersistenceTest do
 
     Ecto.Migrator.up(Repo, 20_261_106_160_000, provider_module, log: false)
 
+    Ecto.Migrator.up(Repo, 20_261_110_240_000, Boss.Repo.Migrations.PinRoleColumnsSchema,
+      log: false
+    )
+
     project =
       Repo.insert!(%Projects.Project{
         name: "Merge upgrade",

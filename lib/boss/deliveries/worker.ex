@@ -47,11 +47,21 @@ defmodule Boss.Deliveries.Worker do
     source = ok!(Retry.source(delivery))
     continue!()
 
-    if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
-      do: throw({:halt, :claude_unavailable})
+    if "claude" in [
+         delivery.reviewer,
+         Map.get(delivery, :implementer),
+         Map.get(delivery, :analytic)
+       ] and
+         is_nil(System.find_executable("claude")),
+       do: throw({:halt, :claude_unavailable})
 
-    if delivery.reviewer == "cursor" and is_nil(Metadata.find_executable(:cursor)),
-      do: throw({:halt, :cursor_unavailable})
+    if "cursor" in [
+         delivery.reviewer,
+         Map.get(delivery, :implementer),
+         Map.get(delivery, :analytic)
+       ] and
+         is_nil(Metadata.find_executable(:cursor)),
+       do: throw({:halt, :cursor_unavailable})
 
     ok!(Retry.verify(source))
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
@@ -96,11 +106,21 @@ defmodule Boss.Deliveries.Worker do
   defp perform_execution_retry(delivery, project, revision, source) do
     continue!()
 
-    if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
-      do: throw({:halt, :claude_unavailable})
+    if "claude" in [
+         delivery.reviewer,
+         Map.get(delivery, :implementer),
+         Map.get(delivery, :analytic)
+       ] and
+         is_nil(System.find_executable("claude")),
+       do: throw({:halt, :claude_unavailable})
 
-    if delivery.reviewer == "cursor" and is_nil(Metadata.find_executable(:cursor)),
-      do: throw({:halt, :cursor_unavailable})
+    if "cursor" in [
+         delivery.reviewer,
+         Map.get(delivery, :implementer),
+         Map.get(delivery, :analytic)
+       ] and
+         is_nil(Metadata.find_executable(:cursor)),
+       do: throw({:halt, :cursor_unavailable})
 
     ok!(ExecutionRetry.verify(source))
 
@@ -295,24 +315,33 @@ defmodule Boss.Deliveries.Worker do
     )
   end
 
-  defp prepare_models(%{implementer: "cursor"} = delivery), do: delivery
+  defp prepare_models(delivery) do
+    codex_needed? =
+      Map.get(delivery, :implementer, "codex") == "codex" or
+        Map.get(delivery, :analytic, "codex") == "codex" or
+        Map.get(delivery, :reviewer, "codex") == "codex"
 
-  defp prepare_models(%{routing_version: 2, model_catalog: catalog} = delivery) do
-    if catalog == %{} do
-      continue!()
+    cond do
+      not codex_needed? ->
+        delivery
 
-      case ModelCatalog.discover() do
-        {:ok, snapshot} -> stored!(Deliveries.set_model_catalog(delivery.id, snapshot))
-        {:error, :catalog_cleanup_unknown} -> throw({:halt, :cleanup_unknown})
-        {:error, reason} -> throw({:halt, reason})
-      end
-    else
-      ok!(ModelCatalog.validate(catalog))
-      delivery
+      delivery.routing_version == 2 and delivery.model_catalog == %{} ->
+        continue!()
+
+        case ModelCatalog.discover() do
+          {:ok, snapshot} -> stored!(Deliveries.set_model_catalog(delivery.id, snapshot))
+          {:error, :catalog_cleanup_unknown} -> throw({:halt, :cleanup_unknown})
+          {:error, reason} -> throw({:halt, reason})
+        end
+
+      delivery.routing_version == 2 ->
+        ok!(ModelCatalog.validate(delivery.model_catalog))
+        delivery
+
+      true ->
+        delivery
     end
   end
-
-  defp prepare_models(delivery), do: delivery
 
   defp plan(delivery, source, input, parent \\ nil, previous_plan \\ nil, attempt \\ 0) do
     intent = delivery.intent
@@ -1780,13 +1809,20 @@ defmodule Boss.Deliveries.Worker do
   defp cursor_process(executable, path, prompt, decode) do
     parser = :ets.new(:delivery_cursor, [:set, :public])
     :ets.insert(parser, {:stdout, ""})
+    :ets.insert(parser, {:stderr, ""})
+    :ets.insert(parser, {:stdout_bytes, 0})
+    :ets.insert(parser, {:stderr_bytes, 0})
 
     try do
       callback = fn
         {:stdout, bytes} ->
+          :ets.update_counter(parser, :stdout_bytes, byte_size(bytes))
           [{:stdout, current}] = :ets.lookup(parser, :stdout)
           :ets.insert(parser, {:stdout, current <> bytes})
           :ok
+
+        {:stderr, bytes} ->
+          append_cursor(parser, :stderr, bytes)
 
         _ ->
           :ok
@@ -1802,7 +1838,11 @@ defmodule Boss.Deliveries.Worker do
         )
 
       [{:stdout, stdout}] = :ets.lookup(parser, :stdout)
+      [{:stderr, stderr}] = :ets.lookup(parser, :stderr)
+      [{:stdout_bytes, out_bytes}] = :ets.lookup(parser, :stdout_bytes)
+      [{:stderr_bytes, err_bytes}] = :ets.lookup(parser, :stderr_bytes)
       receipt = process_receipt(result)
+      note = Cursor.notice(stderr, stdout)
 
       cond do
         receipt["status"] in ["interrupted", "cancelled"] ->
@@ -1830,11 +1870,13 @@ defmodule Boss.Deliveries.Worker do
           end
 
         true ->
-          Map.put(
-            receipt,
-            "reason",
-            "Cursor review did not finish with a valid result and clean exit. No fallback was started."
-          )
+          receipt
+          |> Map.put("reason", note.reason)
+          |> Map.put("summary", %{
+            "error_class" => note.class,
+            "stdout_bytes" => out_bytes,
+            "stderr_bytes" => err_bytes
+          })
       end
     after
       :ets.delete(parser)
@@ -1909,18 +1951,65 @@ defmodule Boss.Deliveries.Worker do
 
   @doc false
   def run_agent(kind, path, prompt, decode, profile \\ nil, opts \\ []) do
-    if Keyword.get(opts, :implementer) == "cursor" and kind in [:plan, :implement, :resolve] do
-      run_cursor_stage(kind, path, prompt, decode)
-    else
-      run_codex(kind, path, prompt, decode, profile, opts)
+    runner = Keyword.get(opts, :implementer)
+
+    cond do
+      runner == "cursor" and kind in [:plan, :implement, :resolve, :intake] ->
+        run_cursor_stage(kind, path, prompt, decode, opts)
+
+      runner == "claude" and kind in [:plan, :implement, :resolve, :intake] ->
+        run_claude_stage(kind, path, prompt, decode, opts)
+
+      true ->
+        run_codex(kind, path, prompt, decode, profile, opts)
     end
   end
 
-  defp run_cursor_stage(kind, path, prompt, decode) do
+  defp run_cursor_stage(kind, path, prompt, decode, opts) do
     continue!()
     executable = Metadata.find_executable(:cursor) || throw({:halt, :cursor_unavailable})
     args = if kind == :implement, do: Cursor.implement_args(), else: Cursor.args()
-    parser = :ets.new(:delivery_cursor_stage, [:set, :public])
+
+    run_envelope_stage(
+      executable,
+      args,
+      path,
+      prompt,
+      decode,
+      opts,
+      &Cursor.report/1,
+      &Cursor.notice/2
+    )
+  end
+
+  defp run_claude_stage(kind, path, prompt, decode, opts) do
+    continue!()
+    executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
+    args = Claude.stage_args(kind)
+
+    run_envelope_stage(
+      executable,
+      args,
+      path,
+      prompt,
+      decode,
+      opts,
+      &Claude.stage_report/1,
+      &Claude.notice/2
+    )
+  end
+
+  defp run_envelope_stage(
+         executable,
+         args,
+         path,
+         prompt,
+         decode,
+         opts,
+         parse_report,
+         parse_notice
+       ) do
+    parser = :ets.new(:delivery_envelope_stage, [:set, :public])
     :ets.insert(parser, {:stdout, ""})
     :ets.insert(parser, {:stderr, ""})
     :ets.insert(parser, {:stdout_bytes, 0})
@@ -1929,7 +2018,19 @@ defmodule Boss.Deliveries.Worker do
     try do
       callback = fn
         {:stdout, bytes} ->
-          append_cursor(parser, :stdout, bytes)
+          :ets.update_counter(parser, :stdout_bytes, byte_size(bytes))
+          [{:stdout, current}] = :ets.lookup(parser, :stdout)
+
+          if byte_size(current) < 524_288 do
+            room = 524_288 - byte_size(current)
+
+            :ets.insert(
+              parser,
+              {:stdout, current <> binary_part(bytes, 0, min(byte_size(bytes), room))}
+            )
+          end
+
+          :ok
 
         {:stderr, bytes} ->
           append_cursor(parser, :stderr, bytes)
@@ -1942,7 +2043,7 @@ defmodule Boss.Deliveries.Worker do
         Runner.run(executable, args,
           cd: path,
           input: prompt,
-          timeout_ms: 1_200_000,
+          timeout_ms: agent_timeout(opts),
           output_limit: 8_388_608,
           on_event: callback
         )
@@ -1952,7 +2053,8 @@ defmodule Boss.Deliveries.Worker do
       [{:stdout_bytes, out_bytes}] = :ets.lookup(parser, :stdout_bytes)
       [{:stderr_bytes, err_bytes}] = :ets.lookup(parser, :stderr_bytes)
       receipt = process_receipt(result)
-      note = Cursor.notice(stderr, stdout)
+      note = parse_notice.(stderr, stdout)
+      diagnostics? = Keyword.get(opts, :report_diagnostics, false)
 
       cond do
         receipt["status"] in ["interrupted", "cancelled"] ->
@@ -1960,14 +2062,41 @@ defmodule Boss.Deliveries.Worker do
 
         result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
             result.eof == %{stdout: true, stderr: true} ->
-          case Cursor.report(stdout) do
+          case parse_report.(stdout) do
             {:ok, text, summary} when is_function(decode) ->
+              bytes = byte_size(text)
+
               case decode.(text) do
                 {:ok, report} ->
-                  Map.merge(receipt, %{
+                  base = %{
                     "status" => "finished",
                     "report" => report,
-                    "summary" => summary
+                    "summary" =>
+                      Map.merge(summary, %{
+                        "stdout_bytes" => out_bytes,
+                        "stderr_bytes" => err_bytes
+                      })
+                  }
+
+                  if diagnostics? do
+                    Map.merge(
+                      receipt,
+                      Map.merge(base, %{"report_bytes" => bytes, "validation_code" => "valid"})
+                    )
+                  else
+                    Map.merge(receipt, base)
+                  end
+
+                {:error, code} when diagnostics? and is_atom(code) ->
+                  receipt
+                  |> Map.merge(failure(:invalid_report))
+                  |> Map.merge(%{
+                    "report_bytes" => bytes,
+                    "validation_code" => Atom.to_string(code),
+                    "summary" => %{
+                      "stdout_bytes" => out_bytes,
+                      "stderr_bytes" => err_bytes
+                    }
                   })
 
                 _ ->
@@ -1975,10 +2104,24 @@ defmodule Boss.Deliveries.Worker do
               end
 
             {:ok, _text, summary} ->
-              Map.merge(receipt, %{"status" => "finished", "summary" => summary})
+              Map.merge(receipt, %{
+                "status" => "finished",
+                "summary" =>
+                  Map.merge(summary, %{"stdout_bytes" => out_bytes, "stderr_bytes" => err_bytes})
+              })
 
             _ ->
-              Map.merge(receipt, failure(:invalid_report))
+              if diagnostics? do
+                receipt
+                |> Map.merge(failure(:invalid_report))
+                |> Map.merge(%{
+                  "report_bytes" => out_bytes,
+                  "validation_code" => "invalid_json",
+                  "summary" => %{"stdout_bytes" => out_bytes, "stderr_bytes" => err_bytes}
+                })
+              else
+                Map.merge(receipt, failure(:invalid_report))
+              end
           end
 
         true ->

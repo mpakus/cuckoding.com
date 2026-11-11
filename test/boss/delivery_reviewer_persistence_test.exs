@@ -53,6 +53,10 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     # Current spec setup reads intake_mode; keep the reviewer migration unapplied.
     Ecto.Migrator.up(Repo, 20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake, log: false)
 
+    Ecto.Migrator.up(Repo, 20_261_110_240_000, Boss.Repo.Migrations.PinRoleColumnsSchema,
+      log: false
+    )
+
     project =
       Repo.insert!(%Projects.Project{
         name: "Reviewer",

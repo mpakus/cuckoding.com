@@ -10,10 +10,10 @@ writes code and tests from the specs. Analytic analyzes prompts, specs, and
 the project to create specs, and helps the Reviewer with questions or when
 work is stuck. Those three stay in place. A role can include many agents, and
 an agent can belong to many roles. A new workflow pins the Implementer for
-planning and code, and the Analytic for questions and stuck diagnosis. When the
-Implementer is also assigned as Analytic, that agent answers. Otherwise the
-first assigned Codex or Cursor Analytic answers. Codex and Cursor can run those
-stages today.
+planning and code, and the Analytic for documentation intake, questions and
+stuck diagnosis. When another execution runner is assigned to Analytic, BOSS
+prefers an agent distinct from the Implementer for independent diagnosis.
+Codex, Claude Code and Cursor Agent can run those stages today.
 
 ## What a result means
 

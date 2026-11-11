@@ -357,6 +357,19 @@ defmodule Boss.Agents.DetectorTest do
     assert opencode.capabilities.session_resume == :advertised
     assert opencode.capabilities.approval_support == :advertised
     refute File.read!(Path.join(root, "calls")) =~ "auth list"
+
+    stale_json =
+      Jason.encode!(%{
+        "status" => "authenticated",
+        "isAuthenticated" => true,
+        "message" => "Logged in (unable to fetch user details)"
+      })
+
+    stale_cursor = fixture(root, :cursor, %{"status --format json" => {stale_json, 0}})
+
+    detector2 = detector_with(executables: %{cursor: stale_cursor})
+    assert {:ok, results2} = Detector.scan(detector2)
+    assert agent(results2, :cursor).auth_status == :stale
   end
 
   defp detector(root, opts \\ []) do

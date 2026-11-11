@@ -2,7 +2,7 @@ defmodule Boss.Agents.Cursor do
   @moduledoc false
 
   def implement_args do
-    ["--print", "--output-format", "json", "--trust"]
+    ["--print", "--force", "--output-format", "json", "--trust"]
   end
 
   def args do
@@ -84,9 +84,25 @@ defmodule Boss.Agents.Cursor do
   defp json_object(text) do
     trimmed = String.trim(text)
 
-    case Regex.run(~r/```(?:json)?\s*(\{.*\})\s*```/s, trimmed) do
-      [_, object] -> object
-      _ -> trimmed
+    case Regex.run(~r/```(?:json)?\s*(\{[\s\S]*\})\s*```/, trimmed) do
+      [_, object] ->
+        String.trim(object)
+
+      _ ->
+        with {first, 1} <- :binary.match(trimmed, "{"),
+             true <- not String.starts_with?(trimmed, "{"),
+             last when is_integer(last) and last > first <- last_brace(trimmed) do
+          binary_part(trimmed, first, last - first + 1)
+        else
+          _ -> trimmed
+        end
+    end
+  end
+
+  defp last_brace(bin) do
+    case :binary.matches(bin, "}") do
+      [] -> nil
+      matches -> matches |> List.last() |> elem(0)
     end
   end
 

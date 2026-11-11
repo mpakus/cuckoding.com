@@ -34,7 +34,13 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_110_120_000, Boss.Repo.Migrations.RepairMergeConflicts},
     {20_261_110_140_000, Boss.Repo.Migrations.RepairRejectedMergeReview},
     {20_261_110_160_000, Boss.Repo.Migrations.RetargetMergeAfterDrift},
-    {20_261_110_180_000, Boss.Repo.Migrations.RepairFailedPostcheck}
+    {20_261_110_180_000, Boss.Repo.Migrations.RepairFailedPostcheck},
+    {20_261_110_210_000, Boss.Repo.Migrations.CreateAgentRoles},
+    {20_261_110_220_000, Boss.Repo.Migrations.AddStandardAgentRoles},
+    {20_261_110_230_000, Boss.Repo.Migrations.AllowCursorReviewer},
+    {20_261_110_240_000, Boss.Repo.Migrations.PinCursorImplementer},
+    {20_261_110_250_000, Boss.Repo.Migrations.PinCursorAnalytic},
+    {20_261_110_260_000, Boss.Repo.Migrations.AllowClaudeAndIntakePlanner}
   ]
 
   setup do

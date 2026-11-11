@@ -23,6 +23,8 @@ defmodule Boss.Repo.Migrations.PinCursorImplementer do
   end
 
   def down do
+    rewrite_model_trigger("delivery_catalog_model", :down)
+    rewrite_model_trigger("delivery_model_profile", :down)
     execute("DROP TRIGGER IF EXISTS delivery_implementer_immutable")
     execute("DROP TRIGGER IF EXISTS delivery_implementer_check")
 
@@ -31,22 +33,48 @@ defmodule Boss.Repo.Migrations.PinCursorImplementer do
     end
   end
 
-  defp rewrite_model_trigger(name) do
+  defp rewrite_model_trigger(name, direction \\ :up) do
     flush()
 
     [[sql]] =
       repo().query!("SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?", [name]).rows
 
-    needle = "(d.reviewer!='claude' OR NEW.kind NOT IN ('review','merge_review'))"
-
-    replacement =
-      "(d.reviewer NOT IN ('claude','cursor') OR NEW.kind NOT IN ('review','merge_review')) AND (COALESCE(d.implementer,'codex')!='cursor' OR NEW.kind NOT IN ('plan','implement','resolve'))"
+    {needle, replacement} =
+      if direction == :up do
+        {
+          "(d.reviewer!='claude' OR NEW.kind NOT IN ('review','merge_review'))",
+          "(d.reviewer NOT IN ('claude','cursor') OR NEW.kind NOT IN ('review','merge_review')) AND (COALESCE(d.implementer,'codex')!='cursor' OR NEW.kind NOT IN ('plan','implement','resolve'))"
+        }
+      else
+        {
+          "(d.reviewer NOT IN ('claude','cursor') OR NEW.kind NOT IN ('review','merge_review')) AND (COALESCE(d.implementer,'codex')!='cursor' OR NEW.kind NOT IN ('plan','implement','resolve'))",
+          "(d.reviewer!='claude' OR NEW.kind NOT IN ('review','merge_review'))"
+        }
+      end
 
     if String.contains?(sql, needle) do
       execute("DROP TRIGGER #{name}")
       execute(String.replace(sql, needle, replacement, global: false))
     else
       raise "Missing #{name} reviewer boundary"
+    end
+  end
+end
+
+defmodule Boss.Repo.Migrations.PinRoleColumnsSchema do
+  use Ecto.Migration
+
+  def up do
+    alter table(:deliveries) do
+      add :implementer, :string, null: false, default: "codex"
+      add :analytic, :string, null: false, default: "codex"
+    end
+  end
+
+  def down do
+    alter table(:deliveries) do
+      remove :analytic
+      remove :implementer
     end
   end
 end

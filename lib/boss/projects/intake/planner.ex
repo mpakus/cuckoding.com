@@ -42,14 +42,18 @@ defmodule Boss.Projects.Intake.Planner do
   end
 
   defp prepare_models(%{routing_version: 2, model_catalog: catalog} = request) do
-    if catalog == %{} do
-      case ModelCatalog.discover() do
-        {:ok, snapshot} -> Intake.set_model_catalog(request.id, snapshot)
-        {:error, :catalog_cleanup_unknown} -> {:error, :cleanup_unknown}
-        {:error, _} = error -> error
-      end
+    if Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer()) in ["claude", "cursor"] do
+      {:ok, request}
     else
-      with :ok <- ModelCatalog.validate(catalog), do: {:ok, request}
+      if catalog == %{} do
+        case ModelCatalog.discover() do
+          {:ok, snapshot} -> Intake.set_model_catalog(request.id, snapshot)
+          {:error, :catalog_cleanup_unknown} -> {:error, :cleanup_unknown}
+          {:error, _} = error -> error
+        end
+      else
+        with :ok <- ModelCatalog.validate(catalog), do: {:ok, request}
+      end
     end
   end
 
@@ -148,6 +152,11 @@ defmodule Boss.Projects.Intake.Planner do
               prompt,
               &decode_detailed(&1, Map.keys(docs)),
               attempt.model_profile,
+              implementer:
+                if(attempt.model_profile["model"] in ["claude", "cursor"],
+                  do: attempt.model_profile["model"],
+                  else: "codex"
+                ),
               report_diagnostics: true,
               deadline_ms: deadline
             )
@@ -228,6 +237,8 @@ defmodule Boss.Projects.Intake.Planner do
   defp failure_reason(%{"outcome" => "candidate_changed"}), do: :candidate_changed
   defp failure_reason(%{"outcome" => "target_changed"}), do: :target_changed
   defp failure_reason(%{"outcome" => "codex_unavailable"}), do: :codex_unavailable
+  defp failure_reason(%{"outcome" => "claude_unavailable"}), do: :claude_unavailable
+  defp failure_reason(%{"outcome" => "cursor_unavailable"}), do: :cursor_unavailable
   defp failure_reason(%{"error_class" => "auth"}), do: :provider_auth
   defp failure_reason(%{"error_class" => "rate_limit"}), do: :provider_rate_limit
   defp failure_reason(%{"error_class" => "schema"}), do: :provider_schema
@@ -260,6 +271,8 @@ defmodule Boss.Projects.Intake.Planner do
                  :candidate_changed,
                  :target_changed,
                  :codex_unavailable,
+                 :claude_unavailable,
+                 :cursor_unavailable,
                  :cleanup_unknown
                ] ->
             Atom.to_string(reason)
@@ -446,7 +459,8 @@ defmodule Boss.Projects.Intake.Planner do
       Acceptance: 1-12 unique strings, each 1-500 UTF-8 bytes.
       Depends_on: 0-32 unique task IDs; no missing IDs, self-dependencies or cycles.
       Sources: 1-8 unique exact paths from the supplied documents, each at most 1024 UTF-8 bytes.
-      Text must be trimmed and contain no NUL characters. Do not add JSON keys or commentary.
+      Text must be trimmed and contain no NUL characters. Output strictly one raw JSON object
+      {"tasks": [...]} with no Markdown fences, no extra keys and no surrounding commentary.
       The saved check configuration is context for testable tasks; do not replace it or run it.
       If previous_failure is present, diagnose that fixed failure and produce a complete
       corrected plan from these same original documents. Another model's invalid report

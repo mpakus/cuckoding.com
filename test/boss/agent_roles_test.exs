@@ -2,11 +2,17 @@ defmodule Boss.AgentRolesTest do
   use Boss.DataCase, async: false
   alias Boss.Agents.Roles
 
-  test "the Implementer answers questions when it is also an Analytic" do
+  test "Analytic prefers an independent agent from the Implementer when available, and supports Claude" do
     roles = Map.new(Roles.list(), &{&1.kind, &1})
-    assert {:ok, _} = Roles.assign(roles["analytic"].id, ["codex", "cursor"])
+    assert {:ok, _} = Roles.assign(roles["analytic"].id, ["claude", "cursor"])
+    assert Roles.analytic("cursor") == "claude"
+    assert Roles.analytic("claude") == "cursor"
+
+    assert {:ok, _} = Roles.assign(roles["analytic"].id, ["cursor"])
     assert Roles.analytic("cursor") == "cursor"
-    assert Roles.analytic("codex") == "codex"
+
+    assert {:ok, _} = Roles.assign(roles["implementer"].id, ["claude"])
+    assert Roles.implementer() == "claude"
   end
 
   test "the sole Implementer agent is used for new work" do

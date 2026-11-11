@@ -14,6 +14,10 @@ defmodule Boss.Agents.Metadata do
 
   def catalog, do: @catalog
   def ids, do: Enum.map(@catalog, & &1.id)
+  def execution_runners, do: ~w(codex claude cursor)
+  def execution_runner?(id) when is_binary(id), do: id in execution_runners()
+  def execution_runner?(_), do: false
+
   def review_runners, do: ~w(codex claude cursor)
   def review_runner?(id) when is_binary(id), do: id in review_runners()
   def review_runner?(_), do: false
@@ -66,7 +70,7 @@ defmodule Boss.Agents.Metadata do
 
   def failure(agent, step, reason) do
     stage =
-      if step in [:auth, :auth_help, :auth_status_help],
+      if step in [:auth, :auth_help, :auth_status_help, :status_help],
         do: :auth,
         else: if(step == :version, do: :version, else: :help)
 
@@ -302,12 +306,27 @@ defmodule Boss.Agents.Metadata do
   defp auth(:cursor, output, 0) do
     case Jason.decode(output, objects: :ordered_objects) do
       {:ok, %Jason.OrderedObject{values: values}} ->
+        message =
+          case List.keyfind(values, "message", 0) do
+            {"message", text} when is_binary(text) -> String.downcase(text)
+            _ -> ""
+          end
+
         case {
           Enum.filter(values, fn {key, _} -> key == "isAuthenticated" end),
           Enum.filter(values, fn {key, _} -> key == "status" end)
         } do
-          {[{"isAuthenticated", true}], [{"status", "authenticated"}]} -> :configured
-          _ -> :unknown
+          {[{"isAuthenticated", true}], [{"status", "authenticated"}]} ->
+            if String.contains?(message, "unable to fetch user details") or
+                 String.contains?(message, "expired"),
+               do: :stale,
+               else: :configured
+
+          {[{"isAuthenticated", false}], _} ->
+            :not_configured
+
+          _ ->
+            :unknown
         end
 
       _ ->

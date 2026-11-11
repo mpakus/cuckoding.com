@@ -3,6 +3,163 @@ defmodule Boss.Agents.Claude do
   @line_limit 262_144
   @output_limit 8_388_608
 
+  def stage_args(:implement) do
+    [
+      "--print",
+      "--input-format",
+      "text",
+      "--output-format",
+      "json",
+      "--permission-mode",
+      "bypassPermissions",
+      "--setting-sources",
+      "",
+      "--settings",
+      ~s({"disableAllHooks":true,"autoMemoryEnabled":false}),
+      "--strict-mcp-config",
+      "--mcp-config",
+      ~s({"mcpServers":{}}),
+      "--disallowedTools",
+      "mcp__*",
+      "--disable-slash-commands",
+      "--no-session-persistence"
+    ]
+  end
+
+  def stage_args(kind) when kind in [:plan, :resolve, :intake] do
+    schema_file =
+      case kind do
+        :plan -> "priv/plan_schema.json"
+        :resolve -> "priv/resolution_schema.json"
+        :intake -> "priv/intake_schema.json"
+      end
+
+    [
+      "--print",
+      "--input-format",
+      "text",
+      "--output-format",
+      "json",
+      "--json-schema",
+      File.read!(Application.app_dir(:boss, schema_file)),
+      "--tools",
+      "Read,Glob,Grep",
+      "--permission-mode",
+      "dontAsk",
+      "--setting-sources",
+      "",
+      "--settings",
+      ~s({"disableAllHooks":true,"autoMemoryEnabled":false}),
+      "--strict-mcp-config",
+      "--mcp-config",
+      ~s({"mcpServers":{}}),
+      "--disallowedTools",
+      "mcp__*",
+      "--disable-slash-commands",
+      "--no-session-persistence"
+    ]
+  end
+
+  def stage_report(output) when is_binary(output) do
+    with true <- String.valid?(output),
+         {:ok, envelope} when is_map(envelope) <- Jason.decode(output),
+         true <- envelope["type"] == "result",
+         true <- envelope["subtype"] == "success",
+         true <- envelope["is_error"] == false do
+      text =
+        cond do
+          is_map(envelope["structured_output"]) ->
+            Jason.encode!(envelope["structured_output"])
+
+          is_binary(envelope["result"]) ->
+            envelope["result"]
+
+          true ->
+            ""
+        end
+
+      {:ok, text, stage_summary(envelope)}
+    else
+      _ -> :error
+    end
+  end
+
+  def stage_report(_), do: :error
+
+  def notice(stderr, stdout \\ "") do
+    line = safe_line(stderr) || safe_line(stdout)
+
+    class =
+      cond do
+        line && String.contains?(String.downcase(line), "not logged in") -> "auth"
+        line && String.contains?(String.downcase(line), "authentication") -> "auth"
+        line && String.contains?(String.downcase(line), "invalid api key") -> "auth"
+        line && String.contains?(String.downcase(line), "rate limit") -> "rate_limit"
+        line && String.contains?(String.downcase(line), "quota") -> "rate_limit"
+        true -> nil
+      end
+
+    reason =
+      if line do
+        "Claude Code: #{line}"
+      else
+        "Claude Code did not finish with a valid result and clean exit. No fallback was started."
+      end
+
+    %{reason: reason, class: class}
+  end
+
+  defp safe_line(text) when is_binary(text) do
+    if String.valid?(text) do
+      text
+      |> String.split(~r/\R/u, parts: 4)
+      |> Enum.map(&redact_line/1)
+      |> Enum.find(&(String.trim(&1) != ""))
+      |> case do
+        nil -> nil
+        line -> line |> String.replace(~r/[\p{Cc}]+/u, " ") |> String.trim() |> clip_line(240)
+      end
+    end
+  end
+
+  defp safe_line(_), do: nil
+
+  defp redact_line(line) do
+    Regex.replace(
+      ~r/(?i)(api[_-]?key|token|secret|bearer|authorization)(\s*[:=]\s*)\S+/,
+      line,
+      "\\1\\2[redacted]"
+    )
+  end
+
+  defp clip_line(line, max) do
+    if byte_size(line) <= max, do: line, else: binary_part(line, 0, max) <> "…"
+  end
+
+  defp stage_summary(envelope) do
+    duration = envelope["duration_ms"]
+
+    usage_map =
+      case envelope["usage"] do
+        u when is_map(u) ->
+          Map.filter(
+            Map.take(u, ~w(input_tokens output_tokens cached_input_tokens)),
+            fn {_, n} -> is_integer(n) and n >= 0 and n <= 1_000_000_000_000 end
+          )
+
+        _ ->
+          %{}
+      end
+
+    %{
+      "type" => "result",
+      "subtype" => "success",
+      "is_error" => false,
+      "duration_ms" => if(is_integer(duration) and duration >= 0, do: duration),
+      "usage" => usage_map
+    }
+  end
+
   def args do
     [
       "--print",

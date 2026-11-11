@@ -152,6 +152,7 @@ defmodule Boss.Projects.Intake do
 
              %Request{status: "planning", workspace: empty} = request when empty == %{} ->
                unless request.routing_version == 1 or
+                        Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer()) != "codex" or
                         Boss.Agents.ModelCatalog.validate(request.model_catalog) == :ok,
                       do: Repo.rollback(:catalog_invalid)
 
@@ -404,6 +405,8 @@ defmodule Boss.Projects.Intake do
 
   defp message(:cancelled), do: "Documentation planning stopped."
   defp message(:codex_unavailable), do: "Codex is unavailable on BOSS's PATH."
+  defp message(:claude_unavailable), do: "Claude Code is unavailable on BOSS's PATH."
+  defp message(:cursor_unavailable), do: "Cursor Agent is unavailable on BOSS's PATH."
 
   defp message(:catalog_unavailable),
     do:

@@ -59,8 +59,8 @@ defmodule Boss.Deliveries do
 
     if d.autonomy_version == 0 or
          (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) or
-         (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) or
-         (Map.get(d, :analytic) == "cursor" and kind == "resolve") do
+         (Map.get(d, :implementer) in ["claude", "cursor"] and kind in ~w(plan implement resolve)) or
+         (Map.get(d, :analytic) in ["claude", "cursor"] and kind == "resolve") do
       {:ok, nil}
     else
       saved_plan =
@@ -1246,8 +1246,9 @@ defmodule Boss.Deliveries do
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
          not (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) and
-         not (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) and
-         not (Map.get(d, :analytic) == "cursor" and kind == "resolve") do
+         not (Map.get(d, :implementer) in ["claude", "cursor"] and
+                kind in ~w(plan implement resolve)) and
+         not (Map.get(d, :analytic) in ["claude", "cursor"] and kind == "resolve") do
       route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
       unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
 

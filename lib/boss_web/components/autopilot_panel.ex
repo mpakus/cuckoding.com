@@ -267,7 +267,7 @@ defmodule BossWeb.AutopilotPanel do
             </legend>
             <p id="autopilot-selection-help" class="mt-1 text-xs text-muted">
               <%= if @plans_from_docs do %>
-                Codex will inspect the committed documentation and code. Autopilot saves the resulting tasks with their dependencies and begins the first ready task.
+                The Analytic role will inspect the committed documentation and code. Autopilot saves the resulting tasks with their dependencies and begins the first ready task.
               <% else %>
                 A new Start saves all eligible New, Failed, Blocked and Needs input tasks (up to 256).
                 Each receives a fresh workflow request; earlier batches and evidence stay unchanged.
