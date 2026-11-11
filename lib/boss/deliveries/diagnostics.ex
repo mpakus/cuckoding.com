@@ -30,7 +30,7 @@ defmodule Boss.Deliveries.Diagnostics do
 
   def message("provider_auth"),
     do:
-      "Codex reported an authentication failure. This workflow stopped before another model call. Restore the selected account's access before a fresh Start."
+      "The selected agent rejected authentication. This workflow stopped before another task. Sign in to that agent, then start again."
 
   def message("provider_rate_limit"),
     do:
@@ -79,10 +79,20 @@ defmodule Boss.Deliveries.Diagnostics do
         message("command_unavailable")
 
       _ ->
-        if is_integer(receipt["exit_code"]) and receipt["exit_code"] != 0 do
-          "#{stage} exited #{receipt["exit_code"]}. Next: inspect the saved stage and verify its CLI or check command before retrying."
-        else
-          "#{stage} stopped before verification. Next: inspect its saved receipt and retained worktree before retrying."
+        note = if is_binary(receipt["reason"]), do: String.trim(receipt["reason"]), else: ""
+
+        cond do
+          note != "" and is_integer(receipt["exit_code"]) and receipt["exit_code"] != 0 ->
+            "#{stage} exited #{receipt["exit_code"]}. #{note}"
+
+          note != "" ->
+            "#{stage}. #{note}"
+
+          is_integer(receipt["exit_code"]) and receipt["exit_code"] != 0 ->
+            "#{stage} exited #{receipt["exit_code"]}. Next: inspect the saved stage and verify its CLI or check command before retrying."
+
+          true ->
+            "#{stage} stopped before verification. Next: inspect its saved receipt and retained worktree before retrying."
         end
     end
   end
@@ -114,6 +124,10 @@ defmodule Boss.Deliveries.Diagnostics do
        %{kind: kind, status: status, receipt: receipt}}
       when status in ["failed", "interrupted"] ->
         step_failure(kind, receipt)
+
+      {reason, %{kind: kind, status: status, receipt: receipt}}
+      when is_binary(reason) and status in ["failed", "interrupted"] ->
+        if String.contains?(reason, "exited"), do: step_failure(kind, receipt), else: reason
 
       _ ->
         reason
@@ -148,6 +162,7 @@ defmodule Boss.Deliveries.Diagnostics do
   end
 
   defp stage_name("plan"), do: "Planning"
+  defp stage_name("resolve"), do: "Diagnosis"
   defp stage_name("implement"), do: "Implementation"
   defp stage_name("review"), do: "Review"
   defp stage_name(kind) when kind in ["check", "retry_check", "post_check"], do: "Checks"

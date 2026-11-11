@@ -879,12 +879,23 @@ defmodule BossWeb.ProjectLive do
 
   defp select_delivery_request(socket) do
     {task, _} = socket.assigns.selection
-    request = socket.assigns.delivery_requests[task] || new_delivery_request()
+
+    request =
+      socket.assigns.delivery_requests[task] ||
+        new_delivery_request("", pinned_reviewer(socket))
+
     put_delivery_request(socket, :start, task, request)
   end
 
-  defp new_delivery_request(text \\ "", reviewer \\ "codex"),
+  defp new_delivery_request(text, reviewer),
     do: %{id: Ecto.UUID.generate(), text: text, reviewer: reviewer, locked: false, action: nil}
+
+  defp pinned_reviewer(socket) do
+    case Boss.Deliveries.Autopilot.current(socket.assigns.project.id) do
+      {:ok, %{reviewer: reviewer}} when reviewer in ~w(codex claude cursor) -> reviewer
+      _ -> "codex"
+    end
+  end
 
   defp delivery_request(assigns, kind, target) when kind in [:start, :queue],
     do: assigns.delivery_requests[target]

@@ -65,6 +65,45 @@ defmodule Boss.CursorReviewTest do
     assert Cursor.report(output) == :error
   end
 
+  test "an authentication failure stays a short Cursor note" do
+    assert %{class: "auth", reason: reason} =
+             Cursor.notice(
+               "Error: Authentication required. Please run 'agent login' first, or set CURSOR_API_KEY=secret-value\n",
+               ""
+             )
+
+    assert reason =~ "Authentication required"
+    refute reason =~ "secret-value"
+  end
+
+  test "a Cursor planning failure keeps the authentication note" do
+    root = Path.join(System.tmp_dir!(), "boss-cursor-auth-#{System.unique_integer([:positive])}")
+    File.mkdir!(root)
+    script = Path.join(root, "agent")
+
+    File.write!(script, """
+    #!/bin/sh
+    echo "Error: Authentication required. Please run 'agent login' first." >&2
+    exit 1
+    """)
+
+    File.chmod!(script, 0o700)
+    previous = System.get_env("PATH")
+    System.put_env("PATH", root <> ":" <> previous)
+
+    on_exit(fn ->
+      System.put_env("PATH", previous)
+      File.rm_rf(root)
+    end)
+
+    receipt =
+      Worker.run_agent(:plan, root, "plan", fn _ -> {:ok, %{}} end, nil, implementer: "cursor")
+
+    assert receipt["summary"]["error_class"] == "auth"
+    assert receipt["reason"] =~ "Authentication required"
+    assert receipt["exit_code"] == 1
+  end
+
   test "a Cursor implementer plans without calling Codex" do
     root = Path.join(System.tmp_dir!(), "boss-cursor-plan-#{System.unique_integer([:positive])}")
     File.mkdir!(root)
@@ -108,7 +147,9 @@ defmodule Boss.CursorReviewTest do
           assert text == plan
           {:ok, %{"summary" => "Add a note"}}
         end,
-        nil, implementer: "cursor")
+        nil,
+        implementer: "cursor"
+      )
 
     assert receipt["status"] == "finished"
     assert receipt["report"]["summary"] == "Add a note"

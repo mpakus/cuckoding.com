@@ -33,6 +33,54 @@ defmodule Boss.Agents.Cursor do
 
   def report(_), do: :error
 
+  def notice(stderr, stdout \\ "") do
+    line = safe_line(stderr) || safe_line(stdout)
+
+    class =
+      cond do
+        line && String.contains?(String.downcase(line), "authentication required") -> "auth"
+        line && String.contains?(String.downcase(line), "rate limit") -> "rate_limit"
+        line && String.contains?(String.downcase(line), "quota") -> "rate_limit"
+        true -> nil
+      end
+
+    reason =
+      if line do
+        "Cursor Agent: #{line}"
+      else
+        "Cursor did not finish with a valid result and clean exit. No fallback was started."
+      end
+
+    %{reason: reason, class: class}
+  end
+
+  defp safe_line(text) when is_binary(text) do
+    if String.valid?(text) do
+      text
+      |> String.split(~r/\R/u, parts: 4)
+      |> Enum.map(&redact/1)
+      |> Enum.find(&(String.trim(&1) != ""))
+      |> case do
+        nil -> nil
+        line -> line |> String.replace(~r/[\p{Cc}]+/u, " ") |> String.trim() |> clip(240)
+      end
+    end
+  end
+
+  defp safe_line(_), do: nil
+
+  defp redact(line) do
+    Regex.replace(
+      ~r/(?i)(api[_-]?key|token|secret|bearer|authorization)(\s*[:=]\s*)\S+/,
+      line,
+      "\\1\\2[redacted]"
+    )
+  end
+
+  defp clip(line, max) do
+    if byte_size(line) <= max, do: line, else: binary_part(line, 0, max) <> "…"
+  end
+
   defp json_object(text) do
     trimmed = String.trim(text)
 

@@ -2,7 +2,7 @@ defmodule Boss.Deliveries.Autopilot do
   @moduledoc "Explicit frozen task selection, advanced through existing delivery evidence one task at a time."
   import Ecto.Query
   alias Boss.{Deliveries, Repo, Runs, Tasks}
-  alias Boss.Deliveries.{AutopilotBatch, AutopilotItem, Delivery, Queue, Request}
+  alias Boss.Deliveries.{AutopilotBatch, AutopilotItem, Delivery, Queue, Request, Step}
 
   @shared_failures ~w(catalog_unavailable catalog_invalid catalog_insufficient_models codex_unavailable models_exhausted provider_auth provider_rate_limit provider_schema provider_transport)
 
@@ -623,8 +623,16 @@ defmodule Boss.Deliveries.Autopilot do
   end
 
   defp view(batch) do
+    loaded = rows(batch.id)
+
+    notes =
+      loaded
+      |> Enum.map(fn {_, request, _, _} -> request.delivery_id end)
+      |> Enum.reject(&is_nil/1)
+      |> stage_notes()
+
     items =
-      for {item, request, delivery, title} <- rows(batch.id),
+      for {item, request, delivery, title} <- loaded,
           do: %{
             position: item.position,
             task_id: request.task_id,
@@ -633,10 +641,29 @@ defmodule Boss.Deliveries.Autopilot do
             request_status: request.status,
             delivery_id: request.delivery_id,
             delivery_status: if(delivery, do: delivery.status),
-            spec_revision_id: request.spec_revision_id
+            spec_revision_id: request.spec_revision_id,
+            stages: Map.get(notes, request.delivery_id, [])
           }
 
     batch |> Map.from_struct() |> Map.drop([:__meta__]) |> Map.put(:items, items)
+  end
+
+  defp stage_notes([]), do: %{}
+
+  defp stage_notes(ids) do
+    Step
+    |> where([s], s.delivery_id in ^ids)
+    |> order_by([s], asc: s.number)
+    |> select([s], %{
+      delivery_id: s.delivery_id,
+      kind: s.kind,
+      status: s.status,
+      exit_code: fragment("json_extract(?, '$.exit_code')", s.receipt),
+      note: fragment("substr(coalesce(json_extract(?, '$.reason'), ''), 1, 240)", s.receipt),
+      error_class: fragment("json_extract(?, '$.summary.error_class')", s.receipt)
+    })
+    |> Repo.all()
+    |> Enum.group_by(& &1.delivery_id, &Map.delete(&1, :delivery_id))
   end
 
   defp save(batch, status, reason, action \\ nil),

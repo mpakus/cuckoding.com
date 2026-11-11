@@ -119,6 +119,32 @@ defmodule BossWeb.AutopilotPanel do
           <p class="text-sm text-body">
             Saved reviewer: {agent_name(@batch.reviewer)}
           </p>
+          <div id="autopilot-flow" class="space-y-3">
+            <ol aria-label="Workflow stages" class="grid grid-cols-2 gap-2 sm:grid-cols-6">
+              <li
+                :for={stage <- flow_stages(@batch)}
+                data-state={stage.state}
+                class="autopilot-node"
+              >
+                <span class="autopilot-node-mark" aria-hidden="true"></span>
+                <span>{stage.label}</span>
+              </li>
+            </ol>
+            <p class="text-xs text-muted">{flow_summary(@batch)}</p>
+            <div aria-label="Tasks in this run" class="flex flex-wrap gap-1.5">
+              <.link
+                :for={item <- @batch.items}
+                id={"autopilot-pixel-#{item.task_id}"}
+                patch={~p"/projects/#{@project.id}/tasks/#{item.task_id}"}
+                data-state={pixel_state(item.delivery_status || item.request_status)}
+                title={pixel_title(item)}
+                aria-label={"#{item.position + 1}. #{item.title}. #{pixel_title(item)}"}
+                class="autopilot-pixel"
+              >
+                {item.position + 1}
+              </.link>
+            </div>
+          </div>
           <code class="block break-all text-xs text-muted">{JSON.encode!(@batch.check_config["argv"])}</code>
           <p
             :if={@batch.reason}
@@ -338,6 +364,102 @@ defmodule BossWeb.AutopilotPanel do
   defp attempt_reason(%{status: "cancelled"}), do: "Planning stopped."
   defp attempt_reason(%{status: "interrupted"}), do: "Process cleanup needs verification."
   defp attempt_reason(_), do: "The model attempt could not complete."
+
+  @flow [
+    {"plan", "Plan"},
+    {"resolve", "Diagnose"},
+    {"implement", "Write"},
+    {"check", "Check"},
+    {"review", "Review"},
+    {"publish", "Integrate"}
+  ]
+
+  defp flow_stages(batch) do
+    items = Map.get(batch, :items, [])
+
+    current =
+      Enum.find(
+        items,
+        &(&1.delivery_status in ~w(planning implementing testing reviewing integrating))
+      )
+
+    marker = if current, do: status_stage(current.delivery_status), else: failed_stage(items)
+
+    Enum.map(@flow, fn {id, label} ->
+      state =
+        cond do
+          marker == id and current -> "current"
+          marker == id -> "failed"
+          true -> "waiting"
+        end
+
+      %{id: id, label: label, state: state}
+    end)
+  end
+
+  defp status_stage("planning"), do: "plan"
+  defp status_stage("implementing"), do: "implement"
+  defp status_stage("testing"), do: "check"
+  defp status_stage("reviewing"), do: "review"
+  defp status_stage("integrating"), do: "publish"
+  defp status_stage(_), do: nil
+
+  defp failed_stage(items) do
+    case Enum.find(items, &(&1.delivery_status == "failed")) do
+      nil ->
+        nil
+
+      item ->
+        item
+        |> Map.get(:stages, [])
+        |> Enum.reverse()
+        |> Enum.find(&(&1.status == "failed"))
+        |> case do
+          %{kind: kind} -> kind
+          _ -> "plan"
+        end
+    end
+  end
+
+  defp flow_summary(batch) do
+    items = Map.get(batch, :items, [])
+    failed = Enum.count(items, &(&1.delivery_status == "failed"))
+
+    running =
+      Enum.count(
+        items,
+        &(&1.delivery_status in ~w(planning implementing testing reviewing integrating))
+      )
+
+    cond do
+      running > 0 -> "One task is moving. The filled square is the active task."
+      failed > 0 -> "#{failed} tasks stopped. Open a square to read the agent note."
+      true -> "Each square is one saved task. Open it for the stage notes."
+    end
+  end
+
+  defp pixel_state(status) when status in ~w(planning implementing testing reviewing integrating),
+    do: "current"
+
+  defp pixel_state(status) when status in ~w(failed needs_input blocked), do: "failed"
+  defp pixel_state(status) when status in ~w(done ready_to_merge), do: "done"
+  defp pixel_state(_), do: "waiting"
+
+  defp pixel_title(item) do
+    note =
+      item
+      |> Map.get(:stages, [])
+      |> Enum.reverse()
+      |> Enum.find_value(fn stage ->
+        text = Map.get(stage, :note)
+
+        if is_binary(text) and String.trim(text) != "", do: String.trim(text)
+      end)
+
+    [item.delivery_status || item.request_status, note]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(". ")
+  end
 
   defp agent_name(id) do
     Enum.find_value(Boss.Agents.Metadata.catalog(), id, fn agent ->

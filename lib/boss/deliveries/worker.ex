@@ -1922,13 +1922,15 @@ defmodule Boss.Deliveries.Worker do
     args = if kind == :implement, do: Cursor.implement_args(), else: Cursor.args()
     parser = :ets.new(:delivery_cursor_stage, [:set, :public])
     :ets.insert(parser, {:stdout, ""})
+    :ets.insert(parser, {:stderr, ""})
 
     try do
       callback = fn
         {:stdout, bytes} ->
-          [{:stdout, current}] = :ets.lookup(parser, :stdout)
-          :ets.insert(parser, {:stdout, current <> bytes})
-          :ok
+          append_cursor(parser, :stdout, bytes)
+
+        {:stderr, bytes} ->
+          append_cursor(parser, :stderr, bytes)
 
         _ ->
           :ok
@@ -1944,7 +1946,9 @@ defmodule Boss.Deliveries.Worker do
         )
 
       [{:stdout, stdout}] = :ets.lookup(parser, :stdout)
+      [{:stderr, stderr}] = :ets.lookup(parser, :stderr)
       receipt = process_receipt(result)
+      note = Cursor.notice(stderr, stdout)
 
       cond do
         receipt["status"] in ["interrupted", "cancelled"] ->
@@ -1974,15 +1978,24 @@ defmodule Boss.Deliveries.Worker do
           end
 
         true ->
-          Map.put(
-            receipt,
-            "reason",
-            "Cursor did not finish with a valid result and clean exit. No fallback was started."
-          )
+          receipt
+          |> Map.put("reason", note.reason)
+          |> Map.put("summary", %{"error_class" => note.class})
       end
     after
       :ets.delete(parser)
     end
+  end
+
+  defp append_cursor(parser, stream, bytes) do
+    [{^stream, current}] = :ets.lookup(parser, stream)
+
+    if byte_size(current) < 4_096 do
+      room = 4_096 - byte_size(current)
+      :ets.insert(parser, {stream, current <> binary_part(bytes, 0, min(byte_size(bytes), room))})
+    end
+
+    :ok
   end
 
   defp run_codex(kind, path, prompt, decode, profile, opts) do

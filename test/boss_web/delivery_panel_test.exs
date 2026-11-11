@@ -18,6 +18,30 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "The Implementer role plans and writes the code"
   end
 
+  test "a failed stage shows the agent note and its bounded diagnostics" do
+    delivery = Map.merge(delivery("failed"), %{implementer: "cursor", analytic: "cursor"})
+    [plan | rest] = delivery.steps
+
+    plan = %{
+      plan
+      | status: "failed",
+        receipt: %{
+          "reason" => "Cursor Agent: Authentication required. Please run 'agent login' first.",
+          "outcome" => "exited",
+          "exit_code" => 1,
+          "cleanup" => "group_empty",
+          "summary" => %{"error_class" => "auth"}
+        }
+    }
+
+    html = panel([%{delivery | steps: [plan | rest]}])
+    assert html =~ "Agent notes"
+    assert html =~ "Planning · Cursor Agent · failed"
+    assert html =~ "Authentication required"
+    assert html =~ "outcome exited"
+    assert html =~ "class auth"
+  end
+
   test "active workflow exposes Stop and its saved command and candidate" do
     delivery = delivery("testing")
     html = panel([delivery], start_available: false)

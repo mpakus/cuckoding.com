@@ -261,6 +261,26 @@ defmodule BossWeb.DeliveryPanel do
           <p :if={delivery.reason} class="whitespace-pre-wrap break-words text-warning">
             {delivery.reason}
           </p>
+          <ol
+            :if={agent_notes(delivery) != []}
+            id={"delivery-stages-#{delivery.id}"}
+            aria-label="Agent notes"
+            class="space-y-2"
+          >
+            <li
+              :for={stage <- agent_notes(delivery)}
+              class="rounded-sm border border-line bg-paper px-3 py-2"
+            >
+              <p class="font-medium">
+                {stage.label} · {stage.agent} · {stage.status}
+              </p>
+              <p :if={stage.note} class="mt-1 whitespace-pre-wrap break-words">{stage.note}</p>
+              <p class="mt-1 font-mono text-xs text-muted">
+                outcome {stage.outcome} · exit {stage.exit_code || "none"} · cleanup {stage.cleanup} · class {stage.error_class ||
+                  "none"}
+              </p>
+            </li>
+          </ol>
           <p :if={delivery.cleanup == "unknown"} class="text-warning">
             Cleanup or publication could not be confirmed. Workspaces are retained; automatic restart is blocked.
           </p>
@@ -535,6 +555,37 @@ defmodule BossWeb.DeliveryPanel do
   defp queue_status(_), do: "Queue status unavailable"
 
   defp active?(delivery), do: delivery.status in @active
+
+  defp agent_notes(delivery) do
+    delivery
+    |> Map.get(:steps, [])
+    |> Enum.filter(&(&1.status in ["failed", "interrupted"]))
+    |> Enum.map(fn step ->
+      receipt = Map.get(step, :receipt) || %{}
+
+      %{
+        label: stage(step.kind),
+        agent: stage_agent(delivery, step.kind),
+        status: step.status,
+        note: receipt["reason"],
+        outcome: receipt["outcome"] || "none",
+        exit_code: receipt["exit_code"],
+        cleanup: receipt["cleanup"] || "none",
+        error_class: get_in(receipt, ["summary", "error_class"])
+      }
+    end)
+  end
+
+  defp stage_agent(delivery, kind) when kind in ["review", "merge_review"],
+    do: reviewer(delivery.reviewer)
+
+  defp stage_agent(delivery, "resolve"),
+    do: reviewer(Map.get(delivery, :analytic) || "codex")
+
+  defp stage_agent(delivery, kind) when kind in ["plan", "implement"],
+    do: reviewer(Map.get(delivery, :implementer) || "codex")
+
+  defp stage_agent(_, _), do: "Workflow"
 
   defp reviewer(id) do
     Enum.find_value(Boss.Agents.Metadata.catalog(), "Unavailable", fn agent ->
