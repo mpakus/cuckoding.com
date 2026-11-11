@@ -32,7 +32,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery},
     {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery},
     {20_261_110_120_000, Boss.Repo.Migrations.RepairMergeConflicts},
-    {20_261_110_140_000, Boss.Repo.Migrations.RepairRejectedMergeReview}
+    {20_261_110_140_000, Boss.Repo.Migrations.RepairRejectedMergeReview},
+    {20_261_110_160_000, Boss.Repo.Migrations.RetargetMergeAfterDrift}
   ]
 
   setup do
@@ -366,23 +367,43 @@ defmodule Boss.MergeIntegrationWorkerTest do
     end
   end
 
-  test "a second target advance during fresh review retains stale evidence without publishing",
-       ctx do
+  @tag timeout: 180_000
+  test "a second target advance during fresh review is merged again and published", ctx do
     {manager, delivery, _target, user, command, pid} = waiting_review(ctx)
     target = git(ctx.source, ["rev-parse", "main"])
     tree = git(ctx.source, ["rev-parse", "#{target}^{tree}"])
     changed = git(ctx.source, ["commit-tree", tree, "-p", target, "-m", "advanced during review"])
     git(ctx.source, ["update-ref", "refs/heads/main", changed, target])
     File.write!(Path.join(ctx.root, "integration-review-release"), "continue")
-    saved = await_delivery(ctx, delivery.id)
-    assert saved.status == "blocked" and saved.cleanup == "group_empty", inspect(saved)
-    assert step(saved, "merge_review").status == "failed"
-    assert step(saved, "merge").input["target_commit"] == target
-    assert_unpublished(ctx, saved, changed, user)
+
+    eventually(
+      fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, delivery.id)) end,
+      8_000
+    )
+
+    saved = Deliveries.get(ctx.project.id, delivery.id)
+
+    assert saved.status == "done" and saved.cleanup == "group_empty",
+           inspect(
+             {saved.reason,
+              Enum.map(Deliveries.steps(saved.id), fn step ->
+                {step.kind, step.status, step.receipt["outcome"]}
+              end)},
+             limit: :infinity
+           )
+
+    reviews = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "merge_review"))
+    assert hd(reviews).status == "failed"
+    assert hd(reviews).receipt["outcome"] == "target_changed"
+    assert List.last(reviews).receipt["report"]["verdict"] == "approved"
+    published = git(ctx.source, ["rev-parse", "main"])
+    assert published == saved.integration_intent["candidate_commit"]
+    assert git(ctx.source, ["merge-base", "--is-ancestor", changed, published]) == ""
+    assert checkout(ctx) == user
     process_gone(pid)
     wait_idle(manager)
     assert {:ok, ^saved} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
-    assert length(calls(ctx, "calls")) == 4
+    assert length(calls(ctx, "calls")) == 5
   end
 
   test "Stop reaches fresh merge review while Manager is suspended and retains the unpublished candidate",

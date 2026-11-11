@@ -1073,6 +1073,23 @@ defmodule Boss.Deliveries do
 
   defp valid_next?(
          d,
+         %Step{kind: "merge_review", status: "failed", cycle: cycle, receipt: receipt} = failed,
+         "merge",
+         cycle,
+         i
+       ) do
+    original = approved!(d)
+    check = Repo.get(Step, original.input["check_step_id"])
+
+    d.status == "integrating" and d.integration_intent == %{} and
+      receipt["cleanup"] == "group_empty" and
+      receipt["outcome"] in ["target_changed", "target_drift"] and
+      i["target_commit"] != failed.input["target_commit"] and
+      merge_input?(d, original, check, i)
+  end
+
+  defp valid_next?(
+         d,
          %Step{kind: "merge", status: "finished", cycle: cycle} = merge,
          "merge_check",
          cycle,
@@ -1702,6 +1719,7 @@ defmodule Boss.Deliveries do
     cond do
       merge = conflict_merge(all) -> conflict_publication!(d, merge)
       review = rejected_merge_publication(d, all) -> review
+      review = drifted_merge_publication(d, all) -> review
       true -> approved_publication!(d)
     end
   end
@@ -1744,6 +1762,47 @@ defmodule Boss.Deliveries do
     else
       _ -> nil
     end
+  end
+
+  defp drifted_merge_publication(d, all) do
+    case Enum.filter(all, &(&1.kind == "merge_review")) do
+      [
+        %Step{status: "failed", receipt: receipt},
+        %Step{status: "finished"} = review
+      ] ->
+        if receipt["outcome"] in ["target_changed", "target_drift"] and
+             receipt["cleanup"] == "group_empty" and
+             get_in(review.receipt, ["report", "verdict"]) == "approved" do
+          drifted_review!(d, review)
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp drifted_review!(d, review) do
+    merge = Repo.get!(Step, review.input["merge_step_id"])
+    check = Repo.get!(Step, review.input["merge_check_step_id"])
+    plan = Repo.get!(Step, review.input["plan_step_id"])
+    report = decoded_review!(review.receipt["report"])
+    criteria = Enum.map(report["acceptance"], & &1["criterion"])
+
+    unless merge.status == "finished" and check.status == "finished" and
+             review.receipt["cleanup"] == "group_empty" and
+             check.receipt["cleanup"] == "group_empty" and
+             process_passed?(review.receipt) and process_passed?(check.receipt) and
+             review.cycle == d.cycle and check.cycle == d.cycle and merge.cycle == d.cycle and
+             review.input["candidate_commit"] == merge.receipt["candidate_commit"] and
+             check.input["candidate_commit"] == merge.receipt["candidate_commit"] and
+             review.input["target_commit"] == merge.input["target_commit"] and
+             check.receipt["output_complete"] == true and hash?(check.receipt["output_hash"]) and
+             MapSet.new(criteria) == MapSet.new(plan.receipt["report"]["acceptance"]),
+           do: Repo.rollback(:missing_evidence)
+
+    review
   end
 
   defp approved_publication!(d) do

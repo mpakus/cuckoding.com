@@ -267,6 +267,22 @@ defmodule Boss.Deliveries.IntegrationWorker do
     end
   end
 
+  defp halt(delivery, reason) when reason in [:target_changed, :target_drift] do
+    case finish_open_step(delivery.id, reason) do
+      :ok -> maybe_retarget(delivery, reason)
+      _ -> stop(delivery, reason)
+    end
+  end
+
+  defp halt(delivery, {:stage_failed, "merge_review", receipt}) when is_map(receipt) do
+    if receipt["outcome"] in ["target_changed", "target_drift"] and
+         receipt["cleanup"] == "group_empty" do
+      maybe_retarget(delivery, :target_changed)
+    else
+      stop(delivery, {:stage_failed, "merge_review", receipt})
+    end
+  end
+
   defp halt(delivery, reason) do
     if step = Process.delete(:integration_step) do
       unknown = reason in [:cleanup_unknown, :publication_unknown, :storage_error]
@@ -310,6 +326,48 @@ defmodule Boss.Deliveries.IntegrationWorker do
 
       {:error, reason} ->
         note(delivery, "blocked", reason)
+    end
+  end
+
+  defp maybe_retarget(delivery, reason) do
+    delivery = Repo.get!(Delivery, delivery.id)
+
+    if delivery.integration_intent == %{} and conflict_repairable?(delivery) and
+         Process.get(:retargeted) != true do
+      Process.put(:retargeted, true)
+      retarget(delivery)
+    else
+      stop(delivery, reason)
+    end
+  end
+
+  defp retarget(delivery) do
+    try do
+      {project, revision} = Deliveries.inputs(delivery)
+      steps = Deliveries.steps(delivery.id)
+      review = Enum.find(steps, &(&1.kind == "review" and &1.status == "finished"))
+      check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
+      plan = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
+      target = ok!(Workspace.plan(project, delivery.id)).base_commit
+
+      {candidate, sha, final_review} =
+        merge(delivery, project, revision.original_text, plan, review, check, target)
+
+      delivery = Repo.get!(Delivery, delivery.id)
+      intent = ok!(Integration.plan(project, delivery.id, candidate, sha, target))
+      ok!(Deliveries.set_integration_intent(delivery.id, intent))
+
+      step =
+        ok!(
+          Deliveries.begin_step(delivery.id, "publish", delivery.cycle, %{
+            "intent" => intent,
+            "review_step_id" => final_review.id
+          })
+        )
+
+      publish(delivery, step, intent)
+    catch
+      :throw, {:halt, reason} -> halt(delivery, reason)
     end
   end
 
