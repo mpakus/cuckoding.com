@@ -22,6 +22,7 @@ defmodule BossWeb.Autopilot do
        generation: 0,
        text: "",
        reviewer: "codex",
+       reviewer_edited: false,
        reviewers: Roles.reviewer_choices(),
        command: Ecto.UUID.generate(),
        pending: nil,
@@ -67,10 +68,13 @@ defmodule BossWeb.Autopilot do
     do: {:noreply, assign(socket, open: !socket.assigns.open)}
 
   def handle_event("edit", params, %{assigns: %{pending: nil}} = socket) do
+    next_reviewer = value(params, "reviewer", socket.assigns.reviewer)
+
     {:noreply,
      assign(socket,
        text: value(params, "command", socket.assigns.text),
-       reviewer: value(params, "reviewer", socket.assigns.reviewer),
+       reviewer: next_reviewer,
+       reviewer_edited: socket.assigns.reviewer_edited or Map.has_key?(params, "reviewer"),
        error: nil
      )}
   end
@@ -113,7 +117,7 @@ defmodule BossWeb.Autopilot do
 
         {:noreply,
          socket
-         |> assign(text: request.text, reviewer: request.reviewer)
+         |> assign(text: request.text, reviewer: request.reviewer, reviewer_edited: true)
          |> act(request)}
 
       true ->
@@ -205,9 +209,15 @@ defmodule BossWeb.Autopilot do
     socket =
       case result do
         {:ok, {batch, intake, selection, conversion, attempts, reviewers}} ->
+          saved_reviewer =
+            case batch do
+              {:ok, %{reviewer: r}} when is_binary(r) -> r
+              _ -> nil
+            end
+
           socket
           |> assign(intake_attempts: attempts)
-          |> keep_reviewer(reviewers)
+          |> keep_reviewer(reviewers, saved_reviewer)
           |> confirm_conversion(conversion)
           |> apply_selection(batch, intake, selection)
 
@@ -380,17 +390,29 @@ defmodule BossWeb.Autopilot do
     end)
   end
 
-  defp keep_reviewer(socket, reviewers) do
+  defp keep_reviewer(socket, reviewers, saved_reviewer) do
     ids = Enum.map(reviewers, & &1.id)
     current = socket.assigns.reviewer
 
     chosen =
       cond do
-        current in ids -> current
-        "codex" in ids -> "codex"
-        "claude" in ids -> "claude"
-        ids != [] -> hd(ids)
-        true -> "codex"
+        !socket.assigns.reviewer_edited and is_binary(saved_reviewer) and saved_reviewer in ids ->
+          saved_reviewer
+
+        current in ids ->
+          current
+
+        "codex" in ids ->
+          "codex"
+
+        "claude" in ids ->
+          "claude"
+
+        ids != [] ->
+          hd(ids)
+
+        true ->
+          "codex"
       end
 
     assign(socket, reviewers: reviewers, reviewer: chosen)

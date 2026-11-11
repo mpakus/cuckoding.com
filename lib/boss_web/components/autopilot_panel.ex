@@ -115,11 +115,61 @@ defmodule BossWeb.AutopilotPanel do
         >
           Planning found no outstanding tasks.
         </p>
-        <div :if={@batch} id="autopilot-batch" class="min-w-0 space-y-3">
-          <p class="text-sm text-body">
-            Saved reviewer: {agent_name(@batch.reviewer)}
-          </p>
-          <div id="autopilot-flow" class="space-y-3">
+        <div :if={@batch} id="autopilot-batch" class="min-w-0 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-line bg-paper px-3.5 py-2.5 text-xs">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span class="font-medium text-ink">
+                Saved reviewer: {agent_name(@batch.reviewer)}
+              </span>
+              <span class="text-muted">
+                Check
+                <code class="font-mono text-ink">{JSON.encode!(@batch.check_config["argv"])}</code>
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 font-mono text-[11px] text-muted">
+              <span>active {batch_counts(@batch).active}</span>
+              <span>done {batch_counts(@batch).done}</span>
+              <span>failed {batch_counts(@batch).failed}</span>
+              <span>queued {batch_counts(@batch).waiting}</span>
+            </div>
+          </div>
+          <div
+            id="autopilot-flow"
+            phx-hook="AutopilotFlowCanvas"
+            data-flow={flow_payload(@batch, @project.id)}
+            class="autopilot-dashboard space-y-3 rounded-sm border border-line bg-surface p-3.5"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="app-eyebrow">Pipeline &amp; pixel telemetry</p>
+              <div class="flex flex-wrap items-center gap-3 text-[11px] text-muted">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-ink bg-forest"></span>Active
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-forest bg-sage"></span>Done
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-warning-line bg-peach"></span>Attention
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-line bg-paper"></span>Queued
+                </span>
+              </div>
+            </div>
+            <div
+              id="autopilot-flow-canvas"
+              data-flow-canvas
+              phx-update="ignore"
+              class="autopilot-canvas-host"
+            >
+            </div>
+            <p
+              id="autopilot-flow-readout"
+              data-flow-readout
+              class="min-h-4 truncate font-mono text-xs text-body"
+            >
+              {flow_summary(@batch)}
+            </p>
             <ol aria-label="Workflow stages" class="grid grid-cols-2 gap-2 sm:grid-cols-6">
               <li
                 :for={stage <- flow_stages(@batch)}
@@ -130,7 +180,6 @@ defmodule BossWeb.AutopilotPanel do
                 <span>{stage.label}</span>
               </li>
             </ol>
-            <p class="text-xs text-muted">{flow_summary(@batch)}</p>
             <div aria-label="Tasks in this run" class="flex flex-wrap gap-1.5">
               <.link
                 :for={item <- @batch.items}
@@ -145,7 +194,6 @@ defmodule BossWeb.AutopilotPanel do
               </.link>
             </div>
           </div>
-          <code class="block break-all text-xs text-muted">{JSON.encode!(@batch.check_config["argv"])}</code>
           <p
             :if={@batch.reason}
             id="autopilot-reason"
@@ -385,11 +433,18 @@ defmodule BossWeb.AutopilotPanel do
 
     marker = if current, do: status_stage(current.delivery_status), else: failed_stage(items)
 
+    index_map = Map.new(Enum.with_index(@flow), fn {{id, _}, idx} -> {id, idx} end)
+    active_index = Map.get(index_map, marker)
+
     Enum.map(@flow, fn {id, label} ->
+      idx = Map.fetch!(index_map, id)
+
       state =
         cond do
           marker == id and current -> "current"
           marker == id -> "failed"
+          current != nil and is_integer(active_index) and idx < active_index -> "done"
+          batch.status == "completed" -> "done"
           true -> "waiting"
         end
 
@@ -445,18 +500,80 @@ defmodule BossWeb.AutopilotPanel do
   defp pixel_state(status) when status in ~w(done ready_to_merge), do: "done"
   defp pixel_state(_), do: "waiting"
 
+  defp batch_counts(batch) do
+    items = Map.get(batch, :items, [])
+
+    Enum.reduce(items, %{active: 0, done: 0, failed: 0, waiting: 0}, fn item, acc ->
+      case pixel_state(item.delivery_status || item.request_status) do
+        "current" -> %{acc | active: acc.active + 1}
+        "done" -> %{acc | done: acc.done + 1}
+        "failed" -> %{acc | failed: acc.failed + 1}
+        _ -> %{acc | waiting: acc.waiting + 1}
+      end
+    end)
+  end
+
+  defp flow_payload(batch, project_id) do
+    stages = flow_stages(batch)
+
+    items =
+      for item <- Map.get(batch, :items, []) do
+        status = item.delivery_status || item.request_status
+
+        %{
+          task_id: item.task_id,
+          position: item.position,
+          title: item.title,
+          state: pixel_state(status),
+          stage: item_stage(item),
+          note: item_note(item),
+          href: "/projects/#{project_id}/tasks/#{item.task_id}"
+        }
+      end
+
+    JSON.encode!(%{
+      status: batch.status,
+      reviewer: batch.reviewer,
+      stages: stages,
+      items: items
+    })
+  end
+
+  defp item_stage(item) do
+    status = item.delivery_status || item.request_status
+
+    cond do
+      status in ~w(planning implementing testing reviewing integrating) ->
+        status_stage(status) || "plan"
+
+      status in ~w(done ready_to_merge) ->
+        "publish"
+
+      true ->
+        item
+        |> Map.get(:stages, [])
+        |> Enum.reverse()
+        |> Enum.find(&(&1.status in ["failed", "interrupted"]))
+        |> case do
+          %{kind: kind} when kind in ~w(plan resolve implement check review publish) -> kind
+          %{kind: kind} when kind in ~w(merge merge_check merge_review post_check) -> "publish"
+          _ -> "plan"
+        end
+    end
+  end
+
+  defp item_note(item) do
+    item
+    |> Map.get(:stages, [])
+    |> Enum.reverse()
+    |> Enum.find_value(fn stage ->
+      text = Map.get(stage, :note)
+      if is_binary(text) and String.trim(text) != "", do: String.trim(text)
+    end)
+  end
+
   defp pixel_title(item) do
-    note =
-      item
-      |> Map.get(:stages, [])
-      |> Enum.reverse()
-      |> Enum.find_value(fn stage ->
-        text = Map.get(stage, :note)
-
-        if is_binary(text) and String.trim(text) != "", do: String.trim(text)
-      end)
-
-    [item.delivery_status || item.request_status, note]
+    [item.delivery_status || item.request_status, item_note(item)]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(". ")
   end

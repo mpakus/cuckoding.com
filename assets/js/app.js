@@ -2,6 +2,7 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {installMotion} from "./motion.mjs"
+import {AutopilotFlowCanvas} from "./autopilot_flow.mjs"
 
 installMotion(document, window)
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
@@ -32,6 +33,6 @@ const TaskDrawer = {
 }
 const liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken},
-  hooks: {TaskDrawer}
+  hooks: {TaskDrawer, AutopilotFlowCanvas}
 })
 liveSocket.connect()

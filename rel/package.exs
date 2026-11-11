@@ -202,6 +202,7 @@ defmodule Boss.ReleasePackage do
     elixir = Application.app_dir(:elixir, "../../LICENSE") |> Path.expand()
     File.cp!(elixir, Path.join(target, "Elixir-LICENSE"))
     File.cp!("assets/node_modules/tailwindcss/LICENSE", Path.join(target, "Tailwind-LICENSE"))
+    File.cp!("assets/node_modules/three/LICENSE", Path.join(target, "Three-LICENSE"))
     File.cp!("LICENSE", Path.join(target, "BOSS-LICENSE"))
 
     for {key, name} <- [{"otp", "Erlang-LICENSE.txt"}, {"openssl", "OpenSSL-LICENSE.txt"}] do

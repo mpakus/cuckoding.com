@@ -174,6 +174,18 @@
   .app-field[aria-invalid="true"] { border-color: var(--color-danger); }
   .app-field:disabled { opacity: .6; }
 
+  .autopilot-canvas-host {
+    display: none;
+    width: 100%;
+    min-height: 152px;
+    border: 1px solid var(--color-line);
+    border-radius: 2px;
+    background: var(--color-paper);
+    overflow: hidden;
+  }
+  .autopilot-dashboard[data-webgl="ready"] .autopilot-canvas-host {
+    display: block;
+  }
   .autopilot-node {
     display: flex;
     min-height: 44px;
@@ -181,15 +193,18 @@
     gap: 8px;
     padding: 8px 10px;
     border: 1px solid var(--color-line);
-    border-radius: 3px;
+    border-radius: 2px;
     background: var(--color-paper);
     color: var(--color-muted);
     font-size: 12px;
     font-weight: 600;
+    letter-spacing: .01em;
   }
-  .autopilot-node-mark { width: 8px; height: 8px; border-radius: 999px; background: var(--color-line); }
+  .autopilot-node-mark { width: 8px; height: 8px; border-radius: 1px; background: var(--color-line); }
   .autopilot-node[data-state="current"] { color: var(--color-ink); border-color: var(--color-ink); background: var(--color-sage); }
-  .autopilot-node[data-state="current"] .autopilot-node-mark { background: var(--color-ink); }
+  .autopilot-node[data-state="current"] .autopilot-node-mark { background: var(--color-forest); }
+  .autopilot-node[data-state="done"] { color: var(--color-forest); border-color: var(--color-forest); background: var(--color-surface); }
+  .autopilot-node[data-state="done"] .autopilot-node-mark { background: var(--color-forest); }
   .autopilot-node[data-state="failed"] { color: var(--color-warning); border-color: var(--color-warning-line); background: var(--color-warning-soft); }
   .autopilot-node[data-state="failed"] .autopilot-node-mark { background: var(--color-warning); }
   .autopilot-pixel {
@@ -199,14 +214,15 @@
     align-items: center;
     justify-content: center;
     border: 1px solid var(--color-line);
-    border-radius: 3px;
+    border-radius: 2px;
     background: var(--color-paper);
     color: var(--color-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
     font-weight: 650;
     text-decoration: none;
   }
-  .autopilot-pixel[data-state="current"] { background: var(--color-ink); border-color: var(--color-ink); color: var(--color-paper); }
+  .autopilot-pixel[data-state="current"] { background: var(--color-forest); border-color: var(--color-ink); color: var(--color-paper); }
   .autopilot-pixel[data-state="failed"] { background: var(--color-peach); border-color: var(--color-warning-line); }
   .autopilot-pixel[data-state="done"] { background: var(--color-sage); border-color: var(--color-forest); }
   .autopilot-pixel:focus-visible { outline: 2px solid var(--color-forest); outline-offset: 2px; }

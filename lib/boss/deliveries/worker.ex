@@ -1923,6 +1923,8 @@ defmodule Boss.Deliveries.Worker do
     parser = :ets.new(:delivery_cursor_stage, [:set, :public])
     :ets.insert(parser, {:stdout, ""})
     :ets.insert(parser, {:stderr, ""})
+    :ets.insert(parser, {:stdout_bytes, 0})
+    :ets.insert(parser, {:stderr_bytes, 0})
 
     try do
       callback = fn
@@ -1947,6 +1949,8 @@ defmodule Boss.Deliveries.Worker do
 
       [{:stdout, stdout}] = :ets.lookup(parser, :stdout)
       [{:stderr, stderr}] = :ets.lookup(parser, :stderr)
+      [{:stdout_bytes, out_bytes}] = :ets.lookup(parser, :stdout_bytes)
+      [{:stderr_bytes, err_bytes}] = :ets.lookup(parser, :stderr_bytes)
       receipt = process_receipt(result)
       note = Cursor.notice(stderr, stdout)
 
@@ -1980,7 +1984,11 @@ defmodule Boss.Deliveries.Worker do
         true ->
           receipt
           |> Map.put("reason", note.reason)
-          |> Map.put("summary", %{"error_class" => note.class})
+          |> Map.put("summary", %{
+            "error_class" => note.class,
+            "stdout_bytes" => out_bytes,
+            "stderr_bytes" => err_bytes
+          })
       end
     after
       :ets.delete(parser)
@@ -1988,6 +1996,8 @@ defmodule Boss.Deliveries.Worker do
   end
 
   defp append_cursor(parser, stream, bytes) do
+    counter = if stream == :stdout, do: :stdout_bytes, else: :stderr_bytes
+    :ets.update_counter(parser, counter, byte_size(bytes))
     [{^stream, current}] = :ets.lookup(parser, stream)
 
     if byte_size(current) < 4_096 do

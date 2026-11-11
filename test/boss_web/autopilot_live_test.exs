@@ -181,6 +181,13 @@ defmodule BossWeb.AutopilotLiveTest do
     settle(view)
     assert {:ok, batch} = Engine.current(c.project.id)
     assert batch.reviewer == "cursor"
+    assert has_element?(view, "#autopilot-flow[phx-hook='AutopilotFlowCanvas']")
+    assert has_element?(view, "#autopilot-flow-canvas[phx-update='ignore']")
+    assert has_element?(view, "#autopilot-pixel-#{c.first.task.id}")
+
+    {:ok, reopened, _} = live(c.conn, "/projects/#{c.project.id}/tasks/#{c.second.task.id}")
+    settle(reopened)
+    assert has_element?(reopened, "#delivery-reviewer option[value='cursor'][selected]")
   end
 
   test "invalid check commands produce a recoverable error without authorizing the Backlog", c do

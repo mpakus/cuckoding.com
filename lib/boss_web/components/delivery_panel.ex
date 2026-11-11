@@ -261,26 +261,70 @@ defmodule BossWeb.DeliveryPanel do
           <p :if={delivery.reason} class="whitespace-pre-wrap break-words text-warning">
             {delivery.reason}
           </p>
-          <ol
+          <section
             :if={agent_notes(delivery) != []}
             id={"delivery-stages-#{delivery.id}"}
             aria-label="Agent notes"
-            class="space-y-2"
+            class="space-y-2 rounded-sm border border-warning-line bg-warning-soft/60 p-3"
           >
-            <li
-              :for={stage <- agent_notes(delivery)}
-              class="rounded-sm border border-line bg-paper px-3 py-2"
-            >
-              <p class="font-medium">
-                {stage.label} · {stage.agent} · {stage.status}
-              </p>
-              <p :if={stage.note} class="mt-1 whitespace-pre-wrap break-words">{stage.note}</p>
-              <p class="mt-1 font-mono text-xs text-muted">
-                outcome {stage.outcome} · exit {stage.exit_code || "none"} · cleanup {stage.cleanup} · class {stage.error_class ||
-                  "none"}
-              </p>
-            </li>
-          </ol>
+            <h4 class="text-xs font-semibold uppercase tracking-wider text-warning">
+              Agent comments &amp; stage diagnostics
+            </h4>
+            <ol class="space-y-2">
+              <li
+                :for={stage <- agent_notes(delivery)}
+                class="rounded-sm border border-line bg-surface px-3 py-2.5"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="font-medium text-ink">
+                    {stage.number}. {stage.label} · {stage.agent} · {stage.status}
+                  </p>
+                  <span
+                    :if={stage.timestamp}
+                    class="font-mono text-[11px] text-muted"
+                  >
+                    {stage.timestamp}
+                  </span>
+                </div>
+                <p :if={stage.note} class="mt-1.5 whitespace-pre-wrap break-words text-body">
+                  {stage.note}
+                </p>
+                <dl class="mt-2 grid gap-x-4 gap-y-1 border-t border-line pt-2 font-mono text-xs text-muted sm:grid-cols-2">
+                  <div>
+                    <dt class="inline">outcome</dt>
+                    <dd class="inline text-ink">{stage.outcome}</dd>
+                    ·
+                    <dt class="inline">exit</dt>
+                    <dd class="inline text-ink">{stage.exit_code || "none"}</dd>
+                    <span :if={stage.exit_kind}>({stage.exit_kind})</span>
+                  </div>
+                  <div>
+                    <dt class="inline">cleanup</dt>
+                    <dd class="inline text-ink">{stage.cleanup}</dd>
+                    ·
+                    <dt class="inline">class</dt>
+                    <dd class="inline text-ink">{stage.error_class || "none"}</dd>
+                  </div>
+                  <div :if={stage.eof}>
+                    <dt class="inline">streams</dt>
+                    <dd class="inline text-ink">{stage.eof}</dd>
+                  </div>
+                  <div :if={stage.bytes}>
+                    <dt class="inline">io</dt>
+                    <dd class="inline text-ink">{stage.bytes}</dd>
+                  </div>
+                  <div :if={stage.model}>
+                    <dt class="inline">model</dt>
+                    <dd class="inline text-ink">{stage.model}</dd>
+                  </div>
+                  <div :if={stage.workspace} class="sm:col-span-2 break-all">
+                    <dt class="inline">worktree</dt>
+                    <dd class="inline text-ink">{stage.workspace}</dd>
+                  </div>
+                </dl>
+              </li>
+            </ol>
+          </section>
           <p :if={delivery.cleanup == "unknown"} class="text-warning">
             Cleanup or publication could not be confirmed. Workspaces are retained; automatic restart is blocked.
           </p>
@@ -562,19 +606,62 @@ defmodule BossWeb.DeliveryPanel do
     |> Enum.filter(&(&1.status in ["failed", "interrupted"]))
     |> Enum.map(fn step ->
       receipt = Map.get(step, :receipt) || %{}
+      input = Map.get(step, :input) || %{}
+      summary = if is_map(receipt["summary"]), do: receipt["summary"], else: %{}
+      eof = receipt["eof"]
+      ws = receipt["workspace"] || input["workspace"]
 
       %{
+        number: Map.get(step, :number) || 1,
         label: stage(step.kind),
         agent: stage_agent(delivery, step.kind),
         status: step.status,
-        note: receipt["reason"],
+        note: receipt["reason"] || resolution_note(receipt),
         outcome: receipt["outcome"] || "none",
         exit_code: receipt["exit_code"],
+        exit_kind: receipt["exit_kind"],
         cleanup: receipt["cleanup"] || "none",
-        error_class: get_in(receipt, ["summary", "error_class"])
+        error_class: summary["error_class"],
+        eof:
+          if(is_map(eof),
+            do: "stdout=#{eof["stdout"] == true} stderr=#{eof["stderr"] == true}"
+          ),
+        bytes: format_bytes(summary),
+        model: format_model(input["model_profile"]),
+        workspace: if(is_map(ws) and is_binary(ws["path"]), do: ws["path"]),
+        timestamp: format_step_time(Map.get(step, :updated_at) || Map.get(step, :inserted_at))
       }
     end)
   end
+
+  defp resolution_note(%{"report" => %{"summary" => s}}) when is_binary(s) and s != "", do: s
+  defp resolution_note(_), do: nil
+
+  defp format_bytes(summary) do
+    out = summary["stdout_bytes"]
+    err = summary["stderr_bytes"]
+    dur = summary["duration_ms"]
+
+    parts =
+      [
+        if(is_integer(out), do: "out #{out}B"),
+        if(is_integer(err), do: "err #{err}B"),
+        if(is_integer(dur), do: "#{dur}ms")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if parts != [], do: Enum.join(parts, " · ")
+  end
+
+  defp format_model(%{"model" => model, "reasoning_effort" => effort})
+       when is_binary(model) and is_binary(effort),
+       do: "#{model} (#{effort})"
+
+  defp format_model(%{"model" => model}) when is_binary(model), do: model
+  defp format_model(_), do: nil
+
+  defp format_step_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
+  defp format_step_time(_), do: nil
 
   defp stage_agent(delivery, kind) when kind in ["review", "merge_review"],
     do: reviewer(delivery.reviewer)

@@ -35,11 +35,12 @@ defmodule BossWeb.DeliveryPanelTest do
     }
 
     html = panel([%{delivery | steps: [plan | rest]}])
-    assert html =~ "Agent notes"
-    assert html =~ "Planning · Cursor Agent · failed"
+    assert html =~ "Agent comments &amp; stage diagnostics"
+    assert html =~ "1. Planning · Cursor Agent · failed"
     assert html =~ "Authentication required"
-    assert html =~ "outcome exited"
-    assert html =~ "class auth"
+    assert html =~ "<dt class=\"inline\">outcome</dt>"
+    assert html =~ "exited"
+    assert html =~ "auth"
   end
 
   test "active workflow exposes Stop and its saved command and candidate" do

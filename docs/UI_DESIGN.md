@@ -18,8 +18,14 @@ source and evidence must wrap or scroll within their own bounded container.
 `assets/js/motion.mjs` owns a document-level preference. Motion starts disabled
 until JavaScript initializes, respects live `prefers-reduced-motion`, and exposes
 a persistent Pause motion checkbox. Keyboard input disables pointer transitions.
-Buttons use 150 ms feedback; the native task drawer enters in 250 ms. No idle
-loop, animated task progress, library dependency or delayed keyboard focus.
+Buttons use 150 ms feedback; the native task drawer enters in 250 ms; delayed
+keyboard focus is avoided.
+
+`assets/js/autopilot_flow.mjs` renders the Autopilot pipeline and task pixel
+dashboard with Three.js (`AutopilotFlowCanvas`) on top of accessible HTML stage
+badges and 44 px task links. Flow pulses run only while a batch is active and
+document motion is enabled; when motion is paused or reduced, or when WebGL is
+unavailable, the dashboard stays static and fully keyboard-operable.
 
 The native drawer hook, URL selection, form events and workflow evidence gates
 are unchanged. The redesign does not authorize a task, a provider call or an
