@@ -1,7 +1,18 @@
 defmodule Boss.Deliveries.Worker do
   @moduledoc false
   alias Boss.{Deliveries, Repo}
-  alias Boss.Agents.{Claude, Codex, ModelCatalog, NetworkPolicy, ReportFile, Workspace}
+
+  alias Boss.Agents.{
+    Claude,
+    Codex,
+    Cursor,
+    Metadata,
+    ModelCatalog,
+    NetworkPolicy,
+    ReportFile,
+    Workspace
+  }
+
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
   alias Boss.Deliveries.{Diagnostics, ExecutionRetry, ModelPolicy, Protocol, Retry}
@@ -38,6 +49,9 @@ defmodule Boss.Deliveries.Worker do
 
     if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
       do: throw({:halt, :claude_unavailable})
+
+    if delivery.reviewer == "cursor" and is_nil(Metadata.find_executable(:cursor)),
+      do: throw({:halt, :cursor_unavailable})
 
     ok!(Retry.verify(source))
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
@@ -84,6 +98,9 @@ defmodule Boss.Deliveries.Worker do
 
     if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
       do: throw({:halt, :claude_unavailable})
+
+    if delivery.reviewer == "cursor" and is_nil(Metadata.find_executable(:cursor)),
+      do: throw({:halt, :cursor_unavailable})
 
     ok!(ExecutionRetry.verify(source))
 
@@ -1729,6 +1746,17 @@ defmodule Boss.Deliveries.Worker do
   def run_reviewer("codex", path, prompt, decode, profile),
     do: run_agent(:review, path, prompt, decode, profile)
 
+  def run_reviewer("cursor", _path, prompt, decode, _profile) do
+    continue!()
+    executable = Metadata.find_executable(:cursor) || throw({:halt, :cursor_unavailable})
+    scratch = Path.join(System.tmp_dir!(), "boss-cursor-review-#{Ecto.UUID.generate()}")
+    ok!(File.mkdir(scratch))
+    ok!(File.chmod(scratch, 0o700))
+    receipt = cursor_process(executable, scratch, prompt, decode)
+    if receipt["cleanup"] != "unknown", do: File.rm_rf(scratch)
+    receipt
+  end
+
   def run_reviewer("claude", _path, prompt, decode, _profile) do
     continue!()
     executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
@@ -1741,6 +1769,70 @@ defmodule Boss.Deliveries.Worker do
     # Unknown ownership or a crashed worker leaves scratch intact for inspection.
     if receipt["cleanup"] != "unknown", do: File.rm_rf(scratch)
     receipt
+  end
+
+  defp cursor_process(executable, path, prompt, decode) do
+    parser = :ets.new(:delivery_cursor, [:set, :public])
+    :ets.insert(parser, {:stdout, ""})
+
+    try do
+      callback = fn
+        {:stdout, bytes} ->
+          [{:stdout, current}] = :ets.lookup(parser, :stdout)
+          :ets.insert(parser, {:stdout, current <> bytes})
+          :ok
+
+        _ ->
+          :ok
+      end
+
+      result =
+        Runner.run(executable, Cursor.args(),
+          cd: path,
+          input: prompt,
+          timeout_ms: 1_200_000,
+          output_limit: 8_388_608,
+          on_event: callback
+        )
+
+      [{:stdout, stdout}] = :ets.lookup(parser, :stdout)
+      receipt = process_receipt(result)
+
+      cond do
+        receipt["status"] in ["interrupted", "cancelled"] ->
+          receipt
+
+        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
+            result.eof == %{stdout: true, stderr: true} ->
+          case Cursor.report(stdout) do
+            {:ok, text, summary} ->
+              case decode.(text) do
+                {:ok, report} ->
+                  receipt
+                  |> Map.merge(%{
+                    "status" => "finished",
+                    "report" => report,
+                    "summary" => summary
+                  })
+
+                _ ->
+                  Map.merge(receipt, failure(:invalid_report))
+              end
+
+            _ ->
+              Map.merge(receipt, failure(:invalid_report))
+          end
+
+        true ->
+          Map.put(
+            receipt,
+            "reason",
+            "Cursor review did not finish with a valid result and clean exit. No fallback was started."
+          )
+      end
+    after
+      :ets.delete(parser)
+    end
   end
 
   defp claude_process(executable, path, prompt, decode) do
@@ -2096,6 +2188,10 @@ defmodule Boss.Deliveries.Worker do
         :claude_unavailable ->
           {"failed", "not_started",
            "Claude is unavailable in BOSS's PATH. No fallback was started."}
+
+        :cursor_unavailable ->
+          {"failed", "not_started",
+           "Cursor Agent is unavailable in BOSS's PATH. No fallback was started."}
 
         :codex_unavailable ->
           {"failed", "not_started", "Codex is unavailable in BOSS's PATH."}

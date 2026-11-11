@@ -99,17 +99,8 @@ defmodule BossWeb.Autopilot do
     offered = Enum.map(socket.assigns.reviewers, & &1.id)
 
     cond do
-      reviewer not in offered ->
+      reviewer not in offered or not Boss.Agents.Metadata.review_runner?(reviewer) ->
         {:noreply, assign(socket, error: "Choose an agent from the Independent reviewer list.")}
-
-      reviewer not in ~w(codex claude) ->
-        name = reviewer_name(socket.assigns.reviewers, reviewer)
-
-        {:noreply,
-         assign(socket,
-           reviewer: reviewer,
-           error: "#{name} is assigned as Reviewer. Only Codex and Claude can run that review."
-         )}
 
       ready?(socket.assigns) and (planning? or length(tasks) in 1..256) ->
         request = %{
@@ -321,7 +312,8 @@ defmodule BossWeb.Autopilot do
     with %{kind: :start, id: id, tasks: tasks, text: text, reviewer: reviewer} <-
            socket.assigns.pending,
          %{id: project} when is_integer(project) and project > 0 <- socket.assigns.project,
-         true <- is_binary(id) and is_list(tasks) and reviewer in ~w(codex claude),
+         true <-
+           is_binary(id) and is_list(tasks) and Boss.Agents.Metadata.review_runner?(reviewer),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text),
          %{
            command_id: ^id,
@@ -402,10 +394,6 @@ defmodule BossWeb.Autopilot do
       end
 
     assign(socket, reviewers: reviewers, reviewer: chosen)
-  end
-
-  defp reviewer_name(reviewers, id) do
-    Enum.find_value(reviewers, id, &(&1.id == id && &1.name))
   end
 
   defp value(params, key, default) do

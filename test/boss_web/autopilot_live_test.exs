@@ -177,9 +177,10 @@ defmodule BossWeb.AutopilotLiveTest do
     |> form("#autopilot-form", %{"command" => "mix test", "reviewer" => "cursor"})
     |> render_submit()
 
+    assert_receive {:started, _, _}, 1_500
     settle(view)
-    assert has_element?(view, "#autopilot-error", "Cursor Agent")
-    assert {:ok, nil} = Engine.current(c.project.id)
+    assert {:ok, batch} = Engine.current(c.project.id)
+    assert batch.reviewer == "cursor"
   end
 
   test "invalid check commands produce a recoverable error without authorizing the Backlog", c do

@@ -128,7 +128,8 @@ defmodule Boss.Deliveries.Autopilot do
 
   @doc false
   def admit(project, command, tasks, text, reviewer, owned \\ false, intake \\ nil) do
-    with true <- is_integer(project) and project > 0 and reviewer in ["codex", "claude"],
+    with true <-
+           is_integer(project) and project > 0 and Boss.Agents.Metadata.review_runner?(reviewer),
          {:ok, _} <- Ecto.UUID.cast(command),
          true <-
            is_list(tasks) and length(tasks) in 1..256 and

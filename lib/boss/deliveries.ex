@@ -57,7 +57,8 @@ defmodule Boss.Deliveries do
     d = Repo.get!(Delivery, delivery.id)
     kind = to_string(kind)
 
-    if d.autonomy_version == 0 or (d.reviewer == "claude" and kind in ~w(review merge_review)) do
+    if d.autonomy_version == 0 or
+         (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) do
       {:ok, nil}
     else
       saved_plan =
@@ -188,7 +189,7 @@ defmodule Boss.Deliveries do
         routing_version
       ) do
     with true <- valid_id?(project) and valid_id?(task),
-         true <- reviewer in ["codex", "claude"] and is_boolean(replay_only),
+         true <- Boss.Agents.Metadata.review_runner?(reviewer) and is_boolean(replay_only),
          true <- autonomy_version in [0, 1],
          true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),
@@ -1238,7 +1239,7 @@ defmodule Boss.Deliveries do
 
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
-         not (d.reviewer == "claude" and kind in ~w(review merge_review)) do
+         not (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) do
       route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
       unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
 

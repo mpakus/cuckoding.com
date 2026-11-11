@@ -84,7 +84,8 @@ defmodule Boss.Projects.Intake do
     do: Repo.exists?(from r in Request, where: r.status == "planning" or r.cleanup == "unknown")
 
   def admit(project, command, text, reviewer, owned) do
-    with true <- is_integer(project) and project > 0 and reviewer in ["codex", "claude"],
+    with true <-
+           is_integer(project) and project > 0 and Boss.Agents.Metadata.review_runner?(reviewer),
          {:ok, ^command} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
       transaction(fn ->

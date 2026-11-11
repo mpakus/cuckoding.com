@@ -61,7 +61,9 @@ defmodule Boss.Deliveries.Queue do
         autonomy_version,
         routing_version
       ) do
-    with true <- valid_id?(project) and valid_id?(task) and reviewer in ["codex", "claude"],
+    with true <-
+           valid_id?(project) and valid_id?(task) and
+             Boss.Agents.Metadata.review_runner?(reviewer),
          true <- autonomy_version in [0, 1],
          true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),

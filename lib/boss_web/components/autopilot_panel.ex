@@ -261,11 +261,7 @@ defmodule BossWeb.AutopilotPanel do
               </option>
             </select>
             <p id="autopilot-reviewer-help" class="mt-1 text-xs text-muted">
-              <%= if Enum.any?(@reviewers, &(&1.id not in ~w(codex claude))) do %>
-                The list is the agents assigned to Reviewer. Codex and Claude can run the review.
-              <% else %>
-                Assign agents to Reviewer on the Agents page to choose from that roster. Codex and Claude can run the review.
-              <% end %>
+              The list is the agents assigned to Reviewer. Codex, Claude, and Cursor can run the review.
             </p>
           </fieldset>
           <p

@@ -70,8 +70,13 @@ defmodule BossWeb.DeliveryPanel do
           aria-describedby="delivery-reviewer-help delivery-account"
           class="app-field w-full min-w-0 px-3 py-2 text-sm disabled:opacity-50"
         >
-          <option value="codex" selected={@request.reviewer == "codex"}>Codex</option>
-          <option value="claude" selected={@request.reviewer == "claude"}>Claude</option>
+          <option
+            :for={agent <- Boss.Agents.Roles.reviewer_choices()}
+            value={agent.id}
+            selected={@request.reviewer == agent.id}
+          >
+            {agent.name}
+          </option>
         </select>
         <input :if={@request.locked} type="hidden" name="reviewer" value={@request.reviewer} />
         <p id="delivery-reviewer-help" class="text-xs text-muted">
@@ -525,9 +530,11 @@ defmodule BossWeb.DeliveryPanel do
 
   defp active?(delivery), do: delivery.status in @active
 
-  defp reviewer("codex"), do: "Codex"
-  defp reviewer("claude"), do: "Claude"
-  defp reviewer(_), do: "Unavailable"
+  defp reviewer(id) do
+    Enum.find_value(Boss.Agents.Metadata.catalog(), "Unavailable", fn agent ->
+      Atom.to_string(agent.id) == id && agent.name
+    end)
+  end
 
   defp verdict("approved"), do: "Approved"
   defp verdict("changes_requested"), do: "Changes requested"

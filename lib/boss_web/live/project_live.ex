@@ -283,7 +283,7 @@ defmodule BossWeb.ProjectLive do
       ) do
     with {task, _} <- socket.assigns.selection,
          %{id: ^id, locked: false} = request <- socket.assigns.delivery_requests[task],
-         true <- reviewer in ~w(codex claude),
+         true <- Boss.Agents.Metadata.review_runner?(reviewer),
          true <-
            is_binary(text) && byte_size(text) <= 4096 && delivery_form_available?(socket.assigns) do
       {:noreply,
@@ -305,7 +305,7 @@ defmodule BossWeb.ProjectLive do
     with {task, _} <- socket.assigns.selection,
          %{id: ^id} = request <- socket.assigns.delivery_requests[task],
          true <- delivery_action_available?(socket.assigns, action),
-         true <- reviewer in ~w(codex claude),
+         true <- Boss.Agents.Metadata.review_runner?(reviewer),
          true <- is_binary(text) && byte_size(text) <= 4096,
          true <-
            !request.locked ||
@@ -1151,7 +1151,7 @@ defmodule BossWeb.ProjectLive do
     do: check_error({:error, :invalid_command})
 
   defp delivery_error({:error, :invalid_reviewer}),
-    do: "Choose Codex or Claude as the workflow reviewer."
+    do: "Choose Codex, Claude, or Cursor as the workflow reviewer."
 
   defp delivery_error({:error, :invalid_command}), do: check_error({:error, :invalid_command})
 

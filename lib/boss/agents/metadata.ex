@@ -14,6 +14,9 @@ defmodule Boss.Agents.Metadata do
 
   def catalog, do: @catalog
   def ids, do: Enum.map(@catalog, & &1.id)
+  def review_runners, do: ~w(codex claude cursor)
+  def review_runner?(id) when is_binary(id), do: id in review_runners()
+  def review_runner?(_), do: false
 
   def find_executable(:cursor) do
     System.find_executable("agent") || System.find_executable("cursor-agent")

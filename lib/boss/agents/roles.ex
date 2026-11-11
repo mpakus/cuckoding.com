@@ -27,7 +27,7 @@ defmodule Boss.Agents.Roles do
   def standard, do: @standard
 
   def reviewer_choices do
-    assigned = agents_for("reviewer")
+    assigned = Enum.filter(agents_for("reviewer"), &Metadata.review_runner?(&1.id))
 
     if assigned == [] do
       [
