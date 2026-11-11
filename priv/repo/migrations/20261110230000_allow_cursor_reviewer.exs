@@ -4,6 +4,7 @@ defmodule Boss.Repo.Migrations.AllowCursorReviewer do
   def up do
     rewrite_trigger("delivery_request_pin")
     rewrite_trigger("autopilot_insert")
+
     replace_delivery_check(
       "reviewer IN ('codex','claude')",
       "reviewer IN ('codex','claude','cursor')"

@@ -15,6 +15,7 @@ defmodule Boss.Deliveries.Delivery do
     field :implementation_network_version, :integer, default: 0
     field :retry_candidate_commit, :string
     field :reviewer, :string, default: "codex"
+    field :implementer, :string, default: "codex"
     field :autonomy_version, :integer, default: 0
     field :routing_version, :integer, default: 1
     field :model_catalog, :map, default: %{}

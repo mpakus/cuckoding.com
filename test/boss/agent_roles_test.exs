@@ -2,6 +2,12 @@ defmodule Boss.AgentRolesTest do
   use Boss.DataCase, async: false
   alias Boss.Agents.Roles
 
+  test "the sole Implementer agent is used for new work" do
+    role = Enum.find(Roles.list(), &(&1.kind == "implementer"))
+    assert {:ok, _} = Roles.assign(role.id, ["cursor"])
+    assert Roles.implementer() == "cursor"
+  end
+
   test "standard roles are present and keep their jobs" do
     roles = Map.new(Roles.list(), &{&1.kind, &1})
     assert roles["reviewer"].name == "Reviewer"

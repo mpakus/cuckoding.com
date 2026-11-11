@@ -39,6 +39,13 @@ defmodule Boss.Agents.Roles do
     end
   end
 
+  def implementer do
+    case Enum.filter(agents_for("implementer"), &(&1.id in ~w(codex cursor))) do
+      [%{id: id} | _] -> id
+      [] -> "codex"
+    end
+  end
+
   def agents_for(kind) when kind in ~w(reviewer implementer analytic) do
     assigned =
       list()

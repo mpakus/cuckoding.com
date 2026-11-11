@@ -58,7 +58,8 @@ defmodule Boss.Deliveries do
     kind = to_string(kind)
 
     if d.autonomy_version == 0 or
-         (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) do
+         (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) or
+         (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) do
       {:ok, nil}
     else
       saved_plan =
@@ -581,6 +582,7 @@ defmodule Boss.Deliveries do
       execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
+      implementer: Boss.Agents.Roles.implementer(),
       autonomy_version: autonomy_version,
       routing_version: routing_version,
       model_catalog: model_catalog,
@@ -1239,7 +1241,8 @@ defmodule Boss.Deliveries do
 
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
-         not (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) do
+         not (d.reviewer in ["claude", "cursor"] and kind in ~w(review merge_review)) and
+         not (Map.get(d, :implementer) == "cursor" and kind in ~w(plan implement resolve)) do
       route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
       unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
 

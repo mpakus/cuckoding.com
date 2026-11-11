@@ -64,4 +64,53 @@ defmodule Boss.CursorReviewTest do
 
     assert Cursor.report(output) == :error
   end
+
+  test "a Cursor implementer plans without calling Codex" do
+    root = Path.join(System.tmp_dir!(), "boss-cursor-plan-#{System.unique_integer([:positive])}")
+    File.mkdir!(root)
+    plan = ~s({"summary":"Add a note","steps":["Edit the file"],"acceptance":["The note exists"]})
+
+    envelope =
+      Jason.encode!(%{
+        "type" => "result",
+        "subtype" => "success",
+        "is_error" => false,
+        "result" => plan
+      })
+
+    payload = Path.join(root, "payload.json")
+    File.write!(payload, envelope)
+    script = Path.join(root, "agent")
+
+    File.write!(script, """
+    #!/bin/sh
+    cat >/dev/null
+    cat #{payload}
+    printf '\\n'
+    exit 0
+    """)
+
+    File.chmod!(script, 0o700)
+    previous = System.get_env("PATH")
+    System.put_env("PATH", root <> ":" <> previous)
+
+    on_exit(fn ->
+      System.put_env("PATH", previous)
+      File.rm_rf(root)
+    end)
+
+    receipt =
+      Worker.run_agent(
+        :plan,
+        root,
+        "plan the task",
+        fn text ->
+          assert text == plan
+          {:ok, %{"summary" => "Add a note"}}
+        end,
+        nil, implementer: "cursor")
+
+    assert receipt["status"] == "finished"
+    assert receipt["report"]["summary"] == "Add a note"
+  end
 end

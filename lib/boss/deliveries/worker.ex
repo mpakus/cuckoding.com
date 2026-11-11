@@ -295,6 +295,8 @@ defmodule Boss.Deliveries.Worker do
     )
   end
 
+  defp prepare_models(%{implementer: "cursor"} = delivery), do: delivery
+
   defp prepare_models(%{routing_version: 2, model_catalog: catalog} = delivery) do
     if catalog == %{} do
       continue!()
@@ -358,7 +360,9 @@ defmodule Boss.Deliveries.Worker do
         ok!(verify.())
 
         receipt =
-          run_agent(:plan, intent["path"], prompt, &Protocol.plan(&1, previous_plan), profile)
+          run_agent(:plan, intent["path"], prompt, &Protocol.plan(&1, previous_plan), profile,
+            implementer: delivery.implementer
+          )
 
         receipt = verify_agent(receipt, verify)
         {Map.put(receipt, "workspace", intent), receipt["report"]}
@@ -821,7 +825,8 @@ defmodule Boss.Deliveries.Worker do
 
           receipt =
             run_agent(:implement, workspace["path"], prompt, nil, profile,
-              network_policy: network_policy
+              network_policy: network_policy,
+              implementer: delivery.implementer
             )
 
           receipt =
@@ -1567,7 +1572,8 @@ defmodule Boss.Deliveries.Worker do
           if prepare?, do: ok!(Workspace.prepare(workspace))
           ok!(verify.())
 
-          receipt = run_resolution(workspace["path"], prompt, profile)
+          receipt =
+            run_resolution(workspace["path"], prompt, profile, implementer: delivery.implementer)
 
           receipt = verify_agent(receipt, verify)
           {Map.put(receipt, "candidate_commit", sha), receipt["report"]}
@@ -1883,10 +1889,15 @@ defmodule Boss.Deliveries.Worker do
   end
 
   @doc false
-  def run_resolution(path, prompt, profile) do
+  def run_resolution(path, prompt, profile, opts \\ []) do
     receipt =
-      run_agent(:resolve, path, prompt, &Protocol.resolution_detailed/1, profile,
-        report_diagnostics: true
+      run_agent(
+        :resolve,
+        path,
+        prompt,
+        &Protocol.resolution_detailed/1,
+        profile,
+        Keyword.merge([report_diagnostics: true], opts)
       )
 
     diagnostics = Map.take(receipt, ["validation_code", "report_bytes"])
@@ -1898,6 +1909,83 @@ defmodule Boss.Deliveries.Worker do
 
   @doc false
   def run_agent(kind, path, prompt, decode, profile \\ nil, opts \\ []) do
+    if Keyword.get(opts, :implementer) == "cursor" and kind in [:plan, :implement, :resolve] do
+      run_cursor_stage(kind, path, prompt, decode)
+    else
+      run_codex(kind, path, prompt, decode, profile, opts)
+    end
+  end
+
+  defp run_cursor_stage(kind, path, prompt, decode) do
+    continue!()
+    executable = Metadata.find_executable(:cursor) || throw({:halt, :cursor_unavailable})
+    args = if kind == :implement, do: Cursor.implement_args(), else: Cursor.args()
+    parser = :ets.new(:delivery_cursor_stage, [:set, :public])
+    :ets.insert(parser, {:stdout, ""})
+
+    try do
+      callback = fn
+        {:stdout, bytes} ->
+          [{:stdout, current}] = :ets.lookup(parser, :stdout)
+          :ets.insert(parser, {:stdout, current <> bytes})
+          :ok
+
+        _ ->
+          :ok
+      end
+
+      result =
+        Runner.run(executable, args,
+          cd: path,
+          input: prompt,
+          timeout_ms: 1_200_000,
+          output_limit: 8_388_608,
+          on_event: callback
+        )
+
+      [{:stdout, stdout}] = :ets.lookup(parser, :stdout)
+      receipt = process_receipt(result)
+
+      cond do
+        receipt["status"] in ["interrupted", "cancelled"] ->
+          receipt
+
+        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
+            result.eof == %{stdout: true, stderr: true} ->
+          case Cursor.report(stdout) do
+            {:ok, text, summary} when is_function(decode) ->
+              case decode.(text) do
+                {:ok, report} ->
+                  Map.merge(receipt, %{
+                    "status" => "finished",
+                    "report" => report,
+                    "summary" => summary
+                  })
+
+                _ ->
+                  Map.merge(receipt, failure(:invalid_report))
+              end
+
+            {:ok, _text, summary} ->
+              Map.merge(receipt, %{"status" => "finished", "summary" => summary})
+
+            _ ->
+              Map.merge(receipt, failure(:invalid_report))
+          end
+
+        true ->
+          Map.put(
+            receipt,
+            "reason",
+            "Cursor did not finish with a valid result and clean exit. No fallback was started."
+          )
+      end
+    after
+      :ets.delete(parser)
+    end
+  end
+
+  defp run_codex(kind, path, prompt, decode, profile, opts) do
     continue!()
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
 

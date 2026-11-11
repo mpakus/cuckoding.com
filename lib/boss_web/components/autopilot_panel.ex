@@ -283,7 +283,7 @@ defmodule BossWeb.AutopilotPanel do
             Stop, unknown cleanup and integration failures halt the batch.
           </p>
           <p id="autopilot-provider-help" class="text-xs text-muted">
-            Codex plans and implements; the selected reviewer checks the result. Runs use your configured CLI accounts and may incur charges.
+            The Implementer role plans and writes the code. The selected reviewer checks the result. Runs use your configured CLI accounts and may incur charges.
           </p>
           <p class="text-xs text-muted">
             The target branch must not be checked out in your workspace. BOSS retains your checkout and failed work for inspection.

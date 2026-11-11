@@ -1,6 +1,10 @@
 defmodule Boss.Agents.Cursor do
   @moduledoc false
 
+  def implement_args do
+    ["--print", "--output-format", "json", "--trust"]
+  end
+
   def args do
     [
       "--print",
