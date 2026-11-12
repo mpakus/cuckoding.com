@@ -995,3 +995,16 @@ work. Its signal/EOF/group cleanup receipt is retained; it is not completed work
 
 Fresh real-provider acceptance and distribution remain separate gates.
 See the [beta worklog](../.worklog/2026-11-07.md).
+
+
+## Local agent detection and role models — 2026-11-11
+
+- [x] Recognize the installed Codex, Cursor Agent, Claude Code and OpenCode
+  versions. Cover Pi and Hermes with fixtures for their CLI contracts.
+- [x] Verify consistent catalog handling for full Detect and individual refresh,
+  including malformed metadata, catalog failures and stale observations.
+- [x] Create a role, assign a model for each of the six agents and verify saved
+  bindings after reload. Cover model changes and unavailable assignments.
+- [ ] Verify live Pi and Hermes metadata when their CLIs are installed locally.
+
+See the [agent detection worklog](../.worklog/2026-11-11.md).

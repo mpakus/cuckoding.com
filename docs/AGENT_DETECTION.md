@@ -7,8 +7,8 @@ PATH in another shell, restart BOSS from that environment. Cursor Agent uses
 
 On macOS, **Open login in Terminal** starts the CLI's interactive sign-in.
 Complete sign-in in that Terminal or its browser flow, then choose
-**Verify & fetch models**. On Linux, run the command shown on the agent card
-in your terminal and choose **Verify & fetch models** when it finishes.
+**Verify & fetch models**. The Linux detector can check executable metadata.
+Catalog refresh and the Terminal login launcher use the macOS runtime.
 
 | Agent | Sign-in | Model choices |
 | --- | --- | --- |
