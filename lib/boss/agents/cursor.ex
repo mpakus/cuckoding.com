@@ -21,7 +21,10 @@ defmodule Boss.Agents.Cursor do
   defp model_flags(%{model_id: model}) when is_binary(model) and model != "",
     do: ["--model", model]
 
-  defp model_flags(_), do: []
+  defp model_flags(%{"model_id" => model}) when is_binary(model) and model != "",
+    do: ["--model", model]
+
+  defp model_flags(_), do: ["--model", "auto"]
 
   def report(output) when is_binary(output) do
     with true <- String.valid?(output),
@@ -43,10 +46,23 @@ defmodule Boss.Agents.Cursor do
 
     class =
       cond do
-        line && String.contains?(String.downcase(line), "authentication required") -> "auth"
-        line && String.contains?(String.downcase(line), "rate limit") -> "rate_limit"
-        line && String.contains?(String.downcase(line), "quota") -> "rate_limit"
-        true -> nil
+        line && String.contains?(String.downcase(line), "authentication required") ->
+          "auth"
+
+        line && String.contains?(String.downcase(line), "model unavailable") ->
+          "model_unavailable"
+
+        line && String.contains?(String.downcase(line), "switch to an included model") ->
+          "model_unavailable"
+
+        line && String.contains?(String.downcase(line), "rate limit") ->
+          "rate_limit"
+
+        line && String.contains?(String.downcase(line), "quota") ->
+          "rate_limit"
+
+        true ->
+          nil
       end
 
     reason =

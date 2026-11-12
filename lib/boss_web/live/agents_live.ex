@@ -607,8 +607,10 @@ defmodule BossWeb.AgentsLive do
                         name={"models[#{agent.id}]"}
                         class="app-field mt-1 w-full min-w-0 px-2.5 py-1.5 text-xs"
                       >
-                        <option value="auto" selected={is_nil(sel.model_id)}>
-                          Agent default / policy routing
+                        <option value="__default__" selected={is_nil(sel.model_id)}>
+                          {if agent.id == :cursor,
+                            do: "Agent default (Auto)",
+                            else: "Agent default / policy routing"}
                         </option>
                         <option
                           :for={m <- models}

@@ -1807,6 +1807,20 @@ defmodule Boss.Deliveries.Worker do
   end
 
   defp cursor_process(executable, path, prompt, decode) do
+    selection = Boss.Agents.Roles.selection_for("reviewer", "cursor")
+    receipt = cursor_review_once(executable, Cursor.args(selection), path, prompt, decode)
+
+    if receipt["status"] == "failed" and receipt["cleanup"] == "group_empty" and
+         get_in(receipt, ["summary", "error_class"]) == "model_unavailable" and
+         Map.get(selection, :model_id) not in [nil, "", "auto"] do
+      continue!()
+      cursor_review_once(executable, Cursor.args(%{model_id: "auto"}), path, prompt, decode)
+    else
+      receipt
+    end
+  end
+
+  defp cursor_review_once(executable, argv, path, prompt, decode) do
     parser = :ets.new(:delivery_cursor, [:set, :public])
     :ets.insert(parser, {:stdout, ""})
     :ets.insert(parser, {:stderr, ""})
@@ -1831,7 +1845,7 @@ defmodule Boss.Deliveries.Worker do
       result =
         Runner.run(
           executable,
-          Cursor.args(Boss.Agents.Roles.selection_for("reviewer", "cursor")),
+          argv,
           cd: path,
           input: prompt,
           timeout_ms: 1_200_000,
@@ -1980,16 +1994,42 @@ defmodule Boss.Deliveries.Worker do
         do: Cursor.implement_args(selection),
         else: Cursor.args(selection)
 
-    run_envelope_stage(
-      executable,
-      args,
-      path,
-      prompt,
-      decode,
-      opts,
-      &Cursor.report/1,
-      &Cursor.notice/2
-    )
+    receipt =
+      run_envelope_stage(
+        executable,
+        args,
+        path,
+        prompt,
+        decode,
+        opts,
+        &Cursor.report/1,
+        &Cursor.notice/2
+      )
+
+    if receipt["status"] == "failed" and receipt["cleanup"] == "group_empty" and
+         get_in(receipt, ["summary", "error_class"]) == "model_unavailable" and
+         Map.get(selection, :model_id) not in [nil, "", "auto"] do
+      continue!()
+      fallback = %{model_id: "auto"}
+
+      fallback_args =
+        if kind == :implement,
+          do: Cursor.implement_args(fallback),
+          else: Cursor.args(fallback)
+
+      run_envelope_stage(
+        executable,
+        fallback_args,
+        path,
+        prompt,
+        decode,
+        opts,
+        &Cursor.report/1,
+        &Cursor.notice/2
+      )
+    else
+      receipt
+    end
   end
 
   defp run_claude_stage(kind, path, prompt, decode, opts) do

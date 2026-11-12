@@ -155,8 +155,35 @@ defmodule Boss.CursorReviewTest do
     assert receipt["report"]["summary"] == "Add a note"
   end
 
-  test "Cursor implement_args passes --force and json_object strips prose around JSON" do
-    assert "--force" in Cursor.implement_args()
+  test "Cursor implement_args passes --force and --model auto by default, and classifies Free-tier model unavailable" do
+    assert Cursor.implement_args() == [
+             "--print",
+             "--force",
+             "--output-format",
+             "json",
+             "--trust",
+             "--model",
+             "auto"
+           ]
+
+    assert Cursor.args() == [
+             "--print",
+             "--output-format",
+             "json",
+             "--mode",
+             "ask",
+             "--sandbox",
+             "enabled",
+             "--trust",
+             "--model",
+             "auto"
+           ]
+
+    assert %{class: "model_unavailable"} =
+             Cursor.notice(
+               "ActionRequiredError: Model unavailable on Free Free includes Grok 4.7, Grok 4.6, and Auto with fixed settings. Switch to an included model to continue.\n",
+               ""
+             )
 
     wrapped =
       Jason.encode!(%{

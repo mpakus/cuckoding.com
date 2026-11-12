@@ -187,7 +187,7 @@ defmodule Boss.Agents.Roles do
           raw =
             Map.get(selections, agent_id) || Map.get(selections, String.to_atom(agent_id)) || %{}
 
-          model_id = normalize_choice(raw["model_id"] || raw[:model_id], ["", "auto", "default"])
+          model_id = normalize_choice(raw["model_id"] || raw[:model_id], ["", "__default__"])
 
           effort =
             normalize_choice(raw["reasoning_effort"] || raw[:reasoning_effort], ["", "default"])
