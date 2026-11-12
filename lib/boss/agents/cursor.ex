@@ -42,7 +42,7 @@ defmodule Boss.Agents.Cursor do
   def report(_), do: :error
 
   def notice(stderr, stdout \\ "") do
-    line = safe_line(stderr) || safe_line(stdout)
+    line = safe_line(stderr) || stdout_error_line(stdout)
 
     class =
       cond do
@@ -75,6 +75,23 @@ defmodule Boss.Agents.Cursor do
     %{reason: reason, class: class}
   end
 
+  defp stdout_error_line(stdout) when is_binary(stdout) do
+    trimmed = String.trim(stdout)
+
+    case Jason.decode(trimmed) do
+      {:ok, %{"type" => "result", "is_error" => true, "result" => msg}} when is_binary(msg) ->
+        safe_line(msg)
+
+      {:ok, %{"type" => "result"}} ->
+        nil
+
+      _ ->
+        safe_line(stdout)
+    end
+  end
+
+  defp stdout_error_line(_), do: nil
+
   defp safe_line(text) when is_binary(text) do
     if String.valid?(text) do
       text
@@ -105,25 +122,65 @@ defmodule Boss.Agents.Cursor do
   defp json_object(text) do
     trimmed = String.trim(text)
 
-    case Regex.run(~r/```(?:json)?\s*(\{[\s\S]*\})\s*```/, trimmed) do
-      [_, object] ->
-        String.trim(object)
+    case Jason.decode(trimmed) do
+      {:ok, map} when is_map(map) ->
+        trimmed
 
       _ ->
-        with {first, 1} <- :binary.match(trimmed, "{"),
-             true <- not String.starts_with?(trimmed, "{"),
-             last when is_integer(last) and last > first <- last_brace(trimmed) do
-          binary_part(trimmed, first, last - first + 1)
-        else
-          _ -> trimmed
+        case extract_last_json_object(trimmed) do
+          nil -> trimmed
+          found -> found
         end
     end
   end
 
-  defp last_brace(bin) do
-    case :binary.matches(bin, "}") do
-      [] -> nil
-      matches -> matches |> List.last() |> elem(0)
+  defp extract_last_json_object(bin) do
+    scan_json_objects(bin, 0, byte_size(bin), false, false, 0, nil, [])
+    |> List.last()
+  end
+
+  defp scan_json_objects(_bin, idx, len, _in_str, _esc, _depth, _start, acc) when idx >= len,
+    do: Enum.reverse(acc)
+
+  defp scan_json_objects(bin, idx, len, true, true, depth, start, acc) do
+    scan_json_objects(bin, idx + 1, len, true, false, depth, start, acc)
+  end
+
+  defp scan_json_objects(bin, idx, len, true, false, depth, start, acc) do
+    case :binary.at(bin, idx) do
+      ?\\ -> scan_json_objects(bin, idx + 1, len, true, true, depth, start, acc)
+      ?" -> scan_json_objects(bin, idx + 1, len, false, false, depth, start, acc)
+      _ -> scan_json_objects(bin, idx + 1, len, true, false, depth, start, acc)
+    end
+  end
+
+  defp scan_json_objects(bin, idx, len, false, _esc, depth, start, acc) do
+    case :binary.at(bin, idx) do
+      ?" when depth > 0 ->
+        scan_json_objects(bin, idx + 1, len, true, false, depth, start, acc)
+
+      ?{ when depth == 0 ->
+        scan_json_objects(bin, idx + 1, len, false, false, 1, idx, acc)
+
+      ?{ ->
+        scan_json_objects(bin, idx + 1, len, false, false, depth + 1, start, acc)
+
+      ?} when depth == 1 and is_integer(start) ->
+        slice = binary_part(bin, start, idx - start + 1)
+
+        next_acc =
+          case Jason.decode(slice) do
+            {:ok, map} when is_map(map) -> [slice | acc]
+            _ -> acc
+          end
+
+        scan_json_objects(bin, idx + 1, len, false, false, 0, nil, next_acc)
+
+      ?} when depth > 1 ->
+        scan_json_objects(bin, idx + 1, len, false, false, depth - 1, start, acc)
+
+      _ ->
+        scan_json_objects(bin, idx + 1, len, false, false, depth, start, acc)
     end
   end
 

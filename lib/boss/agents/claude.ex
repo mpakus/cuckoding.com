@@ -89,7 +89,7 @@ defmodule Boss.Agents.Claude do
   def stage_report(_), do: :error
 
   def notice(stderr, stdout \\ "") do
-    line = safe_line(stderr) || safe_line(stdout)
+    line = safe_line(stderr) || stdout_error_line(stdout)
 
     class =
       cond do
@@ -110,6 +110,23 @@ defmodule Boss.Agents.Claude do
 
     %{reason: reason, class: class}
   end
+
+  defp stdout_error_line(stdout) when is_binary(stdout) do
+    trimmed = String.trim(stdout)
+
+    case Jason.decode(trimmed) do
+      {:ok, %{"type" => "result", "is_error" => true, "result" => msg}} when is_binary(msg) ->
+        safe_line(msg)
+
+      {:ok, %{"type" => "result"}} ->
+        nil
+
+      _ ->
+        safe_line(stdout)
+    end
+  end
+
+  defp stdout_error_line(_), do: nil
 
   defp safe_line(text) when is_binary(text) do
     if String.valid?(text) do

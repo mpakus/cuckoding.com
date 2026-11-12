@@ -19,11 +19,20 @@ defmodule Boss.Deliveries.Autopilot do
     with true <- is_integer(project) and project > 0 and is_integer(version) and version >= 0,
          {:ok, _} <- Ecto.UUID.cast(id) do
       # Stop is terminal for this immutable batch, even when the browser's version is stale.
-      # Signal both sides of persistence so a raced admission cannot escape cancellation.
-      Runs.stop(project, {:autopilot, id}, registry)
-      result = change(project, id, :cancel, version)
-      Runs.stop(project, {:autopilot, id}, registry)
-      result
+      # Mark in-flight cancellation in ETS before signaling the worker so Manager cannot
+      # turn the raced worker exit into a blocked batch before change/4 commits, while
+      # still signaling the live worker immediately even if SQLite is stalled.
+      token = {id, make_ref()}
+      :ets.insert(cancelling_table(), token)
+
+      try do
+        Runs.stop(project, {:autopilot, id}, registry)
+        result = change(project, id, :cancel, version)
+        Runs.stop(project, {:autopilot, id}, registry)
+        result
+      after
+        :ets.delete_object(cancelling_table(), token)
+      end
     else
       _ -> {:error, :invalid_command}
     end
@@ -354,6 +363,15 @@ defmodule Boss.Deliveries.Autopilot do
 
   defp advance_batch(batch, preflight, cursor) do
     unless complete?(batch), do: Repo.rollback(:incomplete_autopilot)
+
+    if cancelling?(batch.id) do
+      :waiting
+    else
+      advance_active_batch(batch, preflight, cursor)
+    end
+  end
+
+  defp advance_active_batch(batch, preflight, cursor) do
     entries = rows(batch.id)
     unfinished = Enum.reject(entries, fn {_, _, d, _} -> settled?(d) end)
 
@@ -730,6 +748,30 @@ defmodule Boss.Deliveries.Autopilot do
       end
     else
       {:error, :storage_error}
+    end
+  end
+
+  defp cancelling?(id) do
+    :ets.lookup(cancelling_table(), id) != []
+  end
+
+  defp cancelling_table do
+    case :ets.whereis(:boss_autopilot_cancelling) do
+      :undefined ->
+        try do
+          :ets.new(:boss_autopilot_cancelling, [
+            :named_table,
+            :public,
+            :bag,
+            {:read_concurrency, true},
+            {:heir, Process.whereis(:init), :none}
+          ])
+        rescue
+          ArgumentError -> :boss_autopilot_cancelling
+        end
+
+      _ ->
+        :boss_autopilot_cancelling
     end
   end
 end

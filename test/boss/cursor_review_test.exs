@@ -250,4 +250,81 @@ defmodule Boss.CursorReviewTest do
     assert receipt["validation_code"] == "valid"
     assert receipt["report"]["summary"] == "Claude plan"
   end
+
+  test "Cursor stage finishes cleanly when an MCP helper lingers and pre-tool prose contains braces" do
+    root =
+      Path.join(System.tmp_dir!(), "boss-cursor-linger-#{System.unique_integer([:positive])}")
+
+    File.mkdir!(root)
+
+    plan_json =
+      Jason.encode!(%{
+        "summary" => "Handle {braces} safely",
+        "steps" => ["Inspect %{config: true}"],
+        "acceptance" => ["Passes test"],
+        "file_scopes" => [%{"path" => "lib/app.ex", "kind" => "file"}],
+        "clarification" => nil,
+        "complexity" => "small"
+      })
+
+    # Simulate multi-turn Cursor result where Turn 1 prose contains Elixir %{...} braces
+    multi_turn =
+      "I'll check %{http: :ok} and {:error, :timeout} in the repo first.\n" <> plan_json
+
+    envelope =
+      Jason.encode!(%{
+        "type" => "result",
+        "subtype" => "success",
+        "is_error" => false,
+        "duration_ms" => 55,
+        "result" => multi_turn
+      })
+
+    # Notice never leaks raw success envelope prose
+    assert Cursor.notice("", envelope) == %{
+             class: nil,
+             reason:
+               "Cursor did not finish with a valid result and clean exit. No fallback was started."
+           }
+
+    payload = Path.join(root, "linger_payload.json")
+    File.write!(payload, envelope)
+    script = Path.join(root, "agent")
+
+    # Spawn a lingering child (closing stdio like an MCP daemon) and exit 0
+    File.write!(script, """
+    #!/bin/sh
+    cat >/dev/null
+    (sleep 10 </dev/null >/dev/null 2>&1) &
+    cat #{payload}
+    printf '\\n'
+    exit 0
+    """)
+
+    File.chmod!(script, 0o700)
+    previous = System.get_env("PATH")
+    System.put_env("PATH", root <> ":" <> previous)
+
+    on_exit(fn ->
+      System.put_env("PATH", previous)
+      File.rm_rf(root)
+    end)
+
+    receipt =
+      Worker.run_agent(
+        :plan,
+        root,
+        "plan with lingering mcp",
+        &Boss.Deliveries.Protocol.plan/1,
+        nil,
+        implementer: "cursor",
+        report_diagnostics: true
+      )
+
+    assert receipt["status"] == "finished"
+    assert receipt["outcome"] == "exited"
+    assert receipt["cleanup"] == "group_empty"
+    assert receipt["validation_code"] == "valid"
+    assert receipt["report"]["summary"] == "Handle {braces} safely"
+  end
 end

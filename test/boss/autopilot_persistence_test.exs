@@ -223,6 +223,48 @@ defmodule Boss.AutopilotPersistenceTest do
     assert Repo.aggregate(Deliveries.Delivery, :count) == 1
   end
 
+  test "in-flight Stop prevents a raced Manager advance from blocking the batch before cancel commits",
+       c do
+    parent = self()
+    manager = manager(c.repo, waiting_worker(parent))
+
+    {:ok, batch} =
+      Autopilot.start(c.project.id, Ecto.UUID.generate(), ids(c), "true", "codex", manager)
+
+    assert_receive {:started, _, worker}, 3_000
+
+    locker =
+      Task.async(fn ->
+        Repo.put_dynamic_repo(c.repo)
+
+        Repo.transaction(
+          fn ->
+            send(parent, :locked)
+
+            receive do
+              :release -> :ok
+            end
+          end,
+          mode: :immediate
+        )
+      end)
+
+    assert_receive :locked
+
+    cancel =
+      Task.async(fn ->
+        Repo.put_dynamic_repo(c.repo)
+        Autopilot.cancel(c.project.id, batch.id, 0, Boss.AutopilotTestActive)
+      end)
+
+    assert_receive {:stopped, ^worker}, 500
+    send(locker.pid, :release)
+    assert {:ok, _} = Task.await(locker, 5_000)
+    assert {:ok, %{status: "cancelled"}} = Task.await(cancel, 5_000)
+    eventually(fn -> :sys.get_state(manager).active == %{} end)
+    assert {:ok, %{status: "cancelled"}} = Autopilot.current(c.project.id)
+  end
+
   test "lost owner is reconciled and Resume never respawns its interrupted stage", c do
     manager = manager(c.repo, waiting_worker(self()))
 

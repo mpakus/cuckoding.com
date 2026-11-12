@@ -1864,8 +1864,7 @@ defmodule Boss.Deliveries.Worker do
         receipt["status"] in ["interrupted", "cancelled"] ->
           receipt
 
-        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
-            result.eof == %{stdout: true, stderr: true} ->
+        clean_envelope_exit?(result) ->
           case Cursor.report(stdout) do
             {:ok, text, summary} ->
               case decode.(text) do
@@ -1873,6 +1872,7 @@ defmodule Boss.Deliveries.Worker do
                   receipt
                   |> Map.merge(%{
                     "status" => "finished",
+                    "outcome" => "exited",
                     "report" => report,
                     "summary" => summary
                   })
@@ -2111,8 +2111,7 @@ defmodule Boss.Deliveries.Worker do
         receipt["status"] in ["interrupted", "cancelled"] ->
           receipt
 
-        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
-            result.eof == %{stdout: true, stderr: true} ->
+        clean_envelope_exit?(result) ->
           case parse_report.(stdout) do
             {:ok, text, summary} when is_function(decode) ->
               bytes = byte_size(text)
@@ -2121,6 +2120,7 @@ defmodule Boss.Deliveries.Worker do
                 {:ok, report} ->
                   base = %{
                     "status" => "finished",
+                    "outcome" => "exited",
                     "report" => report,
                     "summary" =>
                       Map.merge(summary, %{
@@ -2157,6 +2157,7 @@ defmodule Boss.Deliveries.Worker do
             {:ok, _text, summary} ->
               Map.merge(receipt, %{
                 "status" => "finished",
+                "outcome" => "exited",
                 "summary" =>
                   Map.merge(summary, %{"stdout_bytes" => out_bytes, "stderr_bytes" => err_bytes})
               })
@@ -2187,6 +2188,15 @@ defmodule Boss.Deliveries.Worker do
     after
       :ets.delete(parser)
     end
+  end
+
+  defp clean_envelope_exit?(result) do
+    result.cleanup == :group_empty and
+      result.exit_kind == :exit and
+      result.exit_code == 0 and
+      result.eof == %{stdout: true, stderr: true} and
+      (result.outcome == :exited or
+         (result.outcome == :failed and Map.get(result, :reason) == :lingering_processes))
   end
 
   defp append_cursor(parser, stream, bytes) do
