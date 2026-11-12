@@ -44,6 +44,7 @@ defmodule Boss.Agents.Metadata do
   end
 
   def argv(_, :version), do: ["--version"]
+  def argv(:pi, :help), do: ["--no-extensions", "--help"]
   def argv(_, :help), do: ["--help"]
   def argv(:codex, :exec_help), do: ["exec", "--help"]
   def argv(:codex, :auth_help), do: ["login", "--help"]
@@ -64,9 +65,20 @@ defmodule Boss.Agents.Metadata do
         {failure(agent, step, :exit_status), []}
 
       true ->
-        interpret(agent, step, String.trim(output), code)
+        output = Regex.replace(~r/\e\[[0-9;]*m/, output, "")
+        interpret(agent, step, output |> remove_startup_warning(agent.id) |> String.trim(), code)
     end
   end
+
+  defp remove_startup_warning(output, :codex) do
+    Regex.replace(
+      ~r/^WARNING: proceeding, even though we could not create PATH aliases: [^\r\n]*\r?\n/m,
+      output,
+      ""
+    )
+  end
+
+  defp remove_startup_warning(output, _), do: output
 
   def failure(agent, step, reason) do
     stage =
@@ -76,7 +88,7 @@ defmodule Boss.Agents.Metadata do
 
     status =
       cond do
-        stage == :auth -> agent.probe_status
+        step not in [:version, :help] -> agent.probe_status
         reason == :unrecognized -> :unsupported
         true -> :failed
       end
@@ -105,7 +117,7 @@ defmodule Boss.Agents.Metadata do
 
   defp interpret(agent, step, output, _) do
     if help_identity?(agent, step, output) and
-         Regex.match?(~r/^(?:Options|Commands|Positionals):\r?$/m, output) do
+         Regex.match?(~r/^(?:Options|Commands|Positionals):\r?$/mi, output) do
       help(agent, step, output)
     else
       {failure(agent, step, :unrecognized), []}
@@ -135,7 +147,7 @@ defmodule Boss.Agents.Metadata do
 
   defp version(:hermes, output) do
     case Regex.run(
-           ~r/\AHermes Agent v(\d{1,4}\.\d{1,4}\.\d{1,4}) \(\d{4}\.\d{1,2}\.\d{1,2}\)\z/,
+           ~r/\AHermes Agent v(\d{1,4}(?:\.\d{1,4}){2,3}(?:\+\d{1,8}(?:\.g[0-9a-f]{7,40}(?:\.dirty)?)?|\+\?)?|git\.[0-9a-f]{7,40})(?=\s|\z)/,
            output
          ) do
       [_, version] -> {:ok, version}
@@ -225,7 +237,7 @@ defmodule Boss.Agents.Metadata do
   defp help(%{id: :hermes} = agent, :help, output) do
     caps =
       Map.merge(agent.capabilities, %{
-        headless: advertised(flag?(output, "--query")),
+        headless: advertised(flag?(output, "--oneshot") or flag?(output, "--query")),
         streaming: :not_advertised,
         session_resume: advertised(flag?(output, "--resume") or flag?(output, "--continue")),
         structured_output: :not_advertised,
@@ -242,7 +254,10 @@ defmodule Boss.Agents.Metadata do
       Map.merge(agent.capabilities, %{
         headless: advertised(flag?(output, "--print")),
         streaming: advertised(String.contains?(mode, "json")),
-        session_resume: :not_advertised,
+        session_resume:
+          advertised(
+            flag?(output, "--continue") or flag?(output, "--resume") or flag?(output, "--session")
+          ),
         structured_output: :not_advertised,
         approval_support: advertised(flag?(output, "--approve"))
       })
@@ -270,7 +285,7 @@ defmodule Boss.Agents.Metadata do
 
     caps =
       Map.merge(agent.capabilities, %{
-        streaming: advertised(String.contains?(format, "stream-json")),
+        streaming: advertised(Regex.match?(~r/\b(?:stream-json|json)\b/, format)),
         session_resume:
           advertised(
             agent.capabilities.session_resume == :advertised or flag?(output, "--continue")
@@ -287,20 +302,34 @@ defmodule Boss.Agents.Metadata do
     do: Regex.match?(~r/^opencode run(?:\s|$)/m, output)
 
   defp help_identity?(agent, _step, output) do
-    Regex.match?(~r/^[Uu]sage: #{Regex.escape(usage_name(agent))}(?:\s|$)/m, output) or
+    Regex.match?(~r/^[Uu]sage:\r?\n?[ \t]+#{usage_pattern(agent)}(?:\s|$)/m, output) or
       (agent.id == :opencode and Regex.match?(~r/^ {2,}opencode(?:\s|$)/m, output))
   end
 
-  defp usage_name(%{id: :cursor}), do: "agent"
-  defp usage_name(%{id: id}), do: Atom.to_string(id)
+  defp usage_pattern(%{id: :cursor}), do: "(?:cursor-agent|agent)"
+  defp usage_pattern(%{id: id}), do: id |> Atom.to_string() |> Regex.escape()
 
   defp auth(:codex, "Not logged in", 1), do: :not_configured
-  defp auth(:codex, "Logged in using ChatGPT", 0), do: :configured
+
+  defp auth(:codex, "Logged in using " <> method, 0)
+       when method in [
+              "ChatGPT",
+              "workload identity",
+              "access token",
+              "personal access token",
+              "Amazon Bedrock API key",
+              "Amazon Bedrock AWS access keys"
+            ],
+       do: :configured
 
   defp auth(:codex, output, 0) do
-    if Regex.match?(~r/\ALogged in using an API key(?: - [^\r\n]+)?\z/, output),
-      do: :configured,
-      else: :unknown
+    if Regex.match?(~r/\ALogged in using an API key(?: - [^\r\n]+)?\z/, output) or
+         Regex.match?(
+           ~r/\AAPI key configured - [^\r\n]+\r?\nAuthentication is checked when you send a request\.\z/,
+           output
+         ),
+       do: :configured,
+       else: :unknown
   end
 
   defp auth(:cursor, output, 0) do
@@ -367,7 +396,10 @@ defmodule Boss.Agents.Metadata do
     lines =
       Enum.drop_while(
         section(output, "Options"),
-        &(not Regex.match?(~r/^ {2,}(?:-[A-Za-z?],?\s+)?#{Regex.escape(flag)}(?:\s|=|,|$)/, &1))
+        &(not Regex.match?(
+            ~r/^ {2,}(?:-[A-Za-z?](?: +[A-Z][A-Z0-9_-]*)?, +|-[A-Za-z?] +)?#{Regex.escape(flag)}(?:\s|=|,|$)/,
+            &1
+          ))
       )
 
     case lines do
@@ -387,7 +419,7 @@ defmodule Boss.Agents.Metadata do
   defp section(output, name) do
     output
     |> String.split(~r/\r?\n/)
-    |> Enum.drop_while(&(&1 != name <> ":"))
+    |> Enum.drop_while(&(String.downcase(&1) != String.downcase(name) <> ":"))
     |> Enum.drop(1)
     |> Enum.take_while(&(&1 == "" or String.starts_with?(&1, " ")))
   end

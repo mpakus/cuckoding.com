@@ -72,6 +72,80 @@ defmodule Boss.Agents.DetectorTest do
     assert File.read!(Path.join(root, "calls")) == "codex|--version\n"
   end
 
+  test "Codex's nonfatal PATH-alias warning does not mask version or local sign-in", %{root: root} do
+    warning =
+      "WARNING: proceeding, even though we could not create PATH aliases: " <> @secret
+
+    path =
+      fixture(root, :codex, %{
+        "--version" => {warning <> "\ncodex-cli 0.166.0", 0},
+        "login status" => {warning <> "\nLogged in using ChatGPT", 0}
+      })
+
+    detector = detector_with(executables: %{codex: path})
+    assert {:ok, result} = Detector.scan_agent(:codex, detector)
+    assert %{probe_status: :ok, version: "0.166.0", auth_status: :configured, errors: []} = result
+    refute inspect(result) =~ @secret
+  end
+
+  test "auxiliary help failure keeps a detected CLI and its independently reported sign-in", %{
+    root: root
+  } do
+    path = fixture(root, :codex, %{"exec --help" => {@secret, 2}})
+    detector = detector_with(executables: %{codex: path})
+    assert {:ok, result} = Detector.scan_agent(:codex, detector)
+
+    assert %{
+             probe_status: :ok,
+             auth_status: :configured,
+             errors: [%{stage: :help, reason: :exit_status}]
+           } = result
+
+    assert result.capabilities.streaming == :unknown
+  end
+
+  test "recognizes Pi's multiline help and Hermes argparse options and version labels", %{
+    root: root
+  } do
+    pi =
+      fixture(root, :pi, %{
+        "--no-extensions --help" =>
+          {"pi - AI coding assistant\n\e[1mUsage:\e[0m\n  pi [options] [messages...]\n" <>
+             "\e[1mOptions:\e[0m\n  --print, -p\n  --mode <mode> text, json, or rpc\n" <>
+             "  --resume, -r\n", 0}
+      })
+
+    hermes =
+      fixture(root, :hermes, %{
+        "--version" =>
+          {"Hermes Agent v2026.11.10 (2026.11.10) · upstream a1b2c3d4\nPython: 3.11.14", 0},
+        "--help" =>
+          {"usage: hermes [-h] [-z PROMPT] <command>\n" <>
+             "options:\n  -z PROMPT, --oneshot PROMPT  Run once\n  -r SESSION, --resume SESSION\n",
+           0}
+      })
+
+    detector = detector_with(executables: %{pi: pi, hermes: hermes})
+    assert {:ok, results} = Detector.scan(detector)
+
+    assert %{
+             probe_status: :ok,
+             capabilities: %{
+               headless: :advertised,
+               streaming: :advertised,
+               session_resume: :advertised
+             }
+           } = agent(results, :pi)
+
+    assert %{
+             probe_status: :ok,
+             version: "2026.11.10",
+             capabilities: %{headless: :advertised, session_resume: :advertised}
+           } = agent(results, :hermes)
+
+    assert File.read!(Path.join(root, "calls")) =~ "pi|--no-extensions --help"
+  end
+
   test "unavailable platform never launches installed executables", %{root: root} do
     detector = detector(root, os_type: {:win32, :nt})
     assert {:ok, agents} = Detector.scan(detector)
@@ -136,6 +210,13 @@ defmodule Boss.Agents.DetectorTest do
       {:codex, "login status", "Not logged in", 1, :not_configured},
       {:codex, "login status", "Logged in using ChatGPT", 1, :unknown},
       {:codex, "login status", "Logged in using an API key - " <> @secret, 0, :configured},
+      {:codex, "login status",
+       "API key configured - " <>
+         @secret <>
+         "\nAuthentication is checked when you send a request.", 0, :configured},
+      {:codex, "login status", "API key configured - " <> @secret, 0, :unknown},
+      {:codex, "login status", "Logged in using workload identity", 0, :configured},
+      {:codex, "login status", "Logged in using access token", 0, :configured},
       {:codex, "login status", "Logged in using ChatGPT\nNot logged in", 0, :unknown},
       {:claude, "auth status --json", ~s({"loggedIn":false}), 1, :not_configured},
       {:claude, "auth status --json", ~s({"loggedIn":true}), 1, :unknown},
@@ -353,7 +434,7 @@ defmodule Boss.Agents.DetectorTest do
     assert opencode.probe_status == :ok
     assert opencode.auth_status == :unknown
     assert opencode.capabilities.headless == :advertised
-    assert opencode.capabilities.streaming == :not_advertised
+    assert opencode.capabilities.streaming == :advertised
     assert opencode.capabilities.session_resume == :advertised
     assert opencode.capabilities.approval_support == :advertised
     refute File.read!(Path.join(root, "calls")) =~ "auth list"
@@ -441,7 +522,7 @@ defmodule Boss.Agents.DetectorTest do
         :pi ->
           %{
             "--version" => {"1.0.2", 0},
-            "--help" =>
+            "--no-extensions --help" =>
               {"Usage: pi [options]\nOptions:\n  -p, --print\n  --mode <mode> text, json, rpc\n  --approve\nCommands:\n  auth",
                0}
           }
