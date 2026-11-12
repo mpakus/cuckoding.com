@@ -1,102 +1,93 @@
 defmodule Boss.Agents.Authorizer do
   @moduledoc """
-  Initiates CLI authorization via native browser OAuth or an interactive macOS
-  Terminal session, then re-verifies status and fetches supported models.
+  Opens interactive sign-in in macOS Terminal and refreshes local model metadata.
   No credentials or terminal I/O are captured or stored.
   """
-  alias Boss.Agents.{Detections, Metadata, ModelDiscovery}
-  alias Boss.Agents.Process, as: Runner
-
-  @browser_login ~w(codex claude cursor)a
+  alias Boss.Agents.{Detections, ModelDiscovery}
 
   def login_argv(:codex), do: ["login"]
   def login_argv(:claude), do: ["auth", "login"]
   def login_argv(:cursor), do: ["login"]
-  def login_argv(:hermes), do: ["auth", "add"]
-  def login_argv(:pi), do: ["auth", "login"]
+  def login_argv(:hermes), do: ["model"]
+  def login_argv(:pi), do: []
   def login_argv(:opencode), do: ["auth", "login"]
 
-  def authorize(agent_id, mode \\ :auto) when is_atom(agent_id) do
-    path = executable_for(agent_id)
+  def authorize(agent_id, _mode \\ :auto) when is_atom(agent_id) do
+    detector = Application.get_env(:boss, :agent_detector, Boss.Agents.Detector)
 
-    cond do
-      is_nil(path) ->
-        {:error, :not_installed}
-
-      mode == :terminal or agent_id not in @browser_login ->
+    case scan_single(detector, agent_id) do
+      {:ok, %{probe_status: :ok, path: path}} when is_binary(path) ->
         open_in_terminal(path, login_argv(agent_id))
 
-      true ->
-        case run_browser_login(path, login_argv(agent_id)) do
-          :ok ->
-            verify_and_fetch(agent_id)
+      {:ok, _} ->
+        {:error, :not_installed}
 
-          {:error, :tty_required} ->
-            open_in_terminal(path, login_argv(agent_id))
-
-          {:error, _} = err ->
-            err
-        end
+      error ->
+        error
     end
   end
 
   def verify_and_fetch(agent_id) when is_atom(agent_id) do
-    detector = Application.get_env(:boss, :agent_detector, Boss.Agents.Detector)
-    discovery = Application.get_env(:boss, :agent_model_discovery, ModelDiscovery)
-
-    with {:ok, scanned} <- scan_single(detector, agent_id) do
-      scanned = maybe_probe_opencode_auth(scanned)
-      saved = Detections.save_agent(scanned)
-
-      if saved.probe_status == :ok and saved.auth_status == :configured do
-        case discovery.fetch(agent_id, saved.path) do
-          {:ok, models} ->
-            {:ok, Detections.save_models(agent_id, models) || %{saved | models: models}}
-
-          {:error, :auth_required} ->
-            {:ok,
-             Detections.mark_auth_status(agent_id, :stale) ||
-               %{saved | auth_status: :stale, models: []}}
-
-          _ ->
-            {:ok, saved}
-        end
-      else
-        {:ok, saved}
-      end
+    with {:ok, saved, _} <- refresh(agent_id) do
+      {:ok, saved}
     end
   end
 
   def fetch_models(agent_id) when is_atom(agent_id) do
-    discovery = Application.get_env(:boss, :agent_model_discovery, ModelDiscovery)
+    case refresh(agent_id) do
+      {:ok, %{probe_status: :ok, auth_status: :configured} = saved, true} ->
+        {:ok, saved}
 
-    case Detections.get_view(agent_id) do
-      %{probe_status: :ok, auth_status: :configured, path: path} = current ->
-        case discovery.fetch(agent_id, path) do
-          {:ok, models} ->
-            {:ok, Detections.save_models(agent_id, models) || %{current | models: models}}
+      {:ok, %{probe_status: :ok, auth_status: :configured}, false} ->
+        {:error, :unavailable}
 
-          {:error, :auth_required} ->
-            updated =
-              Detections.mark_auth_status(agent_id, :stale) ||
-                %{current | auth_status: :stale, models: []}
+      {:ok, %{probe_status: :ok, auth_status: :stale} = saved, _} ->
+        {:error, {:auth_required, saved}}
 
-            {:error, {:auth_required, updated}}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      %{probe_status: :ok} ->
+      {:ok, %{probe_status: :ok}, _} ->
         {:error, :not_authorized}
 
-      _ ->
+      {:ok, _, _} ->
         {:error, :not_detected}
+
+      error ->
+        error
+    end
+  end
+
+  def enrich(%{probe_status: :ok, auth_status: auth, id: id} = row, discovery)
+      when auth == :configured or (auth == :unknown and id in [:pi, :hermes, :opencode]) do
+    case discovery.fetch(id, row.path) do
+      {:ok, []} when auth == :unknown ->
+        row
+
+      {:ok, models} ->
+        row |> Map.put(:auth_status, :configured) |> Map.put(:models, models)
+
+      {:error, :auth_required} ->
+        status = if auth == :configured, do: :stale, else: :not_configured
+        %{row | auth_status: status}
+
+      {:error, reason} when reason in [:unavailable, :invalid_models] ->
+        %{row | errors: row.errors ++ [%{stage: :models, reason: reason}]}
+    end
+  end
+
+  def enrich(row, _discovery), do: row
+
+  defp refresh(agent_id) do
+    detector = Application.get_env(:boss, :agent_detector, Boss.Agents.Detector)
+    discovery = Application.get_env(:boss, :agent_model_discovery, ModelDiscovery)
+    checked_at = DateTime.utc_now()
+
+    with {:ok, row} <- scan_single(detector, agent_id) do
+      row = enrich(row, discovery)
+      {:ok, Detections.save_agent(row, checked_at), Map.has_key?(row, :models)}
     end
   end
 
   defp scan_single(detector, agent_id) do
-    if function_exported?(detector, :scan_agent, 1) do
+    if Code.ensure_loaded?(detector) and function_exported?(detector, :scan_agent, 1) do
       detector.scan_agent(agent_id)
     else
       case detector.scan() do
@@ -112,121 +103,19 @@ defmodule Boss.Agents.Authorizer do
     end
   end
 
-  defp maybe_probe_opencode_auth(%{id: :opencode, probe_status: :ok, path: path} = row)
-       when is_binary(path) do
-    if File.regular?(path) do
-      scratch = Path.join(System.tmp_dir!(), "boss-opencode-auth-#{Ecto.UUID.generate()}")
-
-      status =
-        with :ok <- File.mkdir(scratch),
-             :ok <- File.chmod(scratch, 0o700) do
-          check_opencode_credentials(path, scratch)
-        else
-          _ -> row.auth_status
-        end
-
-      File.rm_rf(scratch)
-      %{row | auth_status: status}
-    else
-      row
-    end
-  end
-
-  defp maybe_probe_opencode_auth(row), do: row
-
-  defp check_opencode_credentials(path, scratch) do
-    capture = :ets.new(:opencode_auth_count, [:set, :public])
-    :ets.insert(capture, {:out, ""})
-
-    try do
-      result =
-        Runner.run(path, ["auth", "list"],
-          cd: scratch,
-          input: "",
-          timeout_ms: 6_000,
-          output_limit: 32_768,
-          on_event: fn
-            {:stdout, b} ->
-              [{:out, cur}] = :ets.lookup(capture, :out)
-              if byte_size(cur) < 16_384, do: :ets.insert(capture, {:out, cur <> b})
-              :ok
-
-            _ ->
-              :ok
-          end
-        )
-
-      [{:out, raw}] = :ets.lookup(capture, :out)
-      clean = Regex.replace(~r/\e\[[0-9;]*[A-Za-z]/, raw, "")
-
-      cond do
-        result.exit_code != 0 ->
-          :unknown
-
-        Regex.match?(~r/\b0\s+credentials?\b/i, clean) ->
-          :not_configured
-
-        Regex.match?(~r/\b[1-9]\d*\s+credentials?\b/i, clean) ->
-          :configured
-
-        true ->
-          :unknown
-      end
-    after
-      :ets.delete(capture)
-    end
-  end
-
-  defp executable_for(agent_id) do
-    case Detections.get_view(agent_id) do
-      %{path: path} when is_binary(path) -> path
-      _ -> Metadata.find_executable(agent_id)
-    end
-  end
-
-  defp run_browser_login(path, argv) do
-    scratch = Path.join(System.tmp_dir!(), "boss-agent-login-#{Ecto.UUID.generate()}")
-
-    with :ok <- File.mkdir(scratch),
-         :ok <- File.chmod(scratch, 0o700) do
-      result =
-        Runner.run(path, argv,
-          cd: scratch,
-          input: "",
-          timeout_ms: 180_000,
-          output_limit: 65_536
-        )
-
-      if result.cleanup == :group_empty, do: File.rm_rf(scratch)
-
-      cond do
-        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 ->
-          :ok
-
-        result.outcome == :exited ->
-          {:error, :tty_required}
-
-        true ->
-          {:error, :login_timeout}
-      end
-    else
-      _ ->
-        File.rm_rf(scratch)
-        {:error, :unavailable}
-    end
-  end
-
   defp open_in_terminal(path, argv) do
     case :os.type() do
       {:unix, :darwin} ->
-        command_line = Enum.map_join([path | argv], " ", &shell_escape/1)
+        command_line = "cd / && " <> Enum.map_join([path | argv], " ", &shell_escape/1)
 
         script = """
         on run argv
-          tell application "Terminal"
-            activate
-            do script (item 1 of argv)
-          end tell
+          with timeout of 15 seconds
+            tell application "Terminal"
+              activate
+              do script (item 1 of argv)
+            end tell
+          end timeout
         end run
         """
 

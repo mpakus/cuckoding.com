@@ -1,11 +1,13 @@
 defmodule Boss.Agents.ModelDiscovery do
   @moduledoc """
-  Bounded model discovery per authorized CLI agent, returning supported models
-  with reasoning capabilities/efforts and reference USD per 1M token pricing.
+  Bounded CLI model metadata, reduced to model choices and reported capabilities.
+  A catalog describes local CLI configuration and does not prove inference access.
   """
   alias Boss.Agents.Process, as: Runner
 
   @effort_order ~w(none low medium high xhigh max ultra)
+  @model_id ~r/\A[A-Za-z0-9][A-Za-z0-9._:\/@+\[\]-]{0,159}\z/
+  @claude_efforts ~w(low medium high xhigh max)
 
   # Reference API pricing (USD per 1M tokens: {input, output, cached_input})
   # used when a CLI reports model IDs and reasoning levels without inline dollar rates.
@@ -58,89 +60,63 @@ defmodule Boss.Agents.ModelDiscovery do
 
   def fetch(agent_id, executable) when is_atom(agent_id) do
     if is_binary(executable) and File.regular?(executable) do
-      with_scratch(fn scratch ->
-        do_fetch(agent_id, executable, scratch)
-      end)
+      do_fetch(agent_id, executable)
     else
-      {:ok, []}
+      {:error, :unavailable}
     end
   end
 
-  defp do_fetch(:codex, executable, scratch) do
-    case run_capture(
-           executable,
-           ["--config", "model_provider=\"openai\"", "debug", "models"],
-           scratch,
-           12_000,
-           1_048_576
-         ) do
-      {:ok, 0, stdout, _stderr} ->
-        parse_codex_models(stdout)
+  defp do_fetch(:codex, executable) do
+    args = ["--config", "model_provider=\"openai\"", "debug", "models"]
 
-      {:ok, _code, stdout, stderr} ->
-        if auth_error?(stderr <> "\n" <> stdout),
-          do: {:error, :auth_required},
-          else: {:error, :unavailable}
-
-      error ->
-        error
+    with {:ok, stdout} <- run_capture(executable, args, 12_000, 1_048_576) do
+      parse_codex_models(stdout)
     end
   end
 
-  defp do_fetch(:cursor, executable, scratch) do
-    case run_capture(executable, ["models"], scratch, 15_000, 262_144) do
-      {:ok, 0, stdout, _stderr} ->
-        parse_cursor_models(stdout)
-
-      {:ok, _code, stdout, stderr} ->
-        if auth_error?(stderr <> "\n" <> stdout),
-          do: {:error, :auth_required},
-          else: {:error, :unavailable}
-
-      error ->
-        error
+  defp do_fetch(:cursor, executable) do
+    with {:ok, stdout} <- run_capture(executable, ["models"], 15_000, 262_144) do
+      parse_cursor_models(stdout)
     end
   end
 
-  defp do_fetch(:claude, executable, scratch) do
-    with {:ok, 0, status_out, _} <-
-           run_capture(executable, ["auth", "status", "--json"], scratch, 8_000, 65_536),
-         {:ok, %{"loggedIn" => true}} <- Jason.decode(String.trim(status_out)) do
-      efforts =
-        case run_capture(executable, ["--help"], scratch, 5_000, 65_536) do
-          {:ok, 0, help_out, _} -> parse_claude_efforts(help_out)
-          _ -> ~w(low medium high xhigh max)
-        end
+  defp do_fetch(:claude, executable) do
+    with {:ok, help} <- run_capture(executable, ["--help"], 5_000, 65_536) do
+      {:ok, claude_models(parse_claude_efforts(help))}
+    end
+  end
 
-      {:ok, claude_models(efforts)}
+  defp do_fetch(:opencode, executable) do
+    env = [{"OPENCODE_DISABLE_MODELS_FETCH", "1"}, {"OPENCODE_DISABLE_AUTOUPDATE", "1"}]
+
+    with {:ok, stdout} <-
+           run_capture(executable, ["--pure", "models", "--verbose"], 15_000, 4_194_304, env) do
+      parse_opencode_models(stdout)
+    end
+  end
+
+  defp do_fetch(:pi, executable) do
+    env = [{"PI_OFFLINE", "1"}]
+
+    with {:ok, stdout} <-
+           run_capture(executable, ["--no-extensions", "--list-models"], 10_000, 262_144, env) do
+      parse_pi_models(stdout)
+    end
+  end
+
+  defp do_fetch(:hermes, executable) do
+    # Older Hermes versions print detailed credential metadata by default.
+    with {:ok, help} <- run_capture(executable, ["status", "--help"], 5_000, 65_536),
+         true <- Regex.match?(~r/^\s+--full(?:\s|$)/m, help),
+         {:ok, stdout} <- run_capture(executable, ["status"], 5_000, 65_536) do
+      parse_hermes_status(stdout)
     else
-      {:ok, _, _, _} -> {:error, :auth_required}
-      {:error, :auth_required} -> {:error, :auth_required}
-      _ -> {:error, :auth_required}
+      false -> {:error, :unavailable}
+      error -> error
     end
   end
 
-  defp do_fetch(:opencode, executable, scratch) do
-    case run_capture(executable, ["models", "--verbose"], scratch, 15_000, 2_097_152) do
-      {:ok, 0, stdout, _stderr} ->
-        parse_opencode_models(stdout)
-
-      _ ->
-        {:error, :unavailable}
-    end
-  end
-
-  defp do_fetch(:pi, executable, scratch) do
-    with {:ok, 0, help, _} <- run_capture(executable, ["--help"], scratch, 5_000, 65_536),
-         true <- String.contains?(help, "--list-models"),
-         {:ok, 0, out, _} <- run_capture(executable, ["--list-models"], scratch, 10_000, 262_144) do
-      parse_cursor_models(out)
-    else
-      _ -> {:ok, []}
-    end
-  end
-
-  defp do_fetch(_other, _executable, _scratch), do: {:ok, []}
+  defp do_fetch(_other, _executable), do: {:error, :unavailable}
 
   @doc false
   def parse_codex_models(text) when is_binary(text) do
@@ -148,22 +124,25 @@ defmodule Boss.Agents.ModelDiscovery do
          {:ok, %{"models" => models}} when is_list(models) <- Jason.decode(text) do
       items =
         models
-        |> Enum.filter(&(is_map(&1) and &1["visibility"] == "list" and is_binary(&1["slug"])))
+        |> Enum.filter(&match?(%{"visibility" => "list"}, &1))
+        |> Enum.filter(&model_id?(&1["slug"]))
+        |> Enum.uniq_by(& &1["slug"])
         |> Enum.map(fn m ->
           slug = m["slug"]
 
           efforts =
-            (m["supported_reasoning_levels"] || [])
-            |> Enum.map(&if(is_map(&1), do: &1["effort"]))
-            |> Enum.filter(&is_binary/1)
+            m["supported_reasoning_levels"]
+            |> list()
+            |> Enum.map(&object(&1)["effort"])
             |> sort_efforts()
 
           %{
             "id" => slug,
-            "name" => m["display_name"] || slug,
+            "name" => label(m["display_name"], slug),
             "reasoning" => efforts != [],
             "reasoning_efforts" => efforts,
-            "default_effort" => m["default_reasoning_level"],
+            "default_effort" =>
+              if(m["default_reasoning_level"] in efforts, do: m["default_reasoning_level"]),
             "context_window" => if(is_integer(m["context_window"]), do: m["context_window"]),
             "pricing" => pricing_for(slug, m["pricing"])
           }
@@ -180,10 +159,13 @@ defmodule Boss.Agents.ModelDiscovery do
     clean = strip_ansi(text)
 
     cond do
+      not valid_text?(clean) ->
+        {:error, :invalid_models}
+
       auth_error?(clean) ->
         {:error, :auth_required}
 
-      String.contains?(String.downcase(clean), "no models available") ->
+      String.starts_with?(String.downcase(String.trim(clean)), "no models available") ->
         {:ok, []}
 
       true ->
@@ -191,128 +173,124 @@ defmodule Boss.Agents.ModelDiscovery do
           clean
           |> String.split(~r/\R/u)
           |> Enum.map(&String.trim/1)
-          |> Enum.reject(
-            &(&1 == "" or &1 == "Available models" or String.starts_with?(&1, "Tip:"))
-          )
-          |> Enum.reduce({[], MapSet.new()}, fn line, {acc, seen} ->
-            case Regex.run(~r/\A([A-Za-z0-9][A-Za-z0-9._:\/@-]*)\s+-\s+(.+)\z/, line) do
-              [_, id, raw_name] ->
-                if MapSet.member?(seen, id) do
-                  {acc, seen}
-                else
-                  name =
-                    raw_name
-                    |> String.replace(~r/\s*\((?:current|default|recommended)\)\s*$/i, "")
-                    |> String.trim()
+          |> Enum.flat_map(fn line ->
+            with [id, raw_name] <- String.split(line, " - ", parts: 2),
+                 true <- model_id?(id) do
+              name =
+                raw_name
+                |> String.replace(~r/\s*\((?:current|default|recommended)\)\s*$/i, "")
+                |> String.trim()
+                |> label(id)
 
-                  {efforts, reasoning?} = cursor_reasoning(id, name)
+              reasoning =
+                Enum.any?([id, name], fn value ->
+                  Regex.match?(
+                    ~r/(?:^|[- ])(?:thinking|low|medium|high|xhigh|max|ultra)\z/i,
+                    value
+                  )
+                end)
 
-                  entry = %{
-                    "id" => id,
-                    "name" => if(name == "", do: id, else: name),
-                    "reasoning" => reasoning?,
-                    "reasoning_efforts" => efforts,
-                    "default_effort" => if(reasoning?, do: "high"),
-                    "context_window" => nil,
-                    "pricing" => pricing_for(id, nil, "Cursor plan / API")
-                  }
-
-                  {[entry | acc], MapSet.put(seen, id)}
-                end
-
-              _ ->
-                {acc, seen}
+              [
+                %{
+                  "id" => id,
+                  "name" => name,
+                  "reasoning" => reasoning,
+                  "reasoning_efforts" => [],
+                  "default_effort" => nil,
+                  "context_window" => nil,
+                  "pricing" => pricing_for(id, nil, "Cursor plan / API")
+                }
+              ]
+            else
+              _ -> []
             end
           end)
-          |> elem(0)
-          |> Enum.reverse()
+          |> Enum.uniq_by(& &1["id"])
 
-        {:ok, items}
+        if items == [], do: {:error, :invalid_models}, else: {:ok, items}
     end
   end
 
   @doc false
-  def claude_models(efforts \\ ~w(low medium high xhigh max)) do
+  def claude_models(efforts \\ @claude_efforts) do
     efforts = sort_efforts(efforts)
 
     [
-      {"opus", "Claude Opus (latest)", 200_000, "high"},
-      {"sonnet", "Claude Sonnet (latest)", 200_000, "high"},
-      {"haiku", "Claude Haiku (latest)", 200_000, "medium"},
-      {"claude-opus-4-6", "Claude Opus 4.6", 200_000, "high"},
-      {"claude-sonnet-4-6", "Claude Sonnet 4.6", 200_000, "medium"},
-      {"claude-haiku-4-5-20251001", "Claude Haiku 4.5", 200_000, "medium"}
+      {"opus", "Claude Opus (alias)", @claude_efforts, nil},
+      {"sonnet", "Claude Sonnet (alias)", @claude_efforts, nil},
+      {"haiku", "Claude Haiku (alias)", [], nil},
+      {"claude-opus-4-6", "Claude Opus 4.6", ~w(low medium high max), "high"},
+      {"claude-sonnet-4-6", "Claude Sonnet 4.6", ~w(low medium high max), "high"},
+      {"claude-haiku-4-5-20251001", "Claude Haiku 4.5", [], nil}
     ]
-    |> Enum.map(fn {id, name, ctx, default_effort} ->
+    |> Enum.map(fn {id, name, supported, default_effort} ->
+      available = Enum.filter(efforts, &(&1 in supported))
+
       %{
         "id" => id,
         "name" => name,
-        "reasoning" => true,
-        "reasoning_efforts" => efforts,
-        "default_effort" =>
-          if(default_effort in efforts, do: default_effort, else: List.first(efforts)),
-        "context_window" => ctx,
-        "pricing" => pricing_for(id, nil)
+        "reasoning" => available != [],
+        "reasoning_efforts" => available,
+        "default_effort" => if(default_effort in available, do: default_effort),
+        "context_window" => nil,
+        "pricing" => if(String.starts_with?(id, "claude-"), do: pricing_for(id, nil))
       }
     end)
   end
 
   @doc false
   def parse_opencode_models(text) when is_binary(text) do
-    lines = strip_ansi(text) |> String.split(~r/\R/u)
-    {:ok, collect_opencode_blocks(lines, [], 0)}
-  end
+    clean = strip_ansi(text)
 
-  defp collect_opencode_blocks([], acc, _count), do: Enum.reverse(acc)
-  defp collect_opencode_blocks(_lines, acc, count) when count >= 60, do: Enum.reverse(acc)
+    if valid_text?(clean) do
+      case collect_opencode_blocks(String.split(clean, ~r/\r?\n/), []) do
+        {:ok, []} when clean != "" ->
+          if String.trim(clean) == "", do: {:ok, []}, else: {:error, :invalid_models}
 
-  defp collect_opencode_blocks([header, "{" <> _ = first | rest], acc, count) do
-    trimmed = String.trim(header)
-
-    if String.contains?(trimmed, "/") do
-      {json_lines, remaining} = take_json_block([first | rest], 0, [])
-
-      case Jason.decode(Enum.join(json_lines, "\n")) do
-        {:ok, obj} when is_map(obj) ->
-          if regional_duplicate?(trimmed) do
-            collect_opencode_blocks(remaining, acc, count)
-          else
-            entry = opencode_entry(trimmed, obj)
-            collect_opencode_blocks(remaining, [entry | acc], count + 1)
-          end
-
-        _ ->
-          collect_opencode_blocks(remaining, acc, count)
+        result ->
+          result
       end
     else
-      collect_opencode_blocks([first | rest], acc, count)
+      {:error, :invalid_models}
     end
   end
 
-  defp collect_opencode_blocks([_ | rest], acc, count),
-    do: collect_opencode_blocks(rest, acc, count)
+  defp collect_opencode_blocks([], acc),
+    do: {:ok, acc |> Enum.reverse() |> Enum.uniq_by(& &1["id"])}
 
-  defp take_json_block([], _depth, acc), do: {Enum.reverse(acc), []}
+  defp collect_opencode_blocks([header, "{" <> _ = first | rest], acc) do
+    if model_id?(header) and String.contains?(header, "/") do
+      {json, remaining} = take_opencode_block(first, rest)
 
-  defp take_json_block([line | rest], depth, acc) do
-    opens = count_char(line, ?{)
-    closes = count_char(line, ?})
-    next_depth = depth + opens - closes
+      case Jason.decode(json) do
+        {:ok, %{} = obj} ->
+          collect_opencode_blocks(remaining, [opencode_entry(header, obj) | acc])
 
-    if next_depth <= 0 do
-      {Enum.reverse([line | acc]), rest}
+        _ ->
+          {:error, :invalid_models}
+      end
     else
-      take_json_block(rest, next_depth, [line | acc])
+      collect_opencode_blocks([first | rest], acc)
     end
   end
 
-  defp count_char(bin, target) do
-    bin |> :binary.bin_to_list() |> Enum.count(&(&1 == target))
+  defp collect_opencode_blocks([line | rest], acc) do
+    if model_id?(line) and String.contains?(line, "/") do
+      {:error, :invalid_models}
+    else
+      collect_opencode_blocks(rest, acc)
+    end
   end
 
-  defp regional_duplicate?(id) do
-    Regex.match?(~r/\Aamazon-bedrock\/(?:au|eu|global|in|jp|us|us-gov)\./, id)
+  defp take_opencode_block("{", rest) do
+    # OpenCode's JSON.stringify emits the outer closing brace at column zero.
+    case Enum.split_while(rest, &(&1 != "}")) do
+      {body, ["}" | remaining]} -> {Enum.join(["{" | body] ++ ["}"], "\n"), remaining}
+      _ -> {"", []}
+    end
   end
+
+  defp take_opencode_block(line, rest), do: {line, rest}
 
   defp opencode_entry(full_id, obj) do
     efforts =
@@ -321,39 +299,39 @@ defmodule Boss.Agents.ModelDiscovery do
         _ -> []
       end
 
-    reasoning? = get_in(obj, ["capabilities", "reasoning"]) == true or efforts != []
-    cost = obj["cost"]
-    ctx = get_in(obj, ["limit", "context"])
+    reasoning? = object(obj["capabilities"])["reasoning"] == true or efforts != []
+    cost = object(obj["cost"])
+    ctx = object(obj["limit"])["context"]
 
     pricing =
-      if is_map(cost) and is_number(cost["input"]) and is_number(cost["output"]) do
+      if is_number(cost["input"]) and is_number(cost["output"]) do
         %{
           "input" => cost["input"] * 1.0,
           "output" => cost["output"] * 1.0,
           "cached_input" =>
-            case get_in(cost, ["cache", "read"]) do
+            case object(cost["cache"])["read"] do
               n when is_number(n) -> n * 1.0
               _ -> nil
             end,
           "unit" => "1M tokens"
         }
       else
-        pricing_for(obj["id"] || full_id, nil)
+        pricing_for(full_id, nil)
       end
 
     %{
       "id" => full_id,
-      "name" => obj["name"] || full_id,
+      "name" => label(obj["name"], full_id),
       "reasoning" => reasoning?,
       "reasoning_efforts" => efforts,
-      "default_effort" => List.first(efforts),
+      "default_effort" => nil,
       "context_window" => if(is_integer(ctx) and ctx > 0, do: ctx),
       "pricing" => pricing
     }
   end
 
   defp parse_claude_efforts(help) do
-    case Regex.run(~r/--effort\s+<[^>]+>\s+[^\n]*\(([^)]+)\)/, help) do
+    case Regex.run(~r/^ +--effort +<[^>]+> +[^\r\n]*\(([^)\r\n]+)\)/m, help) do
       [_, list] ->
         list
         |> String.split(",")
@@ -361,32 +339,101 @@ defmodule Boss.Agents.ModelDiscovery do
         |> sort_efforts()
 
       _ ->
-        ~w(low medium high xhigh max)
+        []
     end
   end
 
-  defp cursor_reasoning(id, name) do
-    down = String.downcase(id <> " " <> name)
+  defp parse_pi_models(text) do
+    clean = strip_ansi(text)
 
     cond do
-      String.contains?(down, [
-        "thinking",
-        "gpt-6",
-        "gpt-5",
-        "o3",
-        "o4",
-        "opus",
-        "sonnet",
-        "fable",
-        "grok-4",
-        "gemini",
-        "deepseek-r",
-        "deepseek-v4"
-      ]) ->
-        {~w(low medium high), true}
+      not valid_text?(clean) ->
+        {:error, :invalid_models}
+
+      String.starts_with?(String.trim(clean), "No models available") ->
+        {:ok, []}
 
       true ->
-        {[], false}
+        rows =
+          clean
+          |> String.split(~r/\r?\n/, trim: true)
+          |> Enum.map(&String.split/1)
+          |> Enum.drop_while(&(&1 != ~w(provider model context max-out thinking images)))
+
+        case rows do
+          [_header | entries] ->
+            items = Enum.map(entries, &pi_entry/1)
+
+            if Enum.all?(items, &is_map/1),
+              do: {:ok, Enum.uniq_by(items, & &1["id"])},
+              else: {:error, :invalid_models}
+
+          _ ->
+            {:error, :invalid_models}
+        end
+    end
+  end
+
+  defp pi_entry([provider, model, context, _max_output, thinking, images])
+       when thinking in ["yes", "no"] and images in ["yes", "no"] do
+    id = provider <> "/" <> model
+
+    if not String.contains?(provider, "/") and model_id?(id) do
+      %{
+        "id" => id,
+        "name" => model,
+        "reasoning" => thinking == "yes",
+        "reasoning_efforts" => [],
+        "default_effort" => nil,
+        "context_window" => pi_context(context),
+        "pricing" => nil
+      }
+    end
+  end
+
+  defp pi_entry(_), do: nil
+
+  defp pi_context(context) when byte_size(context) <= 10 do
+    case Float.parse(context) do
+      {n, "M"} when n > 0 -> round(n * 1_000_000)
+      {n, "K"} when n > 0 -> round(n * 1_000)
+      {n, ""} when n > 0 -> round(n)
+      _ -> nil
+    end
+  end
+
+  defp pi_context(_), do: nil
+
+  defp parse_hermes_status(text) do
+    clean = strip_ansi(text)
+
+    with true <- valid_text?(clean),
+         [[_, id]] <- Regex.scan(~r/^ +Model: +([^\r\n]+)\r?$/m, clean),
+         [[_, provider]] <- Regex.scan(~r/^ +Provider: +([^\r\n]+)\r?$/m, clean),
+         [[_, providers]] <- Regex.scan(~r/^ +Providers: +([^\r\n]+)\r?$/m, clean) do
+      cond do
+        providers == "none connected" ->
+          {:error, :auth_required}
+
+        model_id?(id) and provider in String.split(providers, ", ", trim: true) ->
+          {:ok,
+           [
+             %{
+               "id" => id,
+               "name" => id,
+               "reasoning" => false,
+               "reasoning_efforts" => [],
+               "default_effort" => nil,
+               "context_window" => nil,
+               "pricing" => nil
+             }
+           ]}
+
+        true ->
+          {:ok, []}
+      end
+    else
+      _ -> {:error, :invalid_models}
     end
   end
 
@@ -396,7 +443,6 @@ defmodule Boss.Agents.ModelDiscovery do
       |> String.downcase()
       |> String.replace(~r/\A[a-z0-9_-]+\//, "")
       |> String.replace(~r/\A(?:openai|anthropic)\./, "")
-      |> String.replace(~r/-v\d+(?::\d+)?\z/, "")
 
     cond do
       is_map(inline) and is_number(inline["input"]) and is_number(inline["output"]) ->
@@ -412,11 +458,6 @@ defmodule Boss.Agents.ModelDiscovery do
         {inp, outp, cached} = match
         %{"input" => inp, "output" => outp, "cached_input" => cached, "unit" => "1M tokens"}
 
-      prefix_match =
-          Enum.find(@reference_pricing, fn {k, _} -> String.starts_with?(normalized, k) end) ->
-        {_, {inp, outp, cached}} = prefix_match
-        %{"input" => inp, "output" => outp, "cached_input" => cached, "unit" => "1M tokens"}
-
       true ->
         %{"input" => nil, "output" => nil, "cached_input" => nil, "unit" => fallback_unit}
     end
@@ -430,31 +471,54 @@ defmodule Boss.Agents.ModelDiscovery do
   end
 
   defp auth_error?(text) when is_binary(text) do
-    down = String.downcase(text)
-
-    String.contains?(down, "authentication required") or
-      String.contains?(down, "not logged in") or
-      String.contains?(down, "please run 'agent login'")
+    valid_text?(text) and
+      String.contains?(String.downcase(text), [
+        "authentication required",
+        "not logged in",
+        "please run 'agent login'"
+      ])
   end
+
+  defp model_id?(id), do: is_binary(id) and Regex.match?(@model_id, id)
+  defp object(value) when is_map(value), do: value
+  defp object(_), do: %{}
+  defp list(value) when is_list(value), do: value
+  defp list(_), do: []
+
+  defp label(name, id) when is_binary(name) do
+    if valid_text?(name) and not Regex.match?(~r/[\x00-\x1F\x7F]/, name) and
+         String.trim(name) != "",
+       do: name,
+       else: id
+  end
+
+  defp label(_, id), do: id
+
+  defp valid_text?(text), do: String.valid?(text) and not String.contains?(text, <<0>>)
 
   defp strip_ansi(text) do
     Regex.replace(~r/\e\[[0-9;]*[A-Za-z]/, text, "")
   end
 
-  defp with_scratch(fun) do
+  defp run_capture(executable, args, timeout_ms, limit, env \\ []) do
     scratch = Path.join(System.tmp_dir!(), "boss-agent-models-#{Ecto.UUID.generate()}")
 
-    with :ok <- File.mkdir(scratch),
-         :ok <- File.chmod(scratch, 0o700) do
-      fun.(scratch)
+    with :ok <- File.mkdir(scratch) do
+      case File.chmod(scratch, 0o700) do
+        :ok ->
+          capture(executable, args, scratch, timeout_ms, limit, env)
+
+        _ ->
+          File.rmdir(scratch)
+          {:error, :unavailable}
+      end
     else
       _ ->
-        File.rm_rf(scratch)
         {:error, :unavailable}
     end
   end
 
-  defp run_capture(executable, args, scratch, timeout_ms, limit) do
+  defp capture(executable, args, scratch, timeout_ms, limit, env) do
     capture = :ets.new(:agent_model_capture, [:set, :public])
     :ets.insert(capture, [{:bytes, 0}, {:stdout, []}, {:stderr, []}])
 
@@ -479,7 +543,8 @@ defmodule Boss.Agents.ModelDiscovery do
           input: "",
           timeout_ms: timeout_ms,
           output_limit: limit,
-          on_event: callback
+          on_event: callback,
+          env: env
         )
 
       if result.cleanup == :group_empty, do: File.rm_rf(scratch)
@@ -490,7 +555,12 @@ defmodule Boss.Agents.ModelDiscovery do
         [{:stderr, err_chunks}] = :ets.lookup(capture, :stderr)
         stdout = out_chunks |> Enum.reverse() |> IO.iodata_to_binary()
         stderr = err_chunks |> Enum.reverse() |> IO.iodata_to_binary()
-        {:ok, result.exit_code, stdout, stderr}
+
+        cond do
+          result.exit_code == 0 -> {:ok, stdout}
+          auth_error?(stderr <> "\n" <> stdout) -> {:error, :auth_required}
+          true -> {:error, :unavailable}
+        end
       else
         {:error, :unavailable}
       end
