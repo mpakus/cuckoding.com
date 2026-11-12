@@ -23,7 +23,6 @@ defmodule Boss.Agents.Roles do
     }
   ]
   @kind_order %{"reviewer" => 0, "implementer" => 1, "analytic" => 2}
-  @efforts ~w(none low medium high xhigh max ultra)
 
   def standard, do: @standard
 
@@ -140,103 +139,111 @@ defmodule Boss.Agents.Roles do
 
   def assign(id, agent_ids, selections \\ %{}) when is_list(agent_ids) and is_map(selections) do
     ensure_standard()
-    ids = agent_ids |> Enum.map(&to_string/1) |> Enum.uniq() |> Enum.sort()
-    allowed = MapSet.new(Metadata.ids(), &Atom.to_string/1)
+    ids = agent_ids |> Enum.map(&agent_id_string/1) |> Enum.uniq()
 
-    if Enum.all?(ids, &MapSet.member?(allowed, &1)) do
-      authorized = Detections.authorized_map()
+    if Enum.all?(ids, &known_agent?/1) do
+      Repo.transaction(
+        fn ->
+          role = fetch(id) || Repo.rollback(:not_found)
+          authorized = Detections.authorized_map()
 
-      case validate_authorized_selections(ids, selections, authorized) do
-        {:ok, validated} ->
-          Repo.transaction(fn ->
-            role = fetch(id) || Repo.rollback(:not_found)
+          attrs =
+            Enum.map(ids, fn agent_id ->
+              raw =
+                Map.get(
+                  selections,
+                  agent_id,
+                  Map.get(selections, String.to_existing_atom(agent_id), %{})
+                )
 
-            Repo.delete_all(from member in RoleMember, where: member.role_id == ^role.id)
-
-            Enum.each(ids, fn agent_id ->
-              sel = Map.get(validated, agent_id, %{model_id: nil, reasoning_effort: nil})
-
-              %RoleMember{}
-              |> RoleMember.changeset(%{
-                role_id: role.id,
-                agent_id: agent_id,
-                model_id: sel.model_id,
-                reasoning_effort: sel.reasoning_effort
-              })
-              |> Repo.insert!()
+              selection!(role.id, agent_id, raw, authorized[agent_id])
             end)
 
-            role.id
-          end)
-
-        {:error, _} = err ->
-          err
-      end
+          Repo.delete_all(from member in RoleMember, where: member.role_id == ^role.id)
+          Enum.each(attrs, &save_member!(%RoleMember{}, &1))
+          role.id
+        end,
+        mode: :immediate
+      )
     else
       {:error, :unknown_agent}
     end
   end
 
-  defp validate_authorized_selections(ids, selections, authorized) do
-    Enum.reduce_while(ids, {:ok, %{}}, fn agent_id, {:ok, acc} ->
-      case Map.get(authorized, agent_id) do
-        nil ->
-          {:halt, {:error, :agent_not_authorized}}
+  def assign_member(role_id, agent_id, selection) do
+    if known_agent?(agent_id) do
+      Repo.transaction(
+        fn ->
+          role = fetch(role_id) || Repo.rollback(:not_found)
 
-        detection ->
-          raw =
-            Map.get(selections, agent_id) || Map.get(selections, String.to_atom(agent_id)) || %{}
+          member = Repo.get_by(RoleMember, role_id: role.id, agent_id: agent_id)
 
-          model_id = normalize_choice(raw["model_id"] || raw[:model_id], ["", "__default__"])
+          case selection do
+            nil ->
+              if member, do: Repo.delete!(member)
 
-          effort =
-            normalize_choice(raw["reasoning_effort"] || raw[:reasoning_effort], ["", "default"])
-
-          models = detection.models || []
-
-          cond do
-            is_nil(model_id) and is_nil(effort) ->
-              {:cont, {:ok, Map.put(acc, agent_id, %{model_id: nil, reasoning_effort: nil})}}
-
-            is_nil(model_id) and effort in @efforts ->
-              {:cont, {:ok, Map.put(acc, agent_id, %{model_id: nil, reasoning_effort: effort})}}
-
-            is_nil(model_id) ->
-              {:halt, {:error, :invalid_reasoning_effort}}
-
-            model = Enum.find(models, &(&1["id"] == model_id)) ->
-              allowed_efforts = model["reasoning_efforts"] || []
-
-              cond do
-                is_nil(effort) ->
-                  {:cont,
-                   {:ok, Map.put(acc, agent_id, %{model_id: model_id, reasoning_effort: nil})}}
-
-                allowed_efforts == [] and effort in @efforts ->
-                  {:cont,
-                   {:ok, Map.put(acc, agent_id, %{model_id: model_id, reasoning_effort: effort})}}
-
-                effort in allowed_efforts ->
-                  {:cont,
-                   {:ok, Map.put(acc, agent_id, %{model_id: model_id, reasoning_effort: effort})}}
-
-                true ->
-                  {:halt, {:error, :invalid_reasoning_effort}}
-              end
-
-            true ->
-              {:halt, {:error, :model_not_supported}}
+            raw ->
+              attrs = selection!(role.id, agent_id, raw, Detections.get_view(agent_id))
+              save_member!(member || %RoleMember{}, attrs)
           end
-      end
-    end)
+
+          role.id
+        end,
+        mode: :immediate
+      )
+    else
+      {:error, :unknown_agent}
+    end
   end
+
+  defp selection!(
+         role_id,
+         agent_id,
+         raw,
+         %{probe_status: :ok, auth_status: :configured} = detection
+       )
+       when is_map(raw) do
+    model_id = normalize_choice(Map.get(raw, "model_id", raw[:model_id]), ["", "__default__"])
+
+    effort =
+      normalize_choice(Map.get(raw, "reasoning_effort", raw[:reasoning_effort]), ["", "default"])
+
+    model = Enum.find(detection.models, &(&1["id"] == model_id))
+
+    cond do
+      model_id != nil and model == nil ->
+        Repo.rollback(:model_not_supported)
+
+      effort != nil and (model == nil or effort not in (model["reasoning_efforts"] || [])) ->
+        Repo.rollback(:invalid_reasoning_effort)
+
+      true ->
+        %{role_id: role_id, agent_id: agent_id, model_id: model_id, reasoning_effort: effort}
+    end
+  end
+
+  defp selection!(_, _, _, %{probe_status: :ok, auth_status: :configured}),
+    do: Repo.rollback(:model_not_supported)
+
+  defp selection!(_, _, _, _), do: Repo.rollback(:agent_not_authorized)
+
+  defp save_member!(%RoleMember{id: nil} = member, attrs),
+    do: member |> RoleMember.changeset(attrs) |> Repo.insert!()
+
+  defp save_member!(member, attrs), do: member |> RoleMember.changeset(attrs) |> Repo.update!()
+
+  defp agent_id_string(id) when is_atom(id), do: Atom.to_string(id)
+  defp agent_id_string(id), do: id
+
+  defp known_agent?(id), do: Enum.any?(Metadata.ids(), &(Atom.to_string(&1) == id))
 
   defp normalize_choice(val, blanks) when is_binary(val) do
     trimmed = String.trim(val)
     if trimmed in blanks, do: nil, else: trimmed
   end
 
-  defp normalize_choice(_, _), do: nil
+  defp normalize_choice(nil, _), do: nil
+  defp normalize_choice(_, _), do: :invalid
 
   defp present(role) do
     selections =
@@ -271,7 +278,7 @@ defmodule Boss.Agents.Roles do
       nil ->
         %Role{}
         |> Role.standard_changeset(Map.take(spec, [:name, :kind]))
-        |> Repo.insert!()
+        |> Repo.insert!(on_conflict: :nothing)
 
       role ->
         role |> Ecto.Changeset.change(kind: spec.kind) |> Repo.update!()

@@ -53,7 +53,7 @@ defmodule Boss.AgentRolesTest do
 
     assert {:ok, _} =
              Roles.assign(reviewer.id, ["cursor", "claude"], %{
-               "claude" => %{"model_id" => "claude-opus-4-6", "reasoning_effort" => "xhigh"}
+               "claude" => %{"model_id" => "claude-opus-4-6", "reasoning_effort" => "high"}
              })
 
     loaded = Map.new(Roles.list(), &{&1.kind, &1})
@@ -67,7 +67,7 @@ defmodule Boss.AgentRolesTest do
 
     assert Roles.selection_for("reviewer", "claude") == %{
              model_id: "claude-opus-4-6",
-             reasoning_effort: "xhigh"
+             reasoning_effort: "high"
            }
 
     # Undetected / unauthorized agents are rejected
@@ -124,6 +124,7 @@ defmodule Boss.AgentRolesTest do
     assert c1["id"] == "claude-sonnet-4-thinking"
     assert c1["name"] == "Claude 4 Sonnet Thinking"
     assert c1["reasoning"] == true
+    assert c1["reasoning_efforts"] == []
     assert c1["pricing"]["input"] == 3.0
     assert c2["id"] == "gpt-4o"
 
@@ -152,6 +153,62 @@ defmodule Boss.AgentRolesTest do
              claude_list,
              &(&1["id"] == "claude-opus-4-6" and &1["pricing"]["input"] == 5.0)
            )
+  end
+
+  test "a catalog from a different CLI version is never reused" do
+    saved = Detections.get_view(:codex)
+    assert saved.models != []
+
+    updated =
+      saved
+      |> Map.drop([:models])
+      |> Map.put(:version, "2.0.0")
+      |> Detections.save_agent()
+
+    assert updated.version == "2.0.0"
+    assert updated.models == []
+    assert updated.models_checked_at == nil
+  end
+
+  test "a slow scan cannot overwrite a newer observation" do
+    old = Detections.get_view(:codex)
+    started_at = DateTime.add(old.checked_at, 1, :microsecond)
+    newer = DateTime.add(started_at, 1, :microsecond)
+    assert %{auth_status: :stale} = Detections.save_agent(%{old | auth_status: :stale}, newer)
+    assert %{auth_status: :stale} = Detections.save_agent(old, started_at)
+    assert %{models: []} = Detections.get_view(:codex)
+
+    # A later-started probe still wins when the older one commits first.
+    older = DateTime.add(newer, 1, :microsecond)
+    later = DateTime.add(older, 1, :microsecond)
+    assert %{auth_status: :stale} = Detections.save_agent(%{old | auth_status: :stale}, older)
+    assert %{auth_status: :configured} = Detections.save_agent(old, later)
+  end
+
+  test "persisted catalog accepts qualified model IDs and deduplicates them" do
+    id = "provider/model[1m]"
+
+    assert %{models: [%{"id" => ^id, "name" => "First"}]} =
+             Detections.save_models(:claude, [
+               %{"id" => id, "name" => "First"},
+               %{"id" => id, "name" => "Duplicate"},
+               %{"id" => "invalid model"}
+             ])
+
+    {:ok, role} = Roles.create("Extended context")
+    assert {:ok, _} = Roles.assign_member(role.id, "claude", %{"model_id" => id})
+  end
+
+  test "effort must come from the exact selected model" do
+    {:ok, role} = Roles.create("Model testing")
+    Detections.save_models(:cursor, [%{"id" => "auto", "reasoning_efforts" => []}])
+
+    for model_id <- ["auto", "__default__"] do
+      assert {:error, :invalid_reasoning_effort} =
+               Roles.assign(role.id, ["cursor"], %{
+                 "cursor" => %{"model_id" => model_id, "reasoning_effort" => "high"}
+               })
+    end
   end
 
   test "custom names can be created, renamed, and removed" do

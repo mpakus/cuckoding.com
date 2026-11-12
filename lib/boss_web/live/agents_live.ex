@@ -25,13 +25,13 @@ defmodule BossWeb.AgentsLive do
       id: :hermes,
       name: "Hermes",
       docs: "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
-      login: "hermes auth add"
+      login: "hermes model"
     },
     %{
       id: :pi,
       name: "Pi",
       docs: "https://pi.dev/docs/latest/quickstart",
-      login: "pi auth login"
+      login: "pi, then /login"
     },
     %{
       id: :opencode,
@@ -70,7 +70,9 @@ defmodule BossWeb.AgentsLive do
   end
 
   @impl true
-  def handle_event("detect", _, %{assigns: %{detecting: true}} = socket), do: {:noreply, socket}
+  def handle_event("detect", _, %{assigns: assigns} = socket)
+      when assigns.detecting or map_size(assigns.agent_busy) > 0,
+      do: {:noreply, socket}
 
   def handle_event("create_role", %{"name" => name}, socket) do
     case Roles.create(name) do
@@ -112,26 +114,24 @@ defmodule BossWeb.AgentsLive do
     end
   end
 
-  def handle_event("assign_role", %{"role_id" => id} = params, socket) do
-    agents =
-      case params["agents"] do
-        list when is_list(list) -> list
-        _ -> []
+  def handle_event("assign_role", %{"role_id" => id, "agent" => agent_id} = params, socket) do
+    outcome =
+      case params do
+        %{"assigned" => "true"} ->
+          Roles.assign_member(id, agent_id, %{
+            "model_id" => params["model_id"],
+            "reasoning_effort" =>
+              if(params["_target"] != ["model_id"], do: params["reasoning_effort"])
+          })
+
+        %{"_target" => ["assigned"]} when not is_map_key(params, "assigned") ->
+          Roles.assign_member(id, agent_id, nil)
+
+        _ ->
+          {:error, :invalid_binding}
       end
 
-    models = if is_map(params["models"]), do: params["models"], else: %{}
-    efforts = if is_map(params["efforts"]), do: params["efforts"], else: %{}
-
-    selections =
-      Map.new(agents, fn agent_id ->
-        {agent_id,
-         %{
-           "model_id" => Map.get(models, agent_id),
-           "reasoning_effort" => Map.get(efforts, agent_id)
-         }}
-      end)
-
-    case Roles.assign(id, agents, selections) do
+    case outcome do
       {:ok, _} ->
         {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
 
@@ -162,8 +162,14 @@ defmodule BossWeb.AgentsLive do
 
       {:error, :unknown_agent} ->
         {:noreply, assign(socket, role_error: "Choose an agent from the installed list.")}
+
+      {:error, :invalid_binding} ->
+        {:noreply, assign(socket, role_error: "The agent selection could not be saved.")}
     end
   end
+
+  def handle_event("assign_role", _, socket),
+    do: {:noreply, assign(socket, role_error: "The agent selection could not be saved.")}
 
   def handle_event("detect", _, socket) do
     detector = Application.get_env(:boss, :agent_detector, Boss.Agents.Detector)
@@ -175,17 +181,18 @@ defmodule BossWeb.AgentsLive do
      |> start_async(:detect, fn -> run_full_scan(detector, discovery) end)}
   end
 
-  def handle_event("authorize_agent", %{"agent" => raw_id} = params, socket) do
+  def handle_event("authorize_agent", %{"agent" => raw_id}, socket) do
     with {:ok, id} <- parse_agent_id(raw_id),
-         false <- Map.has_key?(socket.assigns.agent_busy, id) do
-      mode = if params["mode"] == "terminal", do: :terminal, else: :auto
+         false <- socket.assigns.detecting or Map.has_key?(socket.assigns.agent_busy, id) do
       authorizer = Application.get_env(:boss, :agent_authorizer, Authorizer)
 
       {:noreply,
        socket
        |> put_agent_busy(id, :authorizing)
        |> put_agent_notice(id, nil)
-       |> start_async({:agent_action, id}, fn -> {:authorize, authorizer.authorize(id, mode)} end)}
+       |> start_async({:agent_action, id}, fn ->
+         {:authorize, authorizer.authorize(id, :terminal)}
+       end)}
     else
       _ -> {:noreply, socket}
     end
@@ -193,7 +200,7 @@ defmodule BossWeb.AgentsLive do
 
   def handle_event("verify_agent", %{"agent" => raw_id}, socket) do
     with {:ok, id} <- parse_agent_id(raw_id),
-         false <- Map.has_key?(socket.assigns.agent_busy, id) do
+         false <- socket.assigns.detecting or Map.has_key?(socket.assigns.agent_busy, id) do
       authorizer = Application.get_env(:boss, :agent_authorizer, Authorizer)
 
       {:noreply,
@@ -208,7 +215,7 @@ defmodule BossWeb.AgentsLive do
 
   def handle_event("fetch_models", %{"agent" => raw_id}, socket) do
     with {:ok, id} <- parse_agent_id(raw_id),
-         false <- Map.has_key?(socket.assigns.agent_busy, id) do
+         false <- socket.assigns.detecting or Map.has_key?(socket.assigns.agent_busy, id) do
       authorizer = Application.get_env(:boss, :agent_authorizer, Authorizer)
 
       {:noreply,
@@ -223,6 +230,9 @@ defmodule BossWeb.AgentsLive do
 
   @impl true
   def handle_async(:detect, {:ok, {:ok, state}}, socket) do
+    latest = Detections.load_state()
+    state = if latest.checked_at, do: latest, else: state
+
     {:noreply,
      assign(socket,
        results: state.results,
@@ -260,22 +270,6 @@ defmodule BossWeb.AgentsLive do
             "Opened login in macOS Terminal. Complete sign-in there, then choose Verify & fetch models."
           )
 
-        {:authorize, {:ok, %{auth_status: :configured} = view}} ->
-          socket
-          |> put_agent_result(id, view)
-          |> put_agent_notice(
-            id,
-            "Authorization verified (#{length(view.models || [])} supported models loaded)."
-          )
-
-        {:authorize, {:ok, view}} ->
-          socket
-          |> put_agent_result(id, view)
-          |> put_agent_notice(
-            id,
-            "Sign-in is still unconfirmed. Complete login in your browser or Terminal, then Verify."
-          )
-
         {:authorize, {:error, :not_installed}} ->
           put_agent_notice(socket, id, "CLI executable was not found on PATH.")
 
@@ -287,12 +281,12 @@ defmodule BossWeb.AgentsLive do
           )
 
         {:verify, {:ok, %{auth_status: :configured} = view}} ->
-          socket
-          |> put_agent_result(id, view)
-          |> put_agent_notice(
-            id,
-            "Authorized · #{length(view.models || [])} supported models fetched."
-          )
+          notice =
+            if Enum.any?(view.errors, &(&1.stage == :models)),
+              do: "Sign-in confirmed. The model catalog could not be refreshed.",
+              else: "Authorized · #{length(view.models)} models loaded."
+
+          socket |> put_agent_result(id, view) |> put_agent_notice(id, notice)
 
         {:verify, {:ok, %{auth_status: :stale} = view}} ->
           socket
@@ -341,38 +335,11 @@ defmodule BossWeb.AgentsLive do
   end
 
   defp run_full_scan(detector, discovery) do
-    checked_at = DateTime.utc_now() |> DateTime.truncate(:second)
+    started_at = DateTime.utc_now()
 
     with {:ok, rows} <- detector.scan() do
-      saved = Detections.save_scan(rows, checked_at)
-
-      updated_results =
-        Enum.reduce(rows, saved.results, fn row, acc ->
-          if row.probe_status == :ok and row.auth_status == :configured do
-            case discovery.fetch(row.id, row.path) do
-              {:ok, models} ->
-                view =
-                  Detections.save_models(row.id, models, checked_at) ||
-                    Map.put(Map.get(acc, row.id, row), :models, models)
-
-                Map.put(acc, row.id, view)
-
-              {:error, :auth_required} ->
-                view =
-                  Detections.mark_auth_status(row.id, :stale) ||
-                    %{Map.get(acc, row.id, row) | auth_status: :stale, models: []}
-
-                Map.put(acc, row.id, view)
-
-              _ ->
-                acc
-            end
-          else
-            acc
-          end
-        end)
-
-      {:ok, %{results: updated_results, checked_at: checked_at}}
+      rows = Enum.map(rows, &Authorizer.enrich(&1, discovery))
+      {:ok, Detections.save_scan(rows, started_at)}
     end
   end
 
@@ -398,7 +365,7 @@ defmodule BossWeb.AgentsLive do
     do: assign(socket, agent_notices: Map.put(socket.assigns.agent_notices, id, text))
 
   defp put_agent_result(socket, id, view),
-    do: assign(socket, results: Map.put(socket.assigns.results, id, view))
+    do: assign(socket, results: Map.put_new(socket.assigns.results, id, view))
 
   @impl true
   def render(assigns) do
@@ -425,7 +392,7 @@ defmodule BossWeb.AgentsLive do
         id="detect-agents"
         type="button"
         phx-click="detect"
-        disabled={@detecting}
+        disabled={@detecting or map_size(@agent_busy) > 0}
         aria-describedby="agents-help"
         class="app-button-primary shrink-0 px-5 py-3 font-semibold disabled:opacity-50"
       >{if @detecting, do: "Detecting…", else: "Detect agents"}</button>
@@ -475,6 +442,7 @@ defmodule BossWeb.AgentsLive do
         agent={agent}
         result={@results[agent.id]}
         busy={@agent_busy[agent.id]}
+        detecting={@detecting}
         notice={@agent_notices[agent.id]}
       />
     </div>
@@ -482,7 +450,9 @@ defmodule BossWeb.AgentsLive do
     <section id="roles" aria-labelledby="roles-title" class="mt-10 border-t border-line pt-8">
       <h2 id="roles-title" class="app-panel-heading">Roles</h2>
       <p id="roles-help" class="mt-2 max-w-3xl text-sm leading-6 text-body">
-        Reviewer, Implementer, and Analytic are permanent standard roles. Roles can connect <strong>only to detected and authorized agents and their supported models</strong>.
+        Assign detected and authorized agents to a role, then choose a model for each agent.
+        Managed workflows run with Codex, Claude Code, and Cursor Agent. Codex uses its workflow
+        model policy. Pi, Hermes, and OpenCode selections are saved in the roster.
       </p>
       <form id="create-role" phx-submit="create_role" class="mt-4 flex flex-wrap items-end gap-3">
         <div class="min-w-0 flex-1">
@@ -547,8 +517,7 @@ defmodule BossWeb.AgentsLive do
             </button>
           </form>
 
-          <form id={"role-#{role.id}-agents"} phx-change="assign_role" class="mt-4">
-            <input type="hidden" name="role_id" value={role.id} />
+          <div id={"role-#{role.id}-agents"} class="mt-4">
             <fieldset>
               <legend class="text-sm font-medium">
                 Detected &amp; authorized agent models in this role
@@ -562,29 +531,36 @@ defmodule BossWeb.AgentsLive do
                 No detected and authorized agents yet. Detect and authorize an agent above to connect its models to this role.
               </p>
 
-              <div :if={@authorized_agents != []} class="mt-3 space-y-2.5">
-                <div
-                  :for={agent <- @authorized_agents}
+              <div class="mt-3 space-y-2.5">
+                <form
+                  :for={agent <- @agents}
+                  :if={agent in @authorized_agents or Atom.to_string(agent.id) in role.agent_ids}
+                  id={"role-#{role.id}-agents-#{agent.id}"}
+                  phx-change="assign_role"
                   class="rounded-sm border border-line bg-paper p-3 text-sm"
                 >
+                  <input type="hidden" name="role_id" value={role.id} />
+                  <input type="hidden" name="agent" value={agent.id} />
                   <% id_str = Atom.to_string(agent.id) %>
+                  <% active? = agent in @authorized_agents %>
                   <% checked? = id_str in role.agent_ids %>
                   <% sel =
                     Map.get(role.selections || %{}, id_str, %{model_id: nil, reasoning_effort: nil}) %>
                   <% models = (@results[agent.id] && @results[agent.id].models) || [] %>
                   <% efforts = efforts_for_selection(models, sel.model_id) %>
+                  <% model_missing? = sel.model_id && !Enum.any?(models, &(&1["id"] == sel.model_id)) %>
 
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <label class="flex items-center gap-2 font-medium text-ink">
                       <input
                         id={"role-#{role.id}-agent-#{agent.id}"}
                         type="checkbox"
-                        name="agents[]"
-                        value={agent.id}
+                        name="assigned"
+                        value="true"
                         checked={checked?}
                       />
                       <span>{agent.name}</span>
-                      <span class="app-badge">Authorized</span>
+                      <span class="app-badge">{if active?, do: "Authorized", else: "Unavailable"}</span>
                     </label>
                     <span class="font-mono text-xs text-muted">
                       {length(models)} {if length(models) == 1, do: "model", else: "models"}
@@ -592,7 +568,7 @@ defmodule BossWeb.AgentsLive do
                   </div>
 
                   <div
-                    :if={checked?}
+                    :if={checked? and active?}
                     class="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-2"
                   >
                     <div class="min-w-0">
@@ -604,13 +580,16 @@ defmodule BossWeb.AgentsLive do
                       </label>
                       <select
                         id={"role-#{role.id}-model-#{agent.id}"}
-                        name={"models[#{agent.id}]"}
+                        name="model_id"
                         class="app-field mt-1 w-full min-w-0 px-2.5 py-1.5 text-xs"
                       >
                         <option value="__default__" selected={is_nil(sel.model_id)}>
                           {if agent.id == :cursor,
                             do: "Agent default (Auto)",
                             else: "Agent default / policy routing"}
+                        </option>
+                        <option :if={model_missing?} value={sel.model_id} selected disabled>
+                          Unavailable · {sel.model_id}
                         </option>
                         <option
                           :for={m <- models}
@@ -630,11 +609,11 @@ defmodule BossWeb.AgentsLive do
                       </label>
                       <select
                         id={"role-#{role.id}-effort-#{agent.id}"}
-                        name={"efforts[#{agent.id}]"}
+                        name="reasoning_effort"
                         disabled={efforts == []}
                         class="app-field mt-1 w-full min-w-0 px-2.5 py-1.5 text-xs disabled:opacity-50"
                       >
-                        <option value="default" selected={is_nil(sel.reasoning_effort)}>
+                        <option value="default" selected={sel.reasoning_effort not in efforts}>
                           {if efforts == [], do: "Standard (no effort levels)", else: "Model default"}
                         </option>
                         <option
@@ -647,20 +626,13 @@ defmodule BossWeb.AgentsLive do
                       </select>
                     </div>
                   </div>
-                </div>
+                  <p :if={!active?} class="mt-2 text-xs text-muted">
+                    {sel.model_id || "Agent default"} · Verify this agent to use the saved selection.
+                  </p>
+                </form>
               </div>
-
-              <% inactive_ids =
-                role.agent_ids -- Enum.map(@authorized_agents, &Atom.to_string(&1.id)) %>
-              <p
-                :if={inactive_ids != []}
-                id={"role-#{role.id}-inactive-warning"}
-                class="mt-3 text-xs text-warning"
-              >
-                Previously saved ({Enum.join(inactive_ids, ", ")}) is not currently detected &amp; authorized and will be skipped until authorized above.
-              </p>
             </fieldset>
-          </form>
+          </div>
         </article>
       </div>
     </section>
@@ -670,6 +642,7 @@ defmodule BossWeb.AgentsLive do
   attr :agent, :map, required: true
   attr :result, :any, required: true
   attr :busy, :any, default: nil
+  attr :detecting, :boolean, required: true
   attr :notice, :any, default: nil
 
   defp agent(assigns) do
@@ -724,7 +697,7 @@ defmodule BossWeb.AgentsLive do
           </div>
           <div>
             <dt class="text-muted">Local sign-in report</dt>
-            <dd class="mt-1">{auth_status(@result.auth_status)}</dd>
+            <dd class="mt-1">{auth_status(@result.auth_status, @agent.id)}</dd>
           </div>
         </dl>
 
@@ -742,29 +715,17 @@ defmodule BossWeb.AgentsLive do
               type="button"
               phx-click="authorize_agent"
               phx-value-agent={@agent.id}
-              phx-value-mode="auto"
-              disabled={@busy != nil}
+              disabled={@detecting or @busy != nil}
               class="app-button-primary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
             >
-              {if @busy == :authorizing, do: "Authorizing…", else: "Authorize #{@agent.name}"}
-            </button>
-            <button
-              id={"terminal-auth-#{@agent.id}"}
-              type="button"
-              phx-click="authorize_agent"
-              phx-value-agent={@agent.id}
-              phx-value-mode="terminal"
-              disabled={@busy != nil}
-              class="app-button-secondary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-            >
-              Open login in Terminal
+              {if @busy == :authorizing, do: "Opening…", else: "Open login in Terminal"}
             </button>
             <button
               id={"verify-auth-#{@agent.id}"}
               type="button"
               phx-click="verify_agent"
               phx-value-agent={@agent.id}
-              disabled={@busy != nil}
+              disabled={@detecting or @busy != nil}
               class="app-button-secondary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
             >
               {if @busy == :verifying, do: "Verifying…", else: "Verify & fetch models"}
@@ -787,7 +748,7 @@ defmodule BossWeb.AgentsLive do
                 type="button"
                 phx-click="fetch_models"
                 phx-value-agent={@agent.id}
-                disabled={@busy != nil}
+                disabled={@detecting or @busy != nil}
                 class="app-button-secondary min-h-8 px-2.5 py-1 text-xs disabled:opacity-50"
               >
                 {if @busy == :fetching_models, do: "Fetching…", else: "Refresh models"}
@@ -797,8 +758,7 @@ defmodule BossWeb.AgentsLive do
                 type="button"
                 phx-click="authorize_agent"
                 phx-value-agent={@agent.id}
-                phx-value-mode="auto"
-                disabled={@busy != nil}
+                disabled={@detecting or @busy != nil}
                 class="app-button-secondary min-h-8 px-2.5 py-1 text-xs disabled:opacity-50"
               >
                 {if @busy == :authorizing, do: "Authorizing…", else: "Re-authorize"}
@@ -883,12 +843,6 @@ defmodule BossWeb.AgentsLive do
     """
   end
 
-  defp efforts_for_selection(models, nil) do
-    models
-    |> Enum.flat_map(&(&1["reasoning_efforts"] || []))
-    |> Enum.uniq()
-  end
-
   defp efforts_for_selection(models, model_id) do
     case Enum.find(models, &(&1["id"] == model_id)) do
       %{"reasoning_efforts" => list} when is_list(list) -> list
@@ -966,27 +920,34 @@ defmodule BossWeb.AgentsLive do
   defp probe_status(:unsupported), do: "CLI metadata unsupported"
   defp probe_status(_), do: "Detection incomplete"
 
-  defp auth_status(:configured), do: "CLI reports credentials configured"
+  defp auth_status(:configured, agent) when agent in [:pi, :hermes, :opencode],
+    do: "CLI reports a configured model provider"
 
-  defp auth_status(:stale),
+  defp auth_status(:configured, _), do: "CLI reports credentials configured"
+
+  defp auth_status(:stale, _),
     do: "CLI reports expired or unverified session — re-run login in your terminal"
 
-  defp auth_status(:not_configured), do: "CLI reports no credentials configured"
-  defp auth_status(_), do: "Unknown"
+  defp auth_status(:not_configured, _), do: "CLI reports no credentials configured"
+  defp auth_status(_, _), do: "Unknown"
 
   defp capability_status(:advertised), do: "Advertised"
   defp capability_status(:not_advertised), do: "Not advertised"
   defp capability_status(_), do: "Unknown"
 
   defp probe_error(error) do
-    stage = %{version: "Version", help: "Help", auth: "Sign-in"}[error.stage] || "CLI"
+    stage =
+      %{version: "Version", help: "Help", auth: "Sign-in", models: "Model catalog"}[error.stage] ||
+        "CLI"
 
     reason =
       %{
         timeout: "timed out",
         output_limit: "exceeded its output limit",
         unrecognized: "returned unrecognized output",
-        unsupported: "is not supported"
+        unsupported: "is not supported",
+        invalid_models: "returned unrecognized output",
+        auth_required: "requires sign-in"
       }[error.reason] || "could not finish"
 
     "#{stage} check #{reason}."

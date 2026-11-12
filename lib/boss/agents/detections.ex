@@ -25,14 +25,17 @@ defmodule Boss.Agents.Detections do
     "not_configured" => :not_configured,
     "unknown" => :unknown
   }
-  @stage_atoms %{"version" => :version, "help" => :help, "auth" => :auth}
+  @stage_atoms %{"version" => :version, "help" => :help, "auth" => :auth, "models" => :models}
   @reason_atoms %{
     "timeout" => :timeout,
     "output_limit" => :output_limit,
     "unrecognized" => :unrecognized,
     "unsupported" => :unsupported,
     "exit_status" => :exit_status,
-    "spawn_failed" => :spawn_failed
+    "spawn_failed" => :spawn_failed,
+    "unavailable" => :unavailable,
+    "invalid_models" => :invalid_models,
+    "auth_required" => :auth_required
   }
 
   def table_ready? do
@@ -93,11 +96,13 @@ defmodule Boss.Agents.Detections do
 
   def save_scan(rows, checked_at \\ nil) when is_list(rows) do
     if table_ready?() do
-      ts = checked_at || DateTime.utc_now() |> DateTime.truncate(:second)
+      started_at = checked_at || DateTime.utc_now()
 
-      Repo.transaction(fn ->
-        Enum.each(rows, fn row -> upsert_row!(row, ts) end)
-      end)
+      {:ok, _} =
+        Repo.transaction(
+          fn -> Enum.each(rows, &upsert_row!(&1, started_at)) end,
+          mode: :immediate
+        )
 
       load_state()
     else
@@ -107,8 +112,11 @@ defmodule Boss.Agents.Detections do
 
   def save_agent(row, checked_at \\ nil) when is_map(row) do
     if table_ready?() do
-      ts = checked_at || DateTime.utc_now() |> DateTime.truncate(:second)
-      {:ok, saved} = Repo.transaction(fn -> upsert_row!(row, ts) end)
+      started_at = checked_at || DateTime.utc_now()
+
+      {:ok, saved} =
+        Repo.transaction(fn -> upsert_row!(row, started_at) end, mode: :immediate)
+
       to_view(saved)
     else
       Map.put_new(row, :models, [])
@@ -120,7 +128,7 @@ defmodule Boss.Agents.Detections do
 
     if table_ready?() do
       ts = checked_at || DateTime.utc_now() |> DateTime.truncate(:second)
-      clean_models = Enum.map(models, &sanitize_model/1) |> Enum.reject(&is_nil/1)
+      clean_models = sanitize_models(models)
 
       case Repo.get(Detection, id_str) do
         nil ->
@@ -169,15 +177,27 @@ defmodule Boss.Agents.Detections do
     end
   end
 
-  defp upsert_row!(row, ts) do
+  defp upsert_row!(row, started_at) do
+    existing = Repo.get(Detection, to_string(row.id))
+
+    if existing && existing.checked_at && DateTime.after?(existing.checked_at, started_at) do
+      existing
+    else
+      write_row!(row, started_at, existing)
+    end
+  end
+
+  defp write_row!(row, started_at, existing) do
+    ts = DateTime.truncate(started_at, :second)
     id_str = to_string(row.id)
-    existing = Repo.get(Detection, id_str)
+    path = sanitize_string(row.path, 1024)
+    version = sanitize_string(row.version, 128)
     probe_str = Atom.to_string(row.probe_status)
     auth_str = Atom.to_string(row.auth_status)
 
     incoming_models =
       case Map.get(row, :models) do
-        list when is_list(list) -> Enum.map(list, &sanitize_model/1) |> Enum.reject(&is_nil/1)
+        list when is_list(list) -> sanitize_models(list)
         _ -> nil
       end
 
@@ -189,7 +209,8 @@ defmodule Boss.Agents.Detections do
         is_list(incoming_models) ->
           {%{"items" => incoming_models}, ts}
 
-        existing != nil ->
+        existing && path != nil && version != nil &&
+          existing.path == path && existing.version == version ->
           {existing.models || %{"items" => []}, existing.models_checked_at}
 
         true ->
@@ -199,14 +220,14 @@ defmodule Boss.Agents.Detections do
     attrs = %{
       agent_id: id_str,
       name: row.name || default_name(id_str),
-      path: sanitize_string(row.path, 1024),
-      version: sanitize_string(row.version, 128),
+      path: path,
+      version: version,
       probe_status: probe_str,
       auth_status: auth_str,
       capabilities: sanitize_capabilities(row.capabilities || %{}),
       errors: %{"items" => sanitize_errors(row.errors || [])},
       models: models_map,
-      checked_at: ts,
+      checked_at: DateTime.from_unix!(DateTime.to_unix(started_at, :microsecond), :microsecond),
       models_checked_at: models_ts
     }
 
@@ -254,14 +275,21 @@ defmodule Boss.Agents.Detections do
     end)
   end
 
+  defp sanitize_models(models) do
+    models
+    |> Enum.map(&sanitize_model/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1["id"])
+  end
+
   defp sanitize_model(model) when is_map(model) do
     id = model["id"] || model[:id]
     name = model["name"] || model[:name] || id
 
-    if is_binary(id) and byte_size(id) in 1..160 and String.valid?(id) do
+    if is_binary(id) and byte_size(id) in 1..160 and
+         Regex.match?(~r/\A[A-Za-z0-9][A-Za-z0-9._:\/@+\[\]-]*\z/, id) do
       efforts =
-        (model["reasoning_efforts"] || model[:reasoning_efforts] || [])
-        |> Enum.map(&to_string/1)
+        List.wrap(model["reasoning_efforts"] || model[:reasoning_efforts])
         |> Enum.filter(&(&1 in ~w(none low medium high xhigh max ultra)))
         |> Enum.uniq()
 
@@ -273,7 +301,7 @@ defmodule Boss.Agents.Detections do
 
       default_effort =
         case model["default_effort"] || model[:default_effort] do
-          val when is_binary(val) -> val
+          val when is_binary(val) -> if(val in efforts, do: val)
           _ -> nil
         end
 
@@ -288,7 +316,10 @@ defmodule Boss.Agents.Detections do
       %{
         "id" => id,
         "name" =>
-          if(is_binary(name) and String.valid?(name), do: String.slice(name, 0, 160), else: id),
+          if(is_binary(name) and String.valid?(name),
+            do: name |> String.replace(~r/[[:cntrl:]]/, "") |> String.slice(0, 160),
+            else: id
+          ),
         "reasoning" => reasoning,
         "reasoning_efforts" => efforts,
         "default_effort" => default_effort,

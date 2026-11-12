@@ -181,13 +181,15 @@
   stale results; never show cached source for a different desired revision.
   Preserve native dialog modality/open state across patches, restore card focus
   on close and synchronize a focused revision select after history navigation.
-- Agent discovery executes only fixed version/help and advertised local status
-  commands from BOSS's PATH, outside project repositories. Never read auth files
-  or retain raw probe/account/key output. A configured CLI status is not verified
-  model access; advertised help flags are not a working adapter or usage proof.
-- Keep detection explicit, one scan at a time, with bounded time/output and
-  requester-owned direct-child cleanup. Do not claim wrapper-descendant cleanup
-  or promote this metadata probe into the production runner.
+- Agent discovery uses fixed bounded version/help, advertised local status, and
+  catalog commands from BOSS's PATH outside project repositories. Keep sign-in
+  explicit and interactive; never read auth files, enumerate accounts or retain
+  raw CLI/Terminal output. Distinguish configured metadata from provider access,
+  and advertised capabilities from a working adapter.
+- Keep the metadata detector requester-owned, one scan at a time. Do not claim
+  wrapper-descendant cleanup for that detector. Catalog commands use the native
+  runner and save normalized observations in start order. Retain unrelated role
+  bindings when one changes. Require the exact catalog model for explicit effort.
 - Keep stream EOF distinct from process exit and forced pipe closure. Demand must
   bound upstream queues; Stop and absolute cleanup deadlines must work while the
   consumer is stalled. A direct-PID watcher or leader exit is not tree cleanup.

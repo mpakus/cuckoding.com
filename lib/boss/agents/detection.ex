@@ -13,7 +13,7 @@ defmodule Boss.Agents.Detection do
     field :capabilities, :map, default: %{}
     field :errors, :map, default: %{"items" => []}
     field :models, :map, default: %{"items" => []}
-    field :checked_at, :utc_datetime
+    field :checked_at, :utc_datetime_usec
     field :models_checked_at, :utc_datetime
     timestamps(type: :utc_datetime_usec)
   end
