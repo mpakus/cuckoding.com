@@ -2418,14 +2418,20 @@ defmodule Boss.Deliveries.Worker do
     {saved, value}
   end
 
-  defp shared_agent_failure!(%{routing_version: 2}, %{status: "failed", receipt: receipt}) do
+  defp shared_agent_failure!(
+         %{routing_version: 2} = delivery,
+         %{kind: kind, status: "failed", receipt: receipt}
+       ) do
     if receipt["cleanup"] == "group_empty" and
          receipt["eof"] == %{"stdout" => true, "stderr" => true} do
+      agent_id = Diagnostics.stage_agent_id(delivery, kind)
+      note = receipt["reason"]
+
       case get_in(receipt, ["summary", "error_class"]) do
-        "auth" -> throw({:halt, :provider_auth})
-        "rate_limit" -> throw({:halt, :provider_rate_limit})
-        "schema" -> throw({:halt, :provider_schema})
-        "transport" -> throw({:halt, :provider_transport})
+        "auth" -> throw({:halt, {:provider_failure, :provider_auth, agent_id, note}})
+        "rate_limit" -> throw({:halt, {:provider_failure, :provider_rate_limit, agent_id, note}})
+        "schema" -> throw({:halt, {:provider_failure, :provider_schema, agent_id, note}})
+        "transport" -> throw({:halt, {:provider_failure, :provider_transport, agent_id, note}})
         _ -> :ok
       end
     end
@@ -2471,6 +2477,10 @@ defmodule Boss.Deliveries.Worker do
   catch
     _, _ -> {:error, :storage_error}
   end
+
+  defp failure_code({:provider_failure, code, _, _})
+       when code in [:provider_auth, :provider_rate_limit, :provider_schema, :provider_transport],
+       do: Atom.to_string(code)
 
   defp failure_code(reason)
        when reason in [
@@ -2533,6 +2543,16 @@ defmodule Boss.Deliveries.Worker do
           {"failed", "group_empty",
            "No eligible model remains after recorded execution failures. Restore model access before starting another workflow."}
 
+        {:provider_failure, code, agent_id, note}
+        when code in [
+               :provider_auth,
+               :provider_rate_limit,
+               :provider_schema,
+               :provider_transport
+             ] ->
+          {"failed", "group_empty",
+           Diagnostics.provider_message(Atom.to_string(code), agent_id, note)}
+
         reason
         when reason in [
                :catalog_unavailable,
@@ -2558,6 +2578,7 @@ defmodule Boss.Deliveries.Worker do
     }
   end
 
+  defp error_tag({:provider_failure, code, _, _}) when is_atom(code), do: Atom.to_string(code)
   defp error_tag(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_tag({reason, _}) when is_atom(reason), do: Atom.to_string(reason)
   defp error_tag(_), do: "stage_failed"

@@ -815,7 +815,7 @@ defmodule BossWeb.ProjectLive do
 
     case delivery do
       nil -> task.attention_reason
-      saved -> Deliveries.Diagnostics.attention(task.attention_reason, saved.steps)
+      saved -> Deliveries.Diagnostics.attention(task.attention_reason, saved.steps, saved)
     end
   end
 

@@ -338,4 +338,39 @@ defmodule Boss.CursorReviewTest do
     assert receipt["validation_code"] == "valid"
     assert receipt["report"]["summary"] == "Handle {braces} safely"
   end
+
+  test "provider rate-limit diagnostics name Cursor Agent instead of Codex" do
+    alias Boss.Deliveries.Diagnostics
+
+    step = %{
+      kind: "implement",
+      status: "failed",
+      receipt: %{
+        "reason" =>
+          "Cursor Agent: ActionRequiredError: You've hit your usage limit Get Cursor Pro for more Agent usage."
+      }
+    }
+
+    delivery = %{implementer: "cursor", analytic: "cursor", reviewer: "cursor"}
+
+    msg =
+      Diagnostics.provider_message(
+        "provider_rate_limit",
+        Diagnostics.stage_agent_id(delivery, "implement"),
+        step.receipt["reason"]
+      )
+
+    assert msg =~ "Cursor Agent reported a quota, usage, or credit limit"
+    assert msg =~ "You've hit your usage limit"
+    refute msg =~ "Codex"
+
+    rewritten =
+      Diagnostics.attention(
+        "Codex reported a quota or rate limit. This workflow stopped before another model call. Retry after capacity is available.",
+        [step],
+        delivery
+      )
+
+    assert rewritten == msg
+  end
 end

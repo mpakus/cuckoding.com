@@ -34,17 +34,40 @@ defmodule Boss.Deliveries.Diagnostics do
 
   def message("provider_rate_limit"),
     do:
-      "Codex reported a quota or rate limit. This workflow stopped before another model call. Retry after capacity is available."
+      "The selected agent reported a quota, usage, or credit limit. This workflow stopped before another model call. Retry after capacity is available."
 
   def message("provider_schema"),
     do:
-      "Codex rejected the structured request configuration. This workflow stopped before another model call. Repair the adapter before retrying."
+      "The selected agent rejected the structured request configuration. This workflow stopped before another model call. Repair the adapter before retrying."
 
   def message("provider_transport"),
     do:
-      "Codex could not complete its transport or event protocol. This workflow stopped before another model call. Check CLI compatibility and connectivity before retrying."
+      "The selected agent could not complete its transport or event protocol. This workflow stopped before another model call. Check CLI compatibility and connectivity before retrying."
 
   def message(_), do: nil
+
+  def provider_message(code, agent_id, step_reason \\ nil) do
+    actor = agent_label(agent_id)
+    detail = sanitized_agent_note(step_reason)
+    suffix = if detail, do: " (#{detail})", else: ""
+
+    case code do
+      "provider_auth" ->
+        "#{actor} rejected authentication#{suffix}. This workflow stopped before another task. Sign in to #{actor}, then start again."
+
+      "provider_rate_limit" ->
+        "#{actor} reported a quota, usage, or credit limit#{suffix}. This workflow stopped before another model call. Retry after capacity is available."
+
+      "provider_schema" ->
+        "#{actor} rejected the structured request configuration#{suffix}. This workflow stopped before another model call. Repair the adapter before retrying."
+
+      "provider_transport" ->
+        "#{actor} could not complete its transport or event protocol#{suffix}. This workflow stopped before another model call. Check CLI compatibility and connectivity before retrying."
+
+      other ->
+        message(other)
+    end
+  end
 
   def repair_stop(prefix, %{"kind" => "review", "report" => report}),
     do:
@@ -99,7 +122,7 @@ defmodule Boss.Deliveries.Diagnostics do
 
   # Older receipts are immutable. Show a more useful message when the saved
   # evidence describes the terminal decision.
-  def attention(reason, steps) do
+  def attention(reason, steps, delivery \\ nil) do
     case {reason, List.last(steps)} do
       {"The saved specification needs clarification. Original source retained.",
        %{kind: "review", receipt: %{"report" => %{"verdict" => "needs_spec_revision"} = report}}} ->
@@ -125,14 +148,73 @@ defmodule Boss.Deliveries.Diagnostics do
       when status in ["failed", "interrupted"] ->
         step_failure(kind, receipt)
 
-      {reason, %{kind: kind, status: status, receipt: receipt}}
-      when is_binary(reason) and status in ["failed", "interrupted"] ->
+      {reason, %{kind: kind, status: "failed", receipt: receipt}}
+      when is_binary(reason) ->
+        cond do
+          String.starts_with?(reason, "Codex reported a quota or rate limit.") ->
+            provider_message(
+              "provider_rate_limit",
+              stage_agent_id(delivery, kind),
+              receipt["reason"]
+            )
+
+          String.starts_with?(reason, "Codex rejected the structured request") ->
+            provider_message(
+              "provider_schema",
+              stage_agent_id(delivery, kind),
+              receipt["reason"]
+            )
+
+          String.starts_with?(reason, "Codex could not complete its transport") ->
+            provider_message(
+              "provider_transport",
+              stage_agent_id(delivery, kind),
+              receipt["reason"]
+            )
+
+          String.contains?(reason, "exited") ->
+            step_failure(kind, receipt)
+
+          true ->
+            reason
+        end
+
+      {reason, %{kind: kind, status: "interrupted", receipt: receipt}}
+      when is_binary(reason) ->
         if String.contains?(reason, "exited"), do: step_failure(kind, receipt), else: reason
 
       _ ->
         reason
     end
   end
+
+  def stage_agent_id(nil, _kind), do: nil
+
+  def stage_agent_id(delivery, kind) when kind in ["review", "merge_review"],
+    do: Map.get(delivery, :reviewer)
+
+  def stage_agent_id(delivery, "resolve"),
+    do: Map.get(delivery, :analytic) || "codex"
+
+  def stage_agent_id(delivery, kind) when kind in ["plan", "implement"],
+    do: Map.get(delivery, :implementer) || "codex"
+
+  def stage_agent_id(_delivery, _kind), do: nil
+
+  defp agent_label("cursor"), do: "Cursor Agent"
+  defp agent_label("claude"), do: "Claude Code"
+  defp agent_label("codex"), do: "Codex"
+  defp agent_label(_), do: "The selected agent"
+
+  defp sanitized_agent_note(text) when is_binary(text) do
+    trimmed = String.trim(text)
+
+    if String.starts_with?(trimmed, ["Cursor Agent: ", "Claude Code: "]) do
+      concise(trimmed)
+    end
+  end
+
+  defp sanitized_agent_note(_), do: nil
 
   defp finding(%{"issues" => [%{"message" => message} | rest]}) when is_binary(message) do
     suffix = if rest == [], do: "", else: " (+#{length(rest)} in review)"
