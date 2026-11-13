@@ -216,8 +216,19 @@ defmodule Boss.Projects.Intake.Attempts do
     |> length() >= 2
   end
 
-  defp select!(_request, _previous, planner) when planner in ["claude", "cursor"] do
+  defp select!(_request, [], planner) when planner in ["claude", "cursor"] do
     %{"model" => planner, "reasoning_effort" => "high"}
+  end
+
+  defp select!(_request, previous, planner) when planner in ["claude", "cursor"] do
+    prior = List.last(previous).model_profile["model"]
+
+    alternate =
+      Boss.Agents.Roles.agents_for("analytic")
+      |> Enum.map(& &1.id)
+      |> Enum.find(&(&1 in ["claude", "cursor"] and &1 != prior))
+
+    %{"model" => alternate || planner, "reasoning_effort" => "high"}
   end
 
   defp select!(request, [], _planner) do

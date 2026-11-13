@@ -74,7 +74,7 @@ defmodule Boss.Agents.Claude do
             Jason.encode!(envelope["structured_output"])
 
           is_binary(envelope["result"]) ->
-            envelope["result"]
+            Boss.Agents.Cursor.extract_json_or_raw(envelope["result"])
 
           true ->
             ""

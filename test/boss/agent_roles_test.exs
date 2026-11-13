@@ -16,6 +16,9 @@ defmodule Boss.AgentRolesTest do
     assert {:ok, _} = Roles.assign(roles["analytic"].id, ["cursor"])
     assert Roles.analytic("cursor") == "cursor"
 
+    assert {:ok, _} = Roles.assign(roles["analytic"].id, ["claude", "codex"])
+    assert Roles.analytic("cursor") == "claude"
+
     assert {:ok, _} = Roles.assign(roles["implementer"].id, ["claude"])
     assert Roles.implementer() == "claude"
   end

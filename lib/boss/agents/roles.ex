@@ -49,7 +49,11 @@ defmodule Boss.Agents.Roles do
   def analytic(implementer) when implementer in ~w(codex claude cursor) do
     assigned = Enum.filter(agents_for("analytic"), &Metadata.execution_runner?(&1.id))
 
-    case Enum.find(assigned, &(&1.id != implementer)) || List.first(assigned) do
+    non_codex_other = Enum.find(assigned, &(&1.id != implementer and &1.id != "codex"))
+    any_other = Enum.find(assigned, &(&1.id != implementer))
+    non_codex_any = Enum.find(assigned, &(&1.id != "codex"))
+
+    case non_codex_other || any_other || non_codex_any || List.first(assigned) do
       %{id: id} -> id
       nil -> "codex"
     end

@@ -119,6 +119,9 @@ defmodule Boss.Agents.Cursor do
     if byte_size(line) <= max, do: line, else: binary_part(line, 0, max) <> "…"
   end
 
+  @doc false
+  def extract_json_or_raw(text) when is_binary(text), do: json_object(text)
+
   defp json_object(text) do
     trimmed = String.trim(text)
 
