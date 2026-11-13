@@ -32,7 +32,7 @@ defmodule Boss.Deliveries.ExecutionRetry do
            parent.status == "failed" and parent.cleanup == "group_empty" and
              parent.autonomy_version == 1 and parent.routing_version == 2,
          true <- parent.integration_intent == %{} and is_nil(parent.integration_command_id),
-         :ok <- Boss.Agents.ModelCatalog.validate(parent.model_catalog),
+         :ok <- validate_catalog(parent),
          %{action: "delivery_progress", to_state: "failed"} <- terminal,
          true <-
            terminal.version == parent.task_version + 1 and
@@ -92,7 +92,7 @@ defmodule Boss.Deliveries.ExecutionRetry do
          true <-
            parent.integration_intent == %{} and is_nil(parent.integration_command_id) and
              parent.failure_code not in ~w(provider_auth provider_rate_limit provider_schema provider_transport),
-         :ok <- Boss.Agents.ModelCatalog.validate(parent.model_catalog),
+         :ok <- validate_catalog(parent),
          %{action: "delivery_progress"} <- terminal,
          true <-
            terminal.to_state == parent.status and terminal.version == parent.task_version + 1 and
@@ -220,6 +220,8 @@ defmodule Boss.Deliveries.ExecutionRetry do
                :check_config,
                :config_hash,
                :reviewer,
+               :implementer,
+               :analytic,
                :autonomy_version,
                :routing_version,
                :model_catalog
@@ -229,6 +231,21 @@ defmodule Boss.Deliveries.ExecutionRetry do
       {:ok, source}
     else
       _ -> {:error, :execution_retry_unavailable}
+    end
+  end
+
+  defp validate_catalog(%Delivery{} = parent) do
+    codex_used? =
+      Map.get(parent, :implementer, "codex") == "codex" or
+        Map.get(parent, :analytic, "codex") == "codex" or
+        Map.get(parent, :reviewer, "codex") == "codex"
+
+    if codex_used? do
+      Boss.Agents.ModelCatalog.validate(parent.model_catalog)
+    else
+      if parent.model_catalog == %{},
+        do: :ok,
+        else: Boss.Agents.ModelCatalog.validate(parent.model_catalog)
     end
   end
 

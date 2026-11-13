@@ -182,14 +182,19 @@
   Preserve native dialog modality/open state across patches, restore card focus
   on close and synchronize a focused revision select after history navigation.
 - Agent discovery uses fixed bounded version/help, advertised local status, and
-  catalog commands from BOSS's PATH outside project repositories. Keep sign-in
-  explicit and interactive; never read auth files, enumerate accounts or retain
-  raw CLI/Terminal output. Distinguish configured metadata from provider access,
-  and advertised capabilities from a working adapter.
+  catalog commands from BOSS's PATH outside project repositories (`codex`,
+  `claude`, `cursor` via `agent`/`cursor-agent`, `hermes`, `pi`, `opencode`),
+  persisting normalized status and model/reasoning metadata in `agent_detections`.
+  Keep sign-in explicit and interactive via Terminal; never read auth files,
+  enumerate accounts or retain raw CLI/Terminal output. Distinguish configured
+  metadata from provider access, and advertised capabilities from a working adapter.
 - Keep the metadata detector requester-owned, one scan at a time. Do not claim
   wrapper-descendant cleanup for that detector. Catalog commands use the native
-  runner and save normalized observations in start order. Retain unrelated role
-  bindings when one changes. Require the exact catalog model for explicit effort.
+  runner and save normalized observations in start order. Permanent standard roles
+  (`reviewer`, `implementer`, `analytic`) and custom roles gate new bindings in
+  `agent_role_members` to detected & authorized agents and their catalog models;
+  retain unrelated role bindings when one changes. Require the exact catalog model
+  for explicit effort.
 - Keep stream EOF distinct from process exit and forced pipe closure. Demand must
   bound upstream queues; Stop and absolute cleanup deadlines must work while the
   consumer is stalled. A direct-PID watcher or leader exit is not tree cleanup.
@@ -235,13 +240,25 @@
 - Keep Codex source on stdin, workspace-write sandbox and explicit Start. Persist
   only bounded event types/counts/usage, never raw model/tool/stderr text. Test
   production transport with finite fake CLIs; paid/provider calls remain opt-in.
-- Pin the managed reviewer before effects; changing Codex/Claude with the same
-  command UUID conflicts. Existing deliveries default to Codex. Claude is an
-  evidence-only reviewer with no model filesystem/shell tools, fresh scratch cwd
-  and stdin input; its internal StructuredOutput formatter is expected. Validate
-  the terminal structured result plus transport and candidate identity. Never
-  fall back to another provider or treat Claude CLI permissions as an OS sandbox.
-  Host-managed startup policy remains outside ordinary hook/settings suppression.
+- Pin the managed reviewer, implementer, and analytic runners (`codex`, `claude`,
+  `cursor`, `opencode`) before effects; changing the reviewer with the same
+  command UUID conflicts, and explicit retries preserve the parent's pinned
+  roles. Existing deliveries default to Codex. Discover the Codex model catalog
+  only when a pinned role uses Codex. Claude review remains an evidence-only
+  reviewer with no model filesystem/shell tools, fresh scratch cwd, stdin input,
+  and balanced `StructuredOutput` tool-result verification; Claude read-only
+  stages (`:plan`, `:resolve`, `:intake`) restrict tools to `Read,Glob,Grep` and
+  `dontAsk`, while `:implement` runs in an isolated worktree. Cursor defaults to
+  `--model auto` (with `--force` on `:implement`, `--mode ask --sandbox enabled`
+  on read-only/review stages, and a single fallback to `auto` on
+  `model_unavailable`) and tolerates `:lingering_processes` only after confirmed
+  `group_empty` cleanup, `exit 0`, both EOFs, and a valid result envelope.
+  OpenCode runs `opencode run --pure --format json` over stdin with
+  `OPENCODE_PERMISSION` write-deny on read-only/review stages and `--auto` only
+  in isolated `:implement` worktrees, requiring terminal `step_finish` (`stop`).
+  Never fall back across providers automatically or treat CLI permissions as an
+  OS sandbox. Host-managed startup policy remains outside ordinary hook/settings
+  suppression.
 
 - Managed deliveries own task progress through persisted plan/stage evidence;
   manual run/check/review receipts remain advisory. Save each intent before effects,
@@ -391,11 +408,17 @@
 - Unchanged-target integration fast-forwards the original approved candidate.
   An advanced target needs immutable merge/check/fresh-review stages, all kept
   `integrating`; preserve the original approval. Pin target and selected reviewer,
-  reject rewritten history and stop on new drift/conflict/failure without retry.
-  Only the new exact merge lineage can authorize its publication. Reserve an ordinary
-  BOSS-owned target worktree, reject user-checked-out targets, authorize immediately
-  before expected-old-SHA CAS, rerun saved checks, then detach only that owned
-  checkout without deleting files. Postpublication failure retains the target and
+  and reject rewritten history. Legacy autonomy version 0 stops on new
+  drift/conflict/failure without retry; autonomy version 1 repairs a merge
+  conflict from the current target, diagnoses and repairs a rejected merge
+  review, retargets once if the target advances cleanly during merge review, and
+  repairs once on top of a published commit if the first postcheck fails
+  (stopping on rewritten history, a second target drift, or a second failed
+  postcheck without rolling back a published commit). Only the new exact merge or
+  repair lineage can authorize publication. Reserve an ordinary BOSS-owned target
+  worktree, reject user-checked-out targets, authorize immediately before
+  expected-old-SHA CAS, rerun saved checks, then detach only that owned checkout
+  without deleting files. Postpublication failure retains the target and
   evidence; unknown receipts quarantine, never automatically retry/reset.
 - Construct merge candidates with exact commit IDs, merge-tree exit success and
   ordered parents `[target, approved candidate]`. Never accept a conflict tree,
@@ -473,5 +496,10 @@
 
 - Keep the application aligned with the marketing visual system in
   `docs/UI_DESIGN.md`: semantic paper/ink/sage/peach tokens, compact task evidence,
-  native drawer/focus behavior and document-level motion controls. Verify narrow
-  layouts and keyboard/reduced-motion behavior without triggering real work.
+  native drawer/focus behavior and document-level motion controls. Keep the
+  Autopilot Three.js pixel pipeline canvas (`assets/js/autopilot_flow.mjs`,
+  `Three-LICENSE` in release notices) synchronized with `Pause motion` and
+  `prefers-reduced-motion`, backed by accessible HTML stage/task links, and
+  guard `Autopilot.cancel/4` via ETS `:boss_autopilot_cancelling` so fast worker
+  exit cannot race `cancel` into `:request_finished`. Verify narrow layouts and
+  keyboard/reduced-motion behavior without triggering real work.

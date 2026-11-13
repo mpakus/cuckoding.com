@@ -278,7 +278,9 @@ defmodule Boss.Agents.Claude do
   def feed(state, _), do: state
 
   def complete?(state),
-    do: state.started and state.terminal and is_nil(state.error) and state.buffer == ""
+    do:
+      state.started and state.terminal and is_nil(state.error) and state.buffer == "" and
+        MapSet.size(state.tools) == 0
 
   def summary(state) do
     %{

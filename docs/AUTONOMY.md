@@ -8,18 +8,25 @@ implementation attempt. The desired outcome is a verified integrated change.
 ## Model policy
 
 New workflow admissions retain autonomy version 1 (five implementation cycles,
-forty-eight stages) and pin routing version 2. Earlier saved deliveries, queued
-requests, intakes and Autopilot batches keep routing version 1. Explicit review or
-candidate retries preserve their parent's routing and catalog; a fresh Start can
-use the current routing policy. Replay never expands an old authorization.
+forty-eight stages) and pin routing version 2 together with the assigned
+`Implementer`, `Analytic` and `Reviewer` runners (`Codex`, `Claude Code`,
+`Cursor Agent` or `OpenCode`; see [agent discovery and roles](AGENT_DETECTION.md)).
+Earlier saved deliveries, queued requests, intakes and Autopilot batches keep
+their original policy and pinned roles. Explicit review, candidate, timeout and
+checkpoint retries preserve their parent's routing, catalog and pinned role
+runners; a fresh Start uses the current role assignments and routing policy.
+Replay never expands an old authorization.
 
-Before the first agent stage, BOSS runs the fixed metadata command
-`codex --config 'model_provider="openai"' debug models` outside the project, with
-a 12-second execution bound, bounded cleanup and a 1 MiB output limit. It validates
-visible supported models and reasoning levels, then persists a reduced immutable
-catalog. The selected provider matches managed exec's default OpenAI provider;
-managed configuration and cached metadata can still differ. Catalog presence is
-metadata, not proof of account entitlement or a successful inference.
+When any pinned role on a workflow uses Codex, BOSS runs the fixed metadata command
+`codex --config 'model_provider="openai"' debug models` outside the project before
+the first agent stage, with a 12-second execution bound, bounded cleanup and a
+1 MiB output limit. It validates visible supported models and reasoning levels,
+then persists a reduced immutable catalog. Workflows whose pinned `Implementer`,
+`Analytic` and `Reviewer` are all non-Codex (`Claude Code`, `Cursor Agent`,
+`OpenCode`) skip Codex catalog discovery and use the model and reasoning effort
+configured for each role on the **Agents** screen (`Cursor Agent` defaults to
+`--model auto` and falls back once to `auto` on `model_unavailable`). Catalog
+presence is metadata, not proof of account entitlement or a successful inference.
 
 | Work | Routing version 2 |
 | --- | --- |

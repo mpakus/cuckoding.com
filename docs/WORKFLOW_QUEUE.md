@@ -86,10 +86,14 @@ the integration checks below.
 Integration remains an explicit globally exclusive operation. After one parallel
 candidate is integrated, another candidate based on the old target gets a fresh
 merge candidate, saved checks and selected review before publication. Its original
-approval remains historical. Conflicts, check/review failure or another target
-change stop the attempt; no automatic repair or retry occurs. The unchanged-target
-fast-forward path remains available. See [Managed delivery](MANAGED_DELIVERIES.md).
-Automatic rebase and merge-conflict repair remain separate work.
+approval remains historical. Legacy autonomy version 0 stops on conflicts,
+check/review failure or another target change without repair; autonomy version 1
+repairs merge conflicts, rejected merge reviews, a single target advance during
+merge review and a first failed postcheck before publishing a newly approved
+descendant (stopping on rewritten history, a second target drift or a second
+failed postcheck; see [Managed delivery](MANAGED_DELIVERIES.md) and
+[Autonomous delivery](AUTONOMY.md)). The unchanged-target fast-forward path
+remains available.
 
 Tests use finite fake CLIs, real Git and isolated SQLite pools. They are not
 real-provider authentication or paid model acceptance. Linux execution and broader

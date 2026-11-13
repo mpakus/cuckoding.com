@@ -9,12 +9,14 @@ blank creates a local BOSS publication branch at the current commit. The project
 page opens the Autopilot panel with that target. Select a trusted check command
 and press **Start Autopilot**. BOSS suggests `mix test` for Mix repositories.
 
-A read-only Codex planner compares committed Markdown with the code at the saved
-Git base and returns up to 32 outstanding tasks. New Starts pin planning version 1:
-a rejected plan can pass to another saved model, with at most three attempts under
-one 20-minute deadline. Each attempt is saved before execution, with its exact
-model and source commit; terminal receipts retain fixed validation codes and
-response size, never raw model output. The panel shows this attempt history. BOSS validates the source paths
+A read-only planner using your assigned **Analytic** agent (`Codex`, `Claude
+Code`, `Cursor Agent` or `OpenCode`) compares committed Markdown with the code
+at the saved Git base and returns up to 32 outstanding tasks. New Starts pin
+planning version 1: a rejected plan can pass to another saved model or assigned
+Analytic agent, with at most three attempts under one 20-minute deadline. Each
+attempt is saved before execution, with its exact model and source commit;
+terminal receipts retain fixed validation codes, error classes and response
+size, never raw model output. The panel shows this attempt history. BOSS validates the source paths
 and dependency graph, then saves the generated task specifications and batch
 in one transaction. The same Start dispatches the first eligible task. An empty
 plan records that the planner found no outstanding work. Original Markdown stays
@@ -111,10 +113,13 @@ checks that condition again. BOSS does not switch your checkout automatically.
 
 ## Watch and control
 
-The Autopilot panel shows each saved task's current state and links to its details
-with plan, reviewer findings and saved stages. The board refreshes as tasks move.
-Active and paused batches reopen their controls after a browser reload. Closing
-the browser does not stop the workers.
+The Autopilot panel renders a live Three.js pixel pipeline (`Backlog`, `Plan`,
+`Implement`, `Check`, `Review`, `Diagnose`, `Integrate`, `Done`, `Needs input`
+and `Stopped`) that honors **Pause motion** and `prefers-reduced-motion`, paired
+with accessible stage counts and links to each task's details, plan, reviewer
+findings and saved stages. The board refreshes as tasks move. Active and paused
+batches reopen their controls after a browser reload. Closing the browser does
+not stop the workers.
 
 If the Start reply cannot be confirmed, BOSS keeps the original request and its
 inputs. A current read of that exact saved batch confirms admission and restores
@@ -143,11 +148,14 @@ runtime runs BOSS itself. The project still needs its own compatible toolchain.
 A corrected runner does not retry an old blocked batch: inspect its task details
 and explicitly start a fresh workflow. Previous failed receipts stay unchanged.
 
-Codex plans, implements and fixes; the selected Codex or Claude reviewer receives
-the saved evidence. These calls use configured local accounts and may incur
-charges. Development acceptance uses finite fake CLIs; it does not establish
-real-provider quality or Linux support. No raw CLI transcript or check output is
-retained; fixed diagnostics and sanitized receipts explain failures.
+Your assigned **Implementer** (`Codex`, `Claude Code`, `Cursor Agent` or
+`OpenCode`) plans, implements and fixes, **Analytic** diagnoses questions and
+failures, and the selected **Reviewer** (`Codex`, `Claude Code`, `Cursor Agent`
+or `OpenCode`) receives the saved evidence. These calls use configured local
+accounts and may incur charges. Development acceptance uses finite fake CLIs; it
+does not establish real-provider quality or Linux support. No raw CLI transcript
+or check output is retained; fixed diagnostics and sanitized receipts explain
+failures.
 
 ## Recover a checked-out target
 

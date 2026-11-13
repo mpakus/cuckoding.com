@@ -298,7 +298,12 @@ defmodule Boss.Deliveries do
                 candidate,
                 parent.autonomy_version,
                 parent.routing_version,
-                parent.model_catalog
+                parent.model_catalog,
+                nil,
+                %{
+                  implementer: parent.implementer,
+                  analytic: parent.analytic
+                }
               )
 
             {:new, delivery}
@@ -368,7 +373,11 @@ defmodule Boss.Deliveries do
                 parent.autonomy_version,
                 parent.routing_version,
                 parent.model_catalog,
-                source.implementation.id
+                source.implementation.id,
+                %{
+                  implementer: parent.implementer,
+                  analytic: parent.analytic
+                }
               )
 
             {:new, child}
@@ -444,7 +453,9 @@ defmodule Boss.Deliveries do
                   provider_recovery_version:
                     if(Map.get(source, :source_kind) == :rate_limit, do: 1, else: 0),
                   retry_source_check_id: if(source.check, do: source.check.id),
-                  implementation_network_version: 1
+                  implementation_network_version: 1,
+                  implementer: parent.implementer,
+                  analytic: parent.analytic
                 }
               )
 
@@ -567,7 +578,8 @@ defmodule Boss.Deliveries do
         Repo.rollback(:task_unavailable)
     end
 
-    implementer = Boss.Agents.Roles.implementer()
+    implementer = Map.get(recovery, :implementer) || Boss.Agents.Roles.implementer()
+    analytic = Map.get(recovery, :analytic) || Boss.Agents.Roles.analytic(implementer)
 
     Repo.insert!(%Delivery{
       id: Ecto.UUID.generate(),
@@ -587,7 +599,7 @@ defmodule Boss.Deliveries do
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
       implementer: implementer,
-      analytic: Boss.Agents.Roles.analytic(implementer),
+      analytic: analytic,
       autonomy_version: autonomy_version,
       routing_version: routing_version,
       model_catalog: model_catalog,

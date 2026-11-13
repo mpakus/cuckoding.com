@@ -209,7 +209,7 @@ defmodule Boss.ReleasePackageTest do
     end
   end
 
-  test "vendored root notices exactly match pinned upstream bytes" do
+  test "vendored root notices and frontend asset licenses match expected provenance" do
     for {name, hash, size} <- [
           {"Erlang", "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0", 10175},
           {"OpenSSL", "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a", 10175},
@@ -219,6 +219,18 @@ defmodule Boss.ReleasePackageTest do
       bytes = File.read!(Path.join(__DIR__, "licenses/#{name}-LICENSE.txt"))
       assert byte_size(bytes) == size
       assert Base.encode16(:crypto.hash(:sha256, bytes), case: :lower) == hash
+    end
+
+    root = Path.expand("..", __DIR__)
+
+    for asset_license <- [
+          "LICENSE",
+          "assets/node_modules/tailwindcss/LICENSE",
+          "assets/node_modules/three/LICENSE"
+        ] do
+      path = Path.join(root, asset_license)
+      assert File.regular?(path), "Missing bundled notice source: #{asset_license}"
+      assert byte_size(File.read!(path)) > 100
     end
   end
 end

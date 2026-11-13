@@ -34,10 +34,13 @@ Project-level [Autopilot](AUTOPILOT.md) explicitly authorizes automatic integrat
 for the saved whole-Backlog batch. It reuses these same stages and gates, running
 one task through Done before starting the next. Ordinary Start/Queue remains manual.
 
-Codex plans, implements and fixes. Select **Codex** (default) or **Claude** as
-the independent reviewer before Start. The selection is saved for the whole
-workflow, including every fix cycle. Install/sign in to the selected CLI on BOSS's
-PATH; there is no automatic provider fallback. See [Claude review](CLAUDE_REVIEW.md).
+Your assigned **Implementer** (`Codex`, `Claude Code`, `Cursor Agent` or
+`OpenCode`) plans, implements and fixes, and **Analytic** diagnoses questions
+and failed stages. Select an independent **Reviewer** (`Codex`, `Claude Code`,
+`Cursor Agent` or `OpenCode`) before Start. The pinned roles are saved for the
+whole workflow, including every fix cycle and explicit retry. Install/sign in to
+the selected CLIs on BOSS's PATH; there is no automatic cross-provider fallback.
+See [agent roles](AGENT_DETECTION.md) and [Claude review](CLAUDE_REVIEW.md).
 
 ## Task attention
 
@@ -104,13 +107,14 @@ match the plan. Approval requires all criteria passed and no issues. Candidate
 identity and tree are verified before and after review. This is model assessment
 plus the configured checks; its coverage is limited by the actual command and
 criteria, not a general proof that arbitrary code is correct.
-Codex can inspect the candidate through its read-only sandbox. Claude assesses
-only supplied evidence, without model filesystem or shell tools.
-Both prompts specify the exact JSON fields, UTF-8 byte limits, and the required
+Codex and OpenCode can inspect the candidate read-only; Cursor Agent reviews in
+ask/sandbox mode; Claude assesses only supplied evidence in an empty scratch
+directory without model filesystem or shell tools.
+All reviewer prompts specify the exact JSON fields, UTF-8 byte limits, and the required
 relationship between criteria, issues and verdict. The top-level check receipt
 and output apply to the current candidate. Previous feedback remains historical.
 
-Check text is transient and sent to the selected reviewer and Codex fixer; it is not stored in SQLite or browser
+Check text is transient and sent to the selected reviewer and Implementer fixer; it is not stored in SQLite or browser
 history. Persisted receipts contain sanitized counts/hashes, typed plan/review
 reports, Git identity, exit/EOF/cleanup and stage links. Do not put secrets in
 commands, source or output. Complete prompt input is limited to 1 MiB; reports
@@ -150,8 +154,9 @@ to the **exact reviewed commit**. If the target advanced from the original base,
 BOSS pins its current SHA and constructs a separate merge candidate with two
 parents: that target and the originally approved candidate. It retains the
 original approval, runs the saved checks on the merge, then requests a fresh
-review from the saved Codex/Claude reviewer. The drawer shows both approvals and
-their distinct commit identities.
+review from the saved reviewer (`Codex`, `Claude Code`, `Cursor Agent` or
+`OpenCode`). The drawer shows both approvals and their distinct commit
+identities.
 
 When the target advanced, choosing Integrate invokes the saved reviewer again
 and may consume provider quota or incur charges.
@@ -159,11 +164,16 @@ and may consume provider quota or incur charges.
 The fresh review receives the original source/plan, complete original-base and
 current-target diffs, original approval and new complete check output/receipt.
 Exact candidate/ref/parents/tree and target are verified around validation.
-A clean Git merge alone is not approval. Conflicts, rewritten target history,
-failed checks, review rejection or another target change stop integration. There
-is no automatic merge repair, rebase or review retry; retained history remains
-available for inspection and a fresh workflow. A request for specification
-clarification becomes Needs input.
+A clean Git merge alone is not approval. Legacy autonomy version 0 stops on
+conflicts, rewritten target history, failed checks, review rejection or another
+target change without retry. Autonomy version 1 repairs a merge conflict from
+the current target, diagnoses and repairs a rejected merge review, retargets
+once if the target advances cleanly during merge review, and repairs once on top
+of a published commit if the first postcheck fails — publishing only a newly
+checked and reviewed descendant while stopping on rewritten history, a second
+target drift, or a second failed postcheck (see [autonomous delivery](AUTONOMY.md)).
+Retained history remains available for inspection, and a request for
+specification clarification becomes Needs input.
 
 The target branch must be free of user worktrees before validation starts. Switch
 your checkout to another branch before integrating; BOSS will not switch it for

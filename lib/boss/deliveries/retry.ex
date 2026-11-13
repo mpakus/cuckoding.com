@@ -98,6 +98,8 @@ defmodule Boss.Deliveries.Retry do
                :check_config,
                :config_hash,
                :reviewer,
+               :implementer,
+               :analytic,
                :autonomy_version,
                :routing_version,
                :model_catalog

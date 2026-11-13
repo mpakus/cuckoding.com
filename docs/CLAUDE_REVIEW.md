@@ -1,9 +1,12 @@
 # Claude in managed review
 
 In a task's workflow form, choose **Claude** as reviewer and enter the trusted
-check command, then **Start workflow**. Codex still plans and implements/fixes.
-Both local CLI accounts may incur usage charges. The existing manual Codex
-run/check/review flow is unchanged. Restart BOSS to apply pending migrations.
+check command, then **Start workflow**. Your assigned **Implementer** and
+**Analytic** roles (`Codex`, `Claude Code`, `Cursor Agent` or `OpenCode`) handle
+planning, implementation/fixes and stuck-question diagnosis; Claude Code can
+also be assigned to those roles while retaining the strict evidence-only review
+boundary below when selected as **Reviewer**. Configured local CLI accounts may
+incur usage charges. The manual Codex run/check/review flow is unchanged.
 
 Admission stores the selected reviewer before effects. It cannot change during
 execution or retries: the same command UUID with a different reviewer conflicts.
@@ -59,9 +62,10 @@ postchecks are still required for Done.
 Local help/version inspection found the required flags in Claude Code2.1.142.
 Finite fake-CLI tests exercise the protocol and BOSS transport. This does not
 establish actual provider authentication, model access or paid end-to-end success;
-real provider acceptance remains a separate opt-in step. Claude planning and
-implementation, Linux execution and arbitrary model/role configuration are not
-included in this increment.
+real provider acceptance remains a separate opt-in step. When Claude Code is
+assigned to `Implementer` or `Analytic`, read-only stages (`:plan`, `:resolve`,
+`:intake`) restrict tools to `Read,Glob,Grep` with `dontAsk`, while `:implement`
+runs in an isolated BOSS worktree; Linux execution remains open.
 
 Sources consulted: [CLI reference](https://code.claude.com/docs/en/cli-reference),
 [headless execution](https://code.claude.com/docs/en/headless),

@@ -29,13 +29,15 @@ This page uses B\*SS for the product name.
 Under that name, the app provides local browser access, native folder
 selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with
-immutable receipts, a Kanban board, a revision-aware task drawer, local CLI
-discovery and manual Codex attempts, and fresh read-only Codex review in
-retained Git worktrees. Managed workflows add a typed plan, bounded fixes,
-Codex or Claude independent review, explicit integration and postchecks before
-Done. Claude reviews supplied evidence and does not receive model filesystem
-or shell tools. Task source adoption and Done-only dependency readiness keep
-execution pinned to reviewed inputs.
+immutable receipts, a Kanban board, a revision-aware task drawer, persistent
+local CLI detection with per-agent authorization and model catalogs, role-based
+agent routing (`Reviewer`, `Implementer`, `Analytic` and custom roles), manual
+Codex attempts, and fresh read-only Codex review in retained Git worktrees.
+Managed workflows and Autopilot add a typed plan, bounded fixes, role-pinned
+planning/implementation/diagnosis/review across **Codex**, **Claude Code**,
+**Cursor Agent** and **OpenCode**, live pipeline telemetry, explicit integration
+and postchecks before Done. Task source adoption and Done-only dependency
+readiness keep execution pinned to reviewed inputs.
 
 ## Run locally
 
@@ -237,20 +239,26 @@ the desired base commit, then select `boss-delivery` at registration. See
 A documentation project uses **Plan tasks from documentation**, which B\*SS
 suggests for a repository with a `docs/` folder. Leaving the publication target
 blank creates a local branch at the current commit. **Start Autopilot** runs one
-read-only planning pass: at most three attempts under one 20-minute deadline.
-It saves up to 32 tasks in dependency order, then dispatches the first eligible
-task. Original Markdown stays on disk. Later starts continue the remaining
-eligible cards and do not call the planner again. The same check, independent
-review and exact-commit publication gates still decide Done.
+read-only planning pass using your assigned **Analytic** agent (Codex, Claude
+Code, Cursor Agent or OpenCode): at most three attempts under one 20-minute
+deadline. It saves up to 32 tasks in dependency order, then dispatches the first
+eligible task. Original Markdown stays on disk. Later starts continue the
+remaining eligible cards and do not call the planner again. The same check,
+independent review and exact-commit publication gates still decide Done.
 
-New managed workflows read the installed Codex CLI's model catalog before the
-first stage. When those models are advertised, planning and ordinary
-implementation prefer Sol, an explicitly small first implementation prefers
-Luna, and a second opinion prefers Astra or Terra at extra-high reasoning. A
-CLI that only advertises the 5.6 series uses those exact models. A catalog
-entry is metadata, not proof the account can call the model. At least two
-distinct strong models are required. See
-[autonomous delivery](docs/AUTONOMY.md).
+Each managed workflow pins its **Implementer**, **Analytic** and **Reviewer**
+agents at admission from your saved roles (preferring a distinct Analytic agent
+for stuck-question resolution when available). When a pinned role uses Codex,
+B\*SS reads and validates the installed Codex CLI's model catalog before the
+first stage: planning and ordinary implementation prefer Sol, an explicitly
+small first implementation prefers Luna, and a second opinion prefers Astra or
+Terra at extra-high reasoning (or the 5.6 equivalents when only 5.6 is
+advertised; at least two distinct strong models are required). Non-Codex
+runners (`Claude Code`, `Cursor Agent`, `OpenCode`) use the model and reasoning
+effort selected on the **Agents** screen (`Cursor Agent` defaults to `--model
+auto` and falls back once to `auto` if a requested model is unavailable on the
+active tier). Catalog presence is metadata, not proof an account can call a
+model. See [autonomous delivery](docs/AUTONOMY.md).
 
 The saved check runs from a fresh candidate worktree. If dependencies are required,
 point the check at a trusted, committed script that installs the locked dependencies
@@ -264,9 +272,11 @@ Open a task, enter a trusted **Workflow check command**, select a reviewer, then
 workflow**. B\*SS saves a plan, implements in an isolated worktree, checks the
 snapshot and requests a fresh review. Failed checks or requested changes can
 trigger model-assisted fixes, up to five implementation cycles on new starts.
-Codex plans/implements/fixes; the independent
-reviewer is Codex by default or explicitly Claude. Claude assesses supplied
-evidence without model filesystem/shell tools. Your selected local CLI accounts
+Your assigned **Implementer** plans, implements and fixes, **Analytic** diagnoses
+questions and failed checks/reviews, and the selected **Reviewer** (`Codex`,
+`Claude Code`, `Cursor Agent` or `OpenCode`) assesses the candidate
+independently. Claude review assesses supplied evidence without model
+filesystem/shell tools. Your selected local CLI accounts
 may incur charges for multiple runs. Closing the browser keeps the workflow running.
 See [Claude review and its limits](docs/CLAUDE_REVIEW.md).
 
@@ -284,9 +294,12 @@ the saved checks and a fresh selected review before publication. The original
 approval stays in history. An unchanged target fast-forwards to its approved commit.
 Integrating an advanced target makes another reviewer call and may incur charges.
 B\*SS publishes only the validated commit, reruns checks, retains its checkout and
-frees the branch before **Done**. Conflicts, failed validation or further target
-drift stop the attempt. Failed postchecks retain the published result for inspection;
-B\*SS never resets your checkout. Current execution: macOS, up to three managed workflows
+frees the branch before **Done**. Under autonomy policy 1, a merge conflict,
+rejected merge review, single target advance during review or first failed
+postcheck enters bounded diagnosis and fresh descendant verification before
+moving the branch; rewritten history, a second target drift or a second failed
+postcheck stops the attempt. Published commits are never rolled back, and B\*SS
+never resets your checkout. Current execution: macOS, up to three managed workflows
 and exclusive integration. See
 [managed delivery behavior and limits](docs/MANAGED_DELIVERIES.md).
 
@@ -336,25 +349,28 @@ The report is advisory: it does not move the task, merge changes or mark Done.
 Refined plans, raw test output and automatic fix loops are not yet part of this
 manual flow. See [review inputs, validation and limits](docs/MANUAL_REVIEWS.md).
 
-## Detect agents
+## Detect agents and assign roles
 
 Open **Agents** from Projects, then click **Detect agents**. B\*SS checks Codex,
-Claude Code, Cursor Agent, Hermes, Pi and OpenCode on its own PATH and shows
-recognized versions, local sign-in reports and capabilities advertised by their help. Detection does not run a model or
-change credentials. Follow the official setup/sign-in guidance if a tool is
-missing or reports that it is signed out, then detect again.
+Claude Code, Cursor Agent (`agent` or `cursor-agent`), Hermes, Pi and OpenCode
+on its own PATH and persists sanitized versions, local sign-in status,
+capabilities and visible model/reasoning catalogs in SQLite. Reloading the page
+retains the saved inventory. On macOS, **Open login in Terminal** launches the
+CLI's interactive sign-in in your Terminal, and **Verify & fetch models**
+refreshes status and model choices without running paid inference.
 
-A sign-in report does not verify model access or quota. Advertised flags do not
-mean a B\*SS execution adapter is ready. Results are temporary; reloading the page
-requires another explicit scan. A failed rescan retains the previous results with
-a failure notice. The Agents screen does not assign roles. Managed workflows
-choose models from the saved catalog. Explicit Codex task runs are available
-from the task drawer on macOS.
+Open **Reviewer**, **Implementer**, **Analytic** or **Create role** to assign
+detected and authorized agents, select a catalog model and (where supported)
+choose a reasoning effort. Managed workflows and Autopilot support **Codex**,
+**Claude Code**, **Cursor Agent** and **OpenCode** across planning,
+implementation, diagnosis, documentation intake and independent review; Hermes
+and Pi are stored as roster entries. A sign-in report or model catalog entry is
+local CLI metadata, not proof of provider quota or entitlement.
 
 Probes run outside registered projects with fixed commands, bounded time/output,
 one scan at a time and cleanup of the tracked direct child. B\*SS never reads
 credential files or displays raw CLI output. See
-[agent discovery boundaries and verification](docs/AGENT_DETECTION.md).
+[agent discovery and roles](docs/AGENT_DETECTION.md).
 
 ## Data and ownership
 

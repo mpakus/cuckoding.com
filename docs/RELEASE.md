@@ -58,8 +58,9 @@ Fresh provider acceptance of the subsequent Git-registration runtime change rema
 a separate opt-in gate. No second paid workflow was started.
 
 BOSS uses Apache-2.0, selected by the project owner. The archive
-includes the unchanged project license as `LICENSES/BOSS-LICENSE`; dependency
-notices retain their original licenses.
+includes the unchanged project license as `LICENSES/BOSS-LICENSE`, bundled
+frontend asset notices (`Tailwind-LICENSE`, `Three-LICENSE`), and dependency
+notices retaining their original licenses.
 
 ## Build and inspect
 
@@ -277,7 +278,8 @@ distribution-based `bin/boss stop` command are not the shutdown interface.
 The release disables BEAM crash-dump files because they can include private
 in-memory agent output; this setting does not control host OS core-dump policy.
 
-Git and the selected Codex/Claude CLI must be installed, authenticated and available
+Git and the selected agent CLIs (`Codex`, `Claude Code`, `Cursor Agent` or
+`OpenCode`) must be installed, authenticated and available
 on the launching terminal's PATH. A desktop session is required for native folder
 dialogs. Agent accounts can incur charges. Elixir, Node and a C compiler belong to
 the build setup; an accepted bundled archive should not need them at runtime.

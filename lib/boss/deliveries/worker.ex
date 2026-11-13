@@ -1971,14 +1971,29 @@ defmodule Boss.Deliveries.Worker do
         receipt["status"] in ["interrupted", "cancelled"] ->
           receipt
 
-        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
-          result.eof == %{stdout: true, stderr: true} and Claude.complete?(state) ->
+        clean_envelope_exit?(result) and Claude.complete?(state) ->
           case decode.(state.report) do
-            {:ok, report} -> Map.merge(receipt, %{"status" => "finished", "report" => report})
-            _ -> Map.merge(receipt, failure(:invalid_report))
+            {:ok, report} ->
+              Map.merge(receipt, %{
+                "status" => "finished",
+                "outcome" => "exited",
+                "report" => report
+              })
+
+            _ ->
+              Map.merge(receipt, failure(:invalid_report))
           end
 
         true ->
+          receipt =
+            if result.cleanup == :group_empty and result.exit_kind == :exit and
+                 result.eof == %{stdout: true, stderr: true} and
+                 result.outcome == :failed and Map.get(result, :reason) == :lingering_processes do
+              Map.put(receipt, "outcome", "exited")
+            else
+              receipt
+            end
+
           Map.put(
             receipt,
             "reason",
