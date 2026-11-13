@@ -397,8 +397,27 @@ defmodule BossWeb.AutopilotPanel do
   defp attempt_reason(%{status: "running"}), do: "Planning from the saved documentation."
   defp attempt_reason(%{receipt: %{"validation_code" => "valid"}}), do: "Plan validated."
 
-  defp attempt_reason(%{receipt: %{"validation_code" => "report_too_large"}}),
-    do: "Plan exceeded the 32 KiB response limit."
+  defp attempt_reason(%{receipt: %{"error_class" => "rate_limit"}}),
+    do: "Provider reported a rate, quota, or credit balance limit."
+
+  defp attempt_reason(%{receipt: %{"error_class" => "auth"}}),
+    do: "Provider rejected authentication or session credentials."
+
+  defp attempt_reason(%{receipt: %{"error_class" => "model_unavailable"}}),
+    do: "Selected model was unavailable on this account."
+
+  defp attempt_reason(%{receipt: %{"error_class" => "schema"}}),
+    do: "Provider rejected the structured request schema."
+
+  defp attempt_reason(%{receipt: %{"error_class" => "transport"}}),
+    do: "CLI transport or protocol failed."
+
+  defp attempt_reason(%{receipt: %{"validation_code" => "report_too_large"} = r}) do
+    case r["report_bytes"] do
+      bytes when is_integer(bytes) -> "Plan exceeded the 32 KiB response limit (#{bytes} bytes)."
+      _ -> "Plan exceeded the 32 KiB response limit."
+    end
+  end
 
   defp attempt_reason(%{receipt: %{"validation_code" => "task_limit"}}),
     do: "Plan exceeded the 32-task limit."
@@ -407,10 +426,14 @@ defmodule BossWeb.AutopilotPanel do
     do: "The planned tasks contained a dependency cycle."
 
   defp attempt_reason(%{receipt: %{"validation_code" => code}}) when is_binary(code),
-    do: "Plan did not meet the required output contract."
+    do: "Plan did not meet the required output contract (#{String.replace(code, "_", " ")})."
 
   defp attempt_reason(%{status: "cancelled"}), do: "Planning stopped."
   defp attempt_reason(%{status: "interrupted"}), do: "Process cleanup needs verification."
+
+  defp attempt_reason(%{receipt: %{"exit_code" => code}}) when is_integer(code) and code != 0,
+    do: "The CLI exited #{code} before producing a valid plan."
+
   defp attempt_reason(_), do: "The model attempt could not complete."
 
   @flow [

@@ -93,11 +93,8 @@ defmodule Boss.Agents.Claude do
 
     class =
       cond do
-        line && String.contains?(String.downcase(line), "not logged in") -> "auth"
-        line && String.contains?(String.downcase(line), "authentication") -> "auth"
-        line && String.contains?(String.downcase(line), "invalid api key") -> "auth"
-        line && String.contains?(String.downcase(line), "rate limit") -> "rate_limit"
-        line && String.contains?(String.downcase(line), "quota") -> "rate_limit"
+        line && auth_failure?(line) -> "auth"
+        line && quota_or_credit_failure?(line) -> "rate_limit"
         true -> nil
       end
 
@@ -127,6 +124,32 @@ defmodule Boss.Agents.Claude do
   end
 
   defp stdout_error_line(_), do: nil
+
+  defp auth_failure?(line) do
+    down = String.downcase(line)
+
+    String.contains?(down, [
+      "not logged in",
+      "authentication",
+      "invalid api key",
+      "unauthorized"
+    ])
+  end
+
+  defp quota_or_credit_failure?(line) do
+    down = String.downcase(line)
+
+    String.contains?(down, [
+      "rate limit",
+      "quota",
+      "credit balance",
+      "insufficient credits",
+      "out of credits",
+      "billing",
+      "usage limit",
+      "overloaded"
+    ])
+  end
 
   defp safe_line(text) when is_binary(text) do
     if String.valid?(text) do

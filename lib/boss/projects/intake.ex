@@ -425,7 +425,7 @@ defmodule Boss.Projects.Intake do
 
   defp message(:provider_rate_limit),
     do:
-      "The provider reported a rate or quota limit. Planning stopped without switching accounts."
+      "The selected planning agent reported a rate, quota, or credit balance limit. Planning stopped without switching accounts."
 
   defp message(:provider_schema),
     do:

@@ -46,19 +46,33 @@ defmodule Boss.Agents.Cursor do
 
     class =
       cond do
-        line && String.contains?(String.downcase(line), "authentication required") ->
+        line &&
+            String.contains?(String.downcase(line), [
+              "authentication required",
+              "not logged in",
+              "invalid api key",
+              "unauthorized"
+            ]) ->
           "auth"
 
-        line && String.contains?(String.downcase(line), "model unavailable") ->
+        line &&
+            String.contains?(String.downcase(line), [
+              "model unavailable",
+              "switch to an included model"
+            ]) ->
           "model_unavailable"
 
-        line && String.contains?(String.downcase(line), "switch to an included model") ->
-          "model_unavailable"
-
-        line && String.contains?(String.downcase(line), "rate limit") ->
-          "rate_limit"
-
-        line && String.contains?(String.downcase(line), "quota") ->
+        line &&
+            String.contains?(String.downcase(line), [
+              "rate limit",
+              "quota",
+              "credit balance",
+              "insufficient credits",
+              "out of credits",
+              "billing",
+              "usage limit",
+              "overloaded"
+            ]) ->
           "rate_limit"
 
         true ->

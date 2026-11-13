@@ -1886,6 +1886,15 @@ defmodule Boss.Deliveries.Worker do
           end
 
         true ->
+          receipt =
+            if result.cleanup == :group_empty and result.exit_kind == :exit and
+                 result.eof == %{stdout: true, stderr: true} and
+                 result.outcome == :failed and Map.get(result, :reason) == :lingering_processes do
+              Map.put(receipt, "outcome", "exited")
+            else
+              receipt
+            end
+
           receipt
           |> Map.put("reason", note.reason)
           |> Map.put("summary", %{
@@ -2177,6 +2186,15 @@ defmodule Boss.Deliveries.Worker do
           end
 
         true ->
+          receipt =
+            if result.cleanup == :group_empty and result.exit_kind == :exit and
+                 result.eof == %{stdout: true, stderr: true} and
+                 result.outcome == :failed and Map.get(result, :reason) == :lingering_processes do
+              Map.put(receipt, "outcome", "exited")
+            else
+              receipt
+            end
+
           receipt
           |> Map.put("reason", note.reason)
           |> Map.put("summary", %{

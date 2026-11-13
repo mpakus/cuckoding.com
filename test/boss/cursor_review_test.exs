@@ -249,6 +249,17 @@ defmodule Boss.CursorReviewTest do
     assert receipt["status"] == "finished"
     assert receipt["validation_code"] == "valid"
     assert receipt["report"]["summary"] == "Claude plan"
+
+    credit_err =
+      Jason.encode!(%{
+        "type" => "result",
+        "subtype" => "success",
+        "is_error" => true,
+        "result" => "Credit balance is too low"
+      })
+
+    assert %{class: "rate_limit", reason: "Claude Code: Credit balance is too low"} =
+             Boss.Agents.Claude.notice("", credit_err)
   end
 
   test "Cursor stage finishes cleanly when an MCP helper lingers and pre-tool prose contains braces" do
