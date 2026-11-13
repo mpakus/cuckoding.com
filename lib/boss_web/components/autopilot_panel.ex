@@ -335,7 +335,7 @@ defmodule BossWeb.AutopilotPanel do
               </option>
             </select>
             <p id="autopilot-reviewer-help" class="mt-1 text-xs text-muted">
-              The list is the agents assigned to Reviewer. Codex, Claude, and Cursor can run the review.
+              The list is the agents assigned to Reviewer. Codex, Claude, Cursor, and OpenCode can run the review.
             </p>
           </fieldset>
           <p

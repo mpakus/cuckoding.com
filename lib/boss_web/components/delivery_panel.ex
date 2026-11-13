@@ -87,7 +87,11 @@ defmodule BossWeb.DeliveryPanel do
             <%= if @request.reviewer == "cursor" do %>
               Cursor Agent reviews the supplied evidence in ask mode and does not write the candidate.
             <% else %>
-              Codex reviews the supplied evidence and can inspect the candidate's source read-only.
+              <%= if @request.reviewer == "opencode" do %>
+                OpenCode reviews the supplied evidence with read-only permissions and does not write the candidate.
+              <% else %>
+                Codex reviews the supplied evidence and can inspect the candidate's source read-only.
+              <% end %>
             <% end %>
           <% end %>
         </p>

@@ -7,7 +7,7 @@ defmodule Boss.Projects.Intake.Attempts do
   @keys ~w(status cleanup outcome exit_kind exit_code signal eof usage error_class report_bytes validation_code plan_hash)
   @validation ~w(valid report_empty report_too_large report_unavailable report_replaced invalid_encoding invalid_json invalid_shape duplicate_keys unknown_fields task_limit invalid_task_id invalid_title invalid_specification invalid_acceptance invalid_dependencies invalid_sources duplicate_task_id dependency_cycle)
   @recoverable @validation -- ~w(valid report_unavailable report_replaced)
-  @outcomes ~w(exited invalid_report cancelled interrupted failed timeout timed_out output_limit unsupported codex_unavailable claude_unavailable cursor_unavailable candidate_changed target_changed cleanup_unknown)
+  @outcomes ~w(exited invalid_report cancelled interrupted failed timeout timed_out output_limit unsupported codex_unavailable claude_unavailable cursor_unavailable opencode_unavailable candidate_changed target_changed cleanup_unknown)
   @errors ~w(model_unavailable auth rate_limit schema transport unknown)
 
   def list(id),
@@ -216,17 +216,17 @@ defmodule Boss.Projects.Intake.Attempts do
     |> length() >= 2
   end
 
-  defp select!(_request, [], planner) when planner in ["claude", "cursor"] do
+  defp select!(_request, [], planner) when planner in ["claude", "cursor", "opencode"] do
     %{"model" => planner, "reasoning_effort" => "high"}
   end
 
-  defp select!(_request, previous, planner) when planner in ["claude", "cursor"] do
+  defp select!(_request, previous, planner) when planner in ["claude", "cursor", "opencode"] do
     prior = List.last(previous).model_profile["model"]
 
     alternate =
       Boss.Agents.Roles.agents_for("analytic")
       |> Enum.map(& &1.id)
-      |> Enum.find(&(&1 in ["claude", "cursor"] and &1 != prior))
+      |> Enum.find(&(&1 in ["claude", "cursor", "opencode"] and &1 != prior))
 
     %{"model" => alternate || planner, "reasoning_effort" => "high"}
   end

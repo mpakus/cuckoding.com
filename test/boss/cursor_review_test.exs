@@ -373,4 +373,102 @@ defmodule Boss.CursorReviewTest do
 
     assert rewritten == msg
   end
+
+  test "OpenCode runs read-only plan and review via streaming NDJSON without retaining sessionID" do
+    root =
+      Path.join(System.tmp_dir!(), "boss-opencode-#{System.unique_integer([:positive])}")
+
+    File.mkdir!(root)
+
+    plan_json =
+      Jason.encode!(%{
+        "summary" => "OpenCode plan",
+        "steps" => ["Step 1"],
+        "acceptance" => ["Passes check"],
+        "file_scopes" => nil,
+        "clarification" => nil,
+        "complexity" => "small"
+      })
+
+    ndjson =
+      Enum.map_join(
+        [
+          %{
+            "type" => "step_start",
+            "sessionID" => "ses_PRIVATE_SESSION_ID",
+            "part" => %{"type" => "step-start"}
+          },
+          %{
+            "type" => "text",
+            "sessionID" => "ses_PRIVATE_SESSION_ID",
+            "part" => %{"type" => "text", "text" => "Planning first...\n" <> plan_json}
+          },
+          %{
+            "type" => "step_finish",
+            "sessionID" => "ses_PRIVATE_SESSION_ID",
+            "part" => %{
+              "type" => "step-finish",
+              "reason" => "stop",
+              "tokens" => %{"input" => 120, "output" => 45, "cache" => %{"read" => 30}}
+            }
+          }
+        ],
+        "\n",
+        &Jason.encode!/1
+      )
+
+    payload = Path.join(root, "opencode_payload.jsonl")
+    File.write!(payload, ndjson)
+    env_out = Path.join(root, "opencode_perm.txt")
+    argv_out = Path.join(root, "opencode_argv.txt")
+    script = Path.join(root, "opencode")
+
+    File.write!(script, """
+    #!/bin/sh
+    cat >/dev/null
+    printf '%s' "$OPENCODE_PERMISSION" > #{env_out}
+    printf '%s\\n' "$@" > #{argv_out}
+    cat #{payload}
+    printf '\\n'
+    exit 0
+    """)
+
+    File.chmod!(script, 0o700)
+    previous = System.get_env("PATH")
+    System.put_env("PATH", root <> ":" <> previous)
+
+    on_exit(fn ->
+      System.put_env("PATH", previous)
+      File.rm_rf(root)
+    end)
+
+    receipt =
+      Worker.run_agent(
+        :plan,
+        root,
+        "plan via opencode",
+        &Boss.Deliveries.Protocol.plan/1,
+        nil,
+        implementer: "opencode",
+        report_diagnostics: true
+      )
+
+    assert receipt["status"] == "finished"
+    assert receipt["validation_code"] == "valid"
+    assert receipt["report"]["summary"] == "OpenCode plan"
+
+    assert receipt["summary"]["usage"] == %{
+             "input_tokens" => 120,
+             "output_tokens" => 45,
+             "cached_input_tokens" => 30
+           }
+
+    refute inspect(receipt) =~ "ses_PRIVATE_SESSION_ID"
+    perm = File.read!(env_out)
+    assert perm =~ ~s("*":"deny")
+    assert perm =~ ~s("read":"allow")
+    argv = File.read!(argv_out)
+    assert argv =~ "--pure"
+    refute argv =~ "--auto"
+  end
 end

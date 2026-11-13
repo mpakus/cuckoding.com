@@ -898,7 +898,7 @@ defmodule BossWeb.ProjectLive do
 
   defp pinned_reviewer(socket) do
     case Boss.Deliveries.Autopilot.current(socket.assigns.project.id) do
-      {:ok, %{reviewer: reviewer}} when reviewer in ~w(codex claude cursor) ->
+      {:ok, %{reviewer: reviewer}} when reviewer in ~w(codex claude cursor opencode) ->
         reviewer
 
       _ ->
@@ -1174,7 +1174,7 @@ defmodule BossWeb.ProjectLive do
     do: check_error({:error, :invalid_command})
 
   defp delivery_error({:error, :invalid_reviewer}),
-    do: "Choose Codex, Claude, or Cursor as the workflow reviewer."
+    do: "Choose Codex, Claude, Cursor, or OpenCode as the workflow reviewer."
 
   defp delivery_error({:error, :invalid_command}), do: check_error({:error, :invalid_command})
 

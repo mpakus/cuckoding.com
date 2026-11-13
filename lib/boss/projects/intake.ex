@@ -407,6 +407,7 @@ defmodule Boss.Projects.Intake do
   defp message(:codex_unavailable), do: "Codex is unavailable on BOSS's PATH."
   defp message(:claude_unavailable), do: "Claude Code is unavailable on BOSS's PATH."
   defp message(:cursor_unavailable), do: "Cursor Agent is unavailable on BOSS's PATH."
+  defp message(:opencode_unavailable), do: "OpenCode is unavailable on BOSS's PATH."
 
   defp message(:catalog_unavailable),
     do:

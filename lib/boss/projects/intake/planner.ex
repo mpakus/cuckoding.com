@@ -42,7 +42,11 @@ defmodule Boss.Projects.Intake.Planner do
   end
 
   defp prepare_models(%{routing_version: 2, model_catalog: catalog} = request) do
-    if Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer()) in ["claude", "cursor"] do
+    if Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer()) in [
+         "claude",
+         "cursor",
+         "opencode"
+       ] do
       {:ok, request}
     else
       if catalog == %{} do
@@ -153,7 +157,7 @@ defmodule Boss.Projects.Intake.Planner do
               &decode_detailed(&1, Map.keys(docs)),
               attempt.model_profile,
               implementer:
-                if(attempt.model_profile["model"] in ["claude", "cursor"],
+                if(attempt.model_profile["model"] in ["claude", "cursor", "opencode"],
                   do: attempt.model_profile["model"],
                   else: "codex"
                 ),
@@ -239,6 +243,7 @@ defmodule Boss.Projects.Intake.Planner do
   defp failure_reason(%{"outcome" => "codex_unavailable"}), do: :codex_unavailable
   defp failure_reason(%{"outcome" => "claude_unavailable"}), do: :claude_unavailable
   defp failure_reason(%{"outcome" => "cursor_unavailable"}), do: :cursor_unavailable
+  defp failure_reason(%{"outcome" => "opencode_unavailable"}), do: :opencode_unavailable
   defp failure_reason(%{"error_class" => "auth"}), do: :provider_auth
   defp failure_reason(%{"error_class" => "rate_limit"}), do: :provider_rate_limit
   defp failure_reason(%{"error_class" => "schema"}), do: :provider_schema
@@ -273,6 +278,7 @@ defmodule Boss.Projects.Intake.Planner do
                  :codex_unavailable,
                  :claude_unavailable,
                  :cursor_unavailable,
+                 :opencode_unavailable,
                  :cleanup_unknown
                ] ->
             Atom.to_string(reason)

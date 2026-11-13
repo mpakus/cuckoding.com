@@ -203,13 +203,14 @@ defmodule Boss.Deliveries.Diagnostics do
 
   defp agent_label("cursor"), do: "Cursor Agent"
   defp agent_label("claude"), do: "Claude Code"
+  defp agent_label("opencode"), do: "OpenCode"
   defp agent_label("codex"), do: "Codex"
   defp agent_label(_), do: "The selected agent"
 
   defp sanitized_agent_note(text) when is_binary(text) do
     trimmed = String.trim(text)
 
-    if String.starts_with?(trimmed, ["Cursor Agent: ", "Claude Code: "]) do
+    if String.starts_with?(trimmed, ["Cursor Agent: ", "Claude Code: ", "OpenCode: "]) do
       concise(trimmed)
     end
   end

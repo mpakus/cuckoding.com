@@ -65,8 +65,8 @@ still determine Done.
 
 On a project page, choose **Autopilot** beside **Sync specs**, enter a trusted
 check command and choose the independent reviewer. The menu lists the agents
-assigned to Reviewer. Codex, Claude, and Cursor can run that review. When the
-Reviewer role has no agents yet, Codex and Claude remain available. Planning
+assigned to Reviewer. Codex, Claude, Cursor, and OpenCode can run that review.
+When the Reviewer role has no agents yet, Codex and Claude remain available. Planning
 and implementation use the Implementer role. Questions and stuck diagnosis use
 the Analytic role. **Start Autopilot**
 authorizes

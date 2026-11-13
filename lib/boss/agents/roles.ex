@@ -46,7 +46,7 @@ defmodule Boss.Agents.Roles do
     end
   end
 
-  def analytic(implementer) when implementer in ~w(codex claude cursor) do
+  def analytic(implementer) when implementer in ~w(codex claude cursor opencode) do
     assigned = Enum.filter(agents_for("analytic"), &Metadata.execution_runner?(&1.id))
 
     non_codex_other = Enum.find(assigned, &(&1.id != implementer and &1.id != "codex"))

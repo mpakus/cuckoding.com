@@ -487,7 +487,7 @@ defmodule Boss.Deliveries.Autopilot do
         |> Enum.uniq()
         |> length() >= 2
     else
-      if Map.get(delivery, :implementer, "codex") in ["claude", "cursor"] do
+      if Map.get(delivery, :implementer, "codex") in ["claude", "cursor", "opencode"] do
         steps = Deliveries.steps(delivery.id)
 
         not Enum.any?(steps, &(&1.kind in ~w(plan implement) and &1.status == "finished")) and

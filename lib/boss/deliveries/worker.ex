@@ -9,6 +9,7 @@ defmodule Boss.Deliveries.Worker do
     Metadata,
     ModelCatalog,
     NetworkPolicy,
+    OpenCode,
     ReportFile,
     Workspace
   }
@@ -62,6 +63,14 @@ defmodule Boss.Deliveries.Worker do
        ] and
          is_nil(Metadata.find_executable(:cursor)),
        do: throw({:halt, :cursor_unavailable})
+
+    if "opencode" in [
+         delivery.reviewer,
+         Map.get(delivery, :implementer),
+         Map.get(delivery, :analytic)
+       ] and
+         is_nil(Metadata.find_executable(:opencode)),
+       do: throw({:halt, :opencode_unavailable})
 
     ok!(Retry.verify(source))
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
@@ -121,6 +130,14 @@ defmodule Boss.Deliveries.Worker do
        ] and
          is_nil(Metadata.find_executable(:cursor)),
        do: throw({:halt, :cursor_unavailable})
+
+    if "opencode" in [
+         delivery.reviewer,
+         Map.get(delivery, :implementer),
+         Map.get(delivery, :analytic)
+       ] and
+         is_nil(Metadata.find_executable(:opencode)),
+       do: throw({:halt, :opencode_unavailable})
 
     ok!(ExecutionRetry.verify(source))
 
@@ -1781,6 +1798,22 @@ defmodule Boss.Deliveries.Worker do
   def run_reviewer("codex", path, prompt, decode, profile),
     do: run_agent(:review, path, prompt, decode, profile)
 
+  def run_reviewer("opencode", path, prompt, decode, _profile) do
+    continue!()
+    executable = Metadata.find_executable(:opencode) || throw({:halt, :opencode_unavailable})
+    selection = Boss.Agents.Roles.selection_for("reviewer", "opencode")
+
+    opencode_process(
+      executable,
+      OpenCode.args(:review, selection),
+      OpenCode.env(:review),
+      path,
+      prompt,
+      decode,
+      []
+    )
+  end
+
   def run_reviewer("cursor", _path, prompt, decode, _profile) do
     continue!()
     executable = Metadata.find_executable(:cursor) || throw({:halt, :cursor_unavailable})
@@ -1987,6 +2020,9 @@ defmodule Boss.Deliveries.Worker do
       runner == "claude" and kind in [:plan, :implement, :resolve, :intake] ->
         run_claude_stage(kind, path, prompt, decode, opts)
 
+      runner == "opencode" and kind in [:plan, :implement, :resolve, :intake] ->
+        run_opencode_stage(kind, path, prompt, decode, opts)
+
       true ->
         run_codex(kind, path, prompt, decode, profile, opts)
     end
@@ -2057,6 +2093,142 @@ defmodule Boss.Deliveries.Worker do
       &Claude.stage_report/1,
       &Claude.notice/2
     )
+  end
+
+  defp run_opencode_stage(kind, path, prompt, decode, opts) do
+    continue!()
+    executable = Metadata.find_executable(:opencode) || throw({:halt, :opencode_unavailable})
+    role_kind = if kind in [:resolve, :intake], do: "analytic", else: "implementer"
+    selection = Boss.Agents.Roles.selection_for(role_kind, "opencode")
+
+    opencode_process(
+      executable,
+      OpenCode.args(kind, selection),
+      OpenCode.env(kind),
+      path,
+      prompt,
+      decode,
+      opts
+    )
+  end
+
+  defp opencode_process(executable, args, env, path, prompt, decode, opts) do
+    parser = :ets.new(:delivery_opencode, [:set, :public])
+    :ets.insert(parser, {:state, OpenCode.new()})
+
+    try do
+      callback = fn event ->
+        [{:state, state}] = :ets.lookup(parser, :state)
+        state = OpenCode.feed(state, event)
+        :ets.insert(parser, {:state, state})
+        if state.error in [:output_limit, :line_limit], do: :stop, else: :ok
+      end
+
+      result =
+        Runner.run(executable, args,
+          cd: path,
+          env: env,
+          input: prompt,
+          timeout_ms: agent_timeout(opts),
+          output_limit: 8_388_608,
+          on_event: callback
+        )
+
+      [{:state, state}] = :ets.lookup(parser, :state)
+      receipt = process_receipt(result)
+      diagnostics? = Keyword.get(opts, :report_diagnostics, false)
+
+      cond do
+        receipt["status"] in ["interrupted", "cancelled"] ->
+          receipt
+
+        clean_envelope_exit?(result) ->
+          case OpenCode.finish(state) do
+            {:ok, text, summary} when is_function(decode) ->
+              bytes = byte_size(text)
+
+              case decode.(text) do
+                {:ok, report} ->
+                  base = %{
+                    "status" => "finished",
+                    "outcome" => "exited",
+                    "report" => report,
+                    "summary" => summary
+                  }
+
+                  if diagnostics? do
+                    Map.merge(
+                      receipt,
+                      Map.merge(base, %{"report_bytes" => bytes, "validation_code" => "valid"})
+                    )
+                  else
+                    Map.merge(receipt, base)
+                  end
+
+                {:error, code} when diagnostics? and is_atom(code) ->
+                  receipt
+                  |> Map.merge(failure(:invalid_report))
+                  |> Map.merge(%{
+                    "report_bytes" => bytes,
+                    "validation_code" => Atom.to_string(code),
+                    "summary" => summary
+                  })
+
+                _ ->
+                  Map.merge(receipt, failure(:invalid_report))
+              end
+
+            {:ok, _text, summary} ->
+              Map.merge(receipt, %{
+                "status" => "finished",
+                "outcome" => "exited",
+                "summary" => summary
+              })
+
+            {:error, note} ->
+              if diagnostics? and is_nil(note.class) do
+                receipt
+                |> Map.merge(failure(:invalid_report))
+                |> Map.merge(%{
+                  "report_bytes" => state.stdout_bytes,
+                  "validation_code" => "invalid_json",
+                  "summary" => OpenCode.summary(state)
+                })
+              else
+                receipt
+                |> Map.merge(failure(:invalid_report))
+                |> Map.put("reason", note.reason)
+                |> Map.put("summary", Map.put(OpenCode.summary(state), "error_class", note.class))
+              end
+          end
+
+        true ->
+          note =
+            case OpenCode.finish(state) do
+              {:error, n} -> n
+              _ -> OpenCode.notice(state.stderr_head)
+            end
+
+          receipt =
+            if result.cleanup == :group_empty and result.exit_kind == :exit and
+                 result.eof == %{stdout: true, stderr: true} and
+                 result.outcome == :failed and Map.get(result, :reason) == :lingering_processes do
+              Map.put(receipt, "outcome", "exited")
+            else
+              receipt
+            end
+
+          receipt
+          |> Map.put("reason", note.reason)
+          |> Map.put("summary", %{
+            "error_class" => note.class,
+            "stdout_bytes" => state.stdout_bytes,
+            "stderr_bytes" => state.stderr_bytes
+          })
+      end
+    after
+      :ets.delete(parser)
+    end
   end
 
   defp run_envelope_stage(
@@ -2535,6 +2707,10 @@ defmodule Boss.Deliveries.Worker do
         :cursor_unavailable ->
           {"failed", "not_started",
            "Cursor Agent is unavailable in BOSS's PATH. No fallback was started."}
+
+        :opencode_unavailable ->
+          {"failed", "not_started",
+           "OpenCode is unavailable in BOSS's PATH. No fallback was started."}
 
         :codex_unavailable ->
           {"failed", "not_started", "Codex is unavailable in BOSS's PATH."}

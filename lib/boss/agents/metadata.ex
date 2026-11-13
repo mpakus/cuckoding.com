@@ -14,11 +14,11 @@ defmodule Boss.Agents.Metadata do
 
   def catalog, do: @catalog
   def ids, do: Enum.map(@catalog, & &1.id)
-  def execution_runners, do: ~w(codex claude cursor)
+  def execution_runners, do: ~w(codex claude cursor opencode)
   def execution_runner?(id) when is_binary(id), do: id in execution_runners()
   def execution_runner?(_), do: false
 
-  def review_runners, do: ~w(codex claude cursor)
+  def review_runners, do: ~w(codex claude cursor opencode)
   def review_runner?(id) when is_binary(id), do: id in review_runners()
   def review_runner?(_), do: false
 

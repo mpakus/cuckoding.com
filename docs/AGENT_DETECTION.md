@@ -33,11 +33,11 @@ a different model resets its effort to the model default. An unavailable
 binding stays saved and can be removed directly. If a model disappears from the
 catalog, its saved ID remains visible until you choose a replacement.
 
-The roster stores selections for all six agents. Managed execution currently
-supports Codex, Claude Code and Cursor Agent. Codex uses its saved workflow
-routing policy. Custom roles and Pi, Hermes and OpenCode bindings are roster
-entries. A new workflow selects its Implementer and Analytic from supported
-assigned agents and prefers a distinct Analytic when available.
+The roster stores selections for all six agents. Managed execution and review
+currently support Codex, Claude Code, Cursor Agent and OpenCode. Codex uses its
+saved workflow routing policy. Custom roles and Pi and Hermes bindings are
+roster entries. A new workflow selects its Implementer and Analytic from
+supported assigned agents and prefers a distinct Analytic when available.
 
 ## Probe boundary
 
