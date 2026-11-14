@@ -112,9 +112,13 @@ approved descendant is published. Fresh checks
 and a new review must approve that descendant before publication. Publication
 still uses compare-and-swap from the recorded target, and only the new commit
 can move the branch. If the target moves during review (at most twice) and still
-descends from the saved base, integration merges again against that new target.
-Rewritten history, a third known-clean drift, unknown cleanup and an exhausted
-cycle budget still stop. A failed
+descends from the saved base, integration merges again against that new tip.
+If the target history was rewritten so it no longer descends from the saved
+base, autonomy version 1 still merges onto that tip by pinning the saved base as
+merge-tree's merge-base (or enters the existing conflict-repair loop when that
+merge conflicts); only the new approved descendant can move the branch. A third
+known-clean drift, unknown cleanup and an exhausted cycle budget still stop.
+Legacy autonomy version 0 still rejects rewritten history before merge effects. A failed
 postcheck keeps the published commit and repairs on top of it; only the new
 approved descendant can move the branch. A postcheck that fails again stops.
 A published commit is not rolled back. Real-provider acceptance remains separate.

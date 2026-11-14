@@ -15,8 +15,8 @@ Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it
   through checks, independent review, publication and postchecks in Autopilot,
   with live Three.js pipeline telemetry and structured stage diagnostics.
 - Repair merge conflicts, rejected merge reviews, up to two clean target advances
-  during merge review and a first failed postcheck under autonomy policy 1 without
-  rolling back published commits.
+  during merge review, rewritten tips and a first failed postcheck under autonomy
+  policy 1 without rolling back published commits.
 - Keep shared provider/credit outages, Stop and uncertain process cleanup
   visible with agent-specific diagnostics on the board and halt dispatch when
   ownership or the provider is uncertain.
