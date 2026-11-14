@@ -888,6 +888,43 @@ defmodule Boss.Deliveries do
   @doc false
   def interrupt(id), do: transaction(fn -> interrupt_record(id) end) |> broadcast_result()
 
+  @doc """
+  Releases autonomy v1 unknown-cleanup quarantine after the owned worker is gone.
+
+  Converts an interrupted delivery to blocked with known empty cleanup so Autopilot
+  can continue other tasks. Never marks Done, never replays stages, and never
+  invents process evidence for autonomy version 0 or still-active work.
+  """
+  def release_cleanup(id),
+    do: transaction(fn -> release_cleanup_record(id) end) |> broadcast_result()
+
+  @doc false
+  def release_unknown_cleanups do
+    result =
+      transaction(fn ->
+        ids =
+          Repo.all(
+            from d in Delivery,
+              where:
+                d.status == "interrupted" and d.cleanup == "unknown" and d.autonomy_version == 1,
+              select: d.id,
+              order_by: d.inserted_at
+          )
+
+        Enum.map(ids, &release_cleanup_record/1)
+      end)
+
+    case result do
+      {:ok, deliveries} ->
+        Enum.each(deliveries, &broadcast/1)
+        Scheduling.claims_changed()
+        {:ok, deliveries}
+
+      other ->
+        other
+    end
+  end
+
   defp interrupt_record(id) do
     delivery = Repo.get(Delivery, id) || Repo.rollback(:not_found)
 
@@ -913,6 +950,41 @@ defmodule Boss.Deliveries do
       |> sync_task!("interrupt", true)
     else
       delivery
+    end
+  end
+
+  defp release_cleanup_record(id) do
+    delivery = Repo.get(Delivery, id) || Repo.rollback(:not_found)
+
+    cond do
+      match?(
+        %Delivery{status: "blocked", cleanup: "group_empty", autonomy_version: 1},
+        delivery
+      ) ->
+        delivery
+
+      match?(
+        %Delivery{status: "interrupted", cleanup: "unknown", autonomy_version: 1},
+        delivery
+      ) ->
+        if match?(%Step{status: "running"}, latest(id)), do: Repo.rollback(:step_running)
+
+        reason =
+          case delivery.reason do
+            text when is_binary(text) and text != "" ->
+              text <>
+                " Process-group ownership was released after the worker exited; no stage was replayed."
+
+            _ ->
+              "Process-group ownership was released after the worker exited; no stage was replayed."
+          end
+
+        delivery
+        |> save!(status: "blocked", cleanup: "group_empty", reason: reason)
+        |> sync_task!("complete:blocked", true)
+
+      true ->
+        Repo.rollback(:cleanup_unknown)
     end
   end
 

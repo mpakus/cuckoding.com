@@ -160,6 +160,8 @@ defmodule Boss.Deliveries.Autopilot do
             if length(backlog) > 256, do: Repo.rollback(:backlog_too_large)
             if Enum.sort(backlog) != Enum.sort(tasks), do: Repo.rollback(:backlog_changed)
 
+            release_unknown_cleanups!()
+
             if owned or Deliveries.busy?() or
                  not Boss.Projects.Intake.batch_allowed?(
                    intake,
@@ -534,6 +536,8 @@ defmodule Boss.Deliveries.Autopilot do
   end
 
   defp start_next(batch, entries, preflight, cursor) do
+    release_unknown_cleanups!()
+
     cond do
       Boss.Deliveries.Scheduling.quarantined?() ->
         block(
@@ -616,6 +620,14 @@ defmodule Boss.Deliveries.Autopilot do
                 )
             end
         end
+    end
+  end
+
+  defp release_unknown_cleanups! do
+    case Deliveries.release_unknown_cleanups() do
+      {:ok, _} -> :ok
+      {:error, :storage_error} -> Repo.rollback(:storage_error)
+      _ -> :ok
     end
   end
 

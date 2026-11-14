@@ -350,6 +350,7 @@ defmodule Boss.Runs.Manager do
 
     case saved do
       {:ok, run} ->
+        run = release_after_exit(run)
         broadcast(run)
         :ets.delete(state.registry, original.id)
 
@@ -375,6 +376,21 @@ defmodule Boss.Runs.Manager do
         {:stop, :run_storage_lost, state}
     end
   end
+
+  # Autonomy v1: once this VM's owned worker has EXIT'd, release unknown-cleanup
+  # quarantine so Autopilot can continue other tasks. Detached sessions remain
+  # outside this guarantee; the interrupted evidence is retained as blocked.
+  defp release_after_exit(
+         %Deliveries.Delivery{status: "interrupted", cleanup: "unknown", autonomy_version: 1} =
+           delivery
+       ) do
+    case Deliveries.release_cleanup(delivery.id) do
+      {:ok, released} -> released
+      _ -> delivery
+    end
+  end
+
+  defp release_after_exit(run), do: run
 
   defp broadcast(%Intake.Request{} = request), do: Intake.broadcast(request)
   defp broadcast(run), do: Runs.broadcast(run)

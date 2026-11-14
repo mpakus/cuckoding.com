@@ -352,7 +352,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
   end
 
   # Autonomy v1 may retarget after the first or second known-clean drift. A third
-  # known-clean drift still stops; unknown cleanup remains closed.
+  # known-clean drift still stops. Managed unknown-cleanup release lives in
+  # Deliveries.release_cleanup/1 after worker exit.
   defp retargetable_drift?(delivery) do
     drifts =
       delivery.id
