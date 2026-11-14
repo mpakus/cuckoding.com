@@ -99,7 +99,9 @@ and exhausted legacy strong-model routes. Repeated clean startup failures across
 two distinct strong models before any successful plan are also shared evidence;
 invalid reports and rejected code are not classified as provider failures.
 When no runnable tasks remain, the batch reports outstanding work. Cancellation,
-unknown cleanup, target drift and failed integration can still stop the batch.
+a third known-clean target drift and failed integration can still stop the batch.
+Autonomy version 1 releases managed unknown-cleanup quarantine after the owned
+worker exits so later members can continue; the interrupted task stays blocked.
 
 The existing [delivery gates](MANAGED_DELIVERIES.md) remain mandatory. Ready is
 not Done: publication and postchecks must succeed for the exact reviewed commit.

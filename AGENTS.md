@@ -230,7 +230,10 @@
 - Recovery must notify connected pages after committed top-level changes, once
   per affected project; no-op, nested transaction or rollback must stay silent.
   Preserve unknown-cleanup quarantine and show it honestly; waiting or restarting
-  does not resolve it. See docs/RECOVERY.md for evidence and remaining gates.
+  alone does not resolve it. Autonomy version 1 may release a managed interrupted
+  delivery to Blocked with known empty cleanup after the owned worker exits (or
+  before a fresh Autopilot admit) without replaying stages; manual-run/intake
+  quarantine and detached sessions stay closed. See docs/RECOVERY.md.
 - Preserve completed Ready evidence across restart; a paused Autopilot must reject
   even its saved integration UUID until explicit Resume. A report artifact plus
   terminal CLI text without exit/EOF/cleanup is still unfinished. Confine crash-test

@@ -12,10 +12,11 @@ message is not Done. Done requires that published SHA, passing postchecks and
 the retained checkout.
 
 You start the work, choose the reviewer, and keep Pause and Stop. A merge
-conflict, unknown cleanup, an unresolved decision or a provider outage still
-waits for you. The dashboard binds to loopback. Coding agents use your
-installed CLIs and provider accounts, which can send data to those services
-and incur charges.
+conflict, an unresolved decision or a provider outage still waits for you.
+Autonomy policy 1 may release managed unknown-cleanup quarantine after the
+worker exits so Autopilot can continue other tasks. The dashboard binds to
+loopback. Coding agents use your installed CLIs and provider accounts, which
+can send data to those services and incur charges.
 
 Task execution is macOS. Linux task execution is not available, and the Linux
 folder picker has not been verified on a desktop. `0.1.0-rc.2` is a local beta
@@ -320,9 +321,10 @@ types and reported token counts; it does not retain private model/tool transcrip
 Done or merges changes into your source checkout.
 
 After confirmed cleanup, **Start Codex** creates another fresh attempt. A backend
-interruption or unknown cleanup blocks new attempts conservatively; there is no
-automatic retry, PID-based recovery or force-unblock UI. Runs currently require
-macOS. See [manual run behavior and limits](docs/MANUAL_RUNS.md).
+interruption or unknown cleanup still blocks new manual attempts conservatively;
+there is no owner force-unblock UI that invents success. Autonomy policy 1 may
+release managed delivery quarantine after worker exit for Autopilot. Runs currently
+require macOS. See [manual run behavior and limits](docs/MANUAL_RUNS.md).
 
 ## Check a Codex result
 

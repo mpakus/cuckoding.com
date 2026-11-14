@@ -18,9 +18,16 @@ an unfinished stage automatically.
 
 An unknown cleanup receipt blocks new execution across projects. Even if a process
 appears absent now, its old PID is not durable ownership evidence. Waiting, pausing
-or restarting again does not clear that uncertainty. There is no force-unblock or
-automatic crash-resume control. Open the affected task to inspect the saved stages,
-workspace and commit identities; retain them for diagnosis.
+or restarting again does not clear that uncertainty by itself, and there is still no
+owner force-unblock that invents stage success.
+
+For autonomy version 1 managed deliveries, BOSS may release that quarantine after the
+owned worker has exited in this VM (or before a fresh Autopilot admit): the delivery
+becomes Blocked with known empty cleanup, retains its interrupted evidence, and never
+replays stages or marks Done. Autopilot can then continue other tasks. Autonomy
+version 0, manual runs, intake quarantine and detached sessions remain outside this
+release. Open the affected task to inspect the saved stages, workspace and commit
+identities; retain them for diagnosis.
 
 This differs from a known cancelled or failed workflow: after its processes are
 confirmed stopped, a new explicit workflow can use the normal admission gates.
@@ -83,7 +90,7 @@ rows and call counts remain unchanged until explicit Resume.
 | Candidate file changed, even with `assume-unchanged` hiding it from status | Block before new checks/review/publication. Preserve the changed file and the old evidence. |
 | Candidate retention ref moved | Block before new checks/review/publication; preserve the moved ref and original candidate HEAD. |
 | Target advances with a compatible independent change | Create a distinct two-parent merge candidate, run fresh checks and review, then publish that exact new SHA and run postchecks. Preserve the original approval. |
-| Target history rewritten | Block before merge effects; retain the rewritten target without resetting it. |
+| Target history rewritten | Merge onto the rewritten tip with the saved base as merge-tree merge-base (or conflict-repair when that merge conflicts); retain the original approval. |
 
 The advanced-target case verifies ordered parents `[current target, original
 candidate]`, distinct candidate path/ref/check ID, fresh check/review linkage,
@@ -92,8 +99,9 @@ user's separate dirty checkout. Model/check calls are finite local fixtures.
 
 These checkpoints do not complete the recovery matrix. Narrower intent/effect/receipt
 gaps, merge-stage crashes, further drift during resumed work, Linux, real-provider
-acceptance, arbitrary detached sessions and safe release of unknown-cleanup
-quarantine remain separate gates. No fixture is a live-provider guarantee.
+acceptance and arbitrary detached sessions remain separate gates. Autonomy version 1
+managed unknown-cleanup release after worker exit is covered above; manual-run and
+intake quarantine release remain separate. No fixture is a live-provider guarantee.
 
 Related contracts: [Autopilot](AUTOPILOT.md), [managed deliveries](MANAGED_DELIVERIES.md),
 [queue](WORKFLOW_QUEUE.md), [manual runs](MANUAL_RUNS.md).

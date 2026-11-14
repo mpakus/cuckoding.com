@@ -117,7 +117,10 @@ If the target history was rewritten so it no longer descends from the saved
 base, autonomy version 1 still merges onto that tip by pinning the saved base as
 merge-tree's merge-base (or enters the existing conflict-repair loop when that
 merge conflicts); only the new approved descendant can move the branch. A third
-known-clean drift, unknown cleanup and an exhausted cycle budget still stop.
+known-clean drift and an exhausted cycle budget still stop. Autonomy version 1 may
+release managed unknown-cleanup quarantine after the owned worker exits so Autopilot
+can continue other tasks; the interrupted evidence stays blocked and is never
+replayed.
 Legacy autonomy version 0 still rejects rewritten history before merge effects. A failed
 postcheck keeps the published commit and repairs on top of it; only the new
 approved descendant can move the branch. A postcheck that fails again stops.

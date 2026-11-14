@@ -17,6 +17,8 @@ Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it
 - Repair merge conflicts, rejected merge reviews, up to two clean target advances
   during merge review, rewritten tips and a first failed postcheck under autonomy
   policy 1 without rolling back published commits.
+- Release autonomy v1 managed unknown-cleanup quarantine after the owned worker
+  exits so Autopilot can continue other tasks without inventing stage success.
 - Keep shared provider/credit outages, Stop and uncertain process cleanup
   visible with agent-specific diagnostics on the board and halt dispatch when
   ownership or the provider is uncertain.

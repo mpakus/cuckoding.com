@@ -62,7 +62,9 @@ normalized check argv/config hash, reviewer and command UUID in an immediate tra
 The persisted global capacity allows 1–3 managed workflows, default two. Predicted
 file overlaps wait before implementation; unknown predictions are visibly flagged.
 See [workflow scheduling](WORKFLOW_QUEUE.md). Manual execution and integration
-remain globally exclusive; unknown cleanup blocks every new execution.
+remain globally exclusive; unknown cleanup blocks new execution until autonomy
+version 1 releases a managed interrupted delivery after its worker exits (or a
+fresh Autopilot admit releases eligible quarantines).
 Identical request retries return the original delivery, including after completion;
 changed input with the same UUID conflicts. A saved Ready result survives restart.
 [Explicit source adoption](TASK_REVISIONS.md) retires an unintegrated Ready
@@ -145,7 +147,8 @@ Stop addresses the project-scoped live worker directly, bypassing Manager and Re
 mailboxes. Closing the drawer/browser does not own the run. Lost worker, Repo or
 receipt interrupts/quarantines the delivery; restart never reuses saved PIDs,
 respawns stages or retries publication. Unknown cleanup blocks further execution.
-There is no force-unblock or automatic crash-resume interface yet.
+There is no owner force-unblock that invents stage success. Autonomy version 1 may
+release managed unknown-cleanup quarantine after worker exit without replaying.
 
 ## Explicit integration and Done
 
