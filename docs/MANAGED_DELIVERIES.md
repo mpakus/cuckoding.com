@@ -168,10 +168,11 @@ A clean Git merge alone is not approval. Legacy autonomy version 0 stops on
 conflicts, rewritten target history, failed checks, review rejection or another
 target change without retry. Autonomy version 1 repairs a merge conflict from
 the current target, diagnoses and repairs a rejected merge review, retargets
-once if the target advances cleanly during merge review, and repairs once on top
-of a published commit if the first postcheck fails — publishing only a newly
-checked and reviewed descendant while stopping on rewritten history, a second
-target drift, or a second failed postcheck (see [autonomous delivery](AUTONOMY.md)).
+up to twice if the target advances cleanly during merge review, and repairs once
+on top of a published commit if the first postcheck fails — publishing only a
+newly checked and reviewed descendant while stopping on rewritten history, a
+third known-clean target drift, or a second failed postcheck (see
+[autonomous delivery](AUTONOMY.md)).
 Retained history remains available for inspection, and a request for
 specification clarification becomes Needs input.
 

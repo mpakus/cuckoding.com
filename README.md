@@ -295,10 +295,10 @@ approval stays in history. An unchanged target fast-forwards to its approved com
 Integrating an advanced target makes another reviewer call and may incur charges.
 B\*SS publishes only the validated commit, reruns checks, retains its checkout and
 frees the branch before **Done**. Under autonomy policy 1, a merge conflict,
-rejected merge review, single target advance during review or first failed
-postcheck enters bounded diagnosis and fresh descendant verification before
-moving the branch; rewritten history, a second target drift or a second failed
-postcheck stops the attempt. Published commits are never rolled back, and B\*SS
+rejected merge review, up to two clean target advances during review or first
+failed postcheck enters bounded diagnosis and fresh descendant verification before
+moving the branch; rewritten history, a third known-clean target drift or a second
+failed postcheck stops the attempt. Published commits are never rolled back, and B\*SS
 never resets your checkout. Current execution: macOS, up to three managed workflows
 and exclusive integration. See
 [managed delivery behavior and limits](docs/MANAGED_DELIVERIES.md).

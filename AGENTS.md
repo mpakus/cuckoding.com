@@ -411,10 +411,10 @@
   and reject rewritten history. Legacy autonomy version 0 stops on new
   drift/conflict/failure without retry; autonomy version 1 repairs a merge
   conflict from the current target, diagnoses and repairs a rejected merge
-  review, retargets once if the target advances cleanly during merge review, and
-  repairs once on top of a published commit if the first postcheck fails
-  (stopping on rewritten history, a second target drift, or a second failed
-  postcheck without rolling back a published commit). Only the new exact merge or
+  review, retargets up to twice if the target advances cleanly during merge
+  review, and repairs once on top of a published commit if the first postcheck
+  fails (stopping on rewritten history, a third known-clean target drift, or a
+  second failed postcheck without rolling back a published commit). Only the new exact merge or
   repair lineage can authorize publication. Reserve an ordinary BOSS-owned target
   worktree, reject user-checked-out targets, authorize immediately before
   expected-old-SHA CAS, rerun saved checks, then detach only that owned checkout

@@ -88,11 +88,11 @@ candidate is integrated, another candidate based on the old target gets a fresh
 merge candidate, saved checks and selected review before publication. Its original
 approval remains historical. Legacy autonomy version 0 stops on conflicts,
 check/review failure or another target change without repair; autonomy version 1
-repairs merge conflicts, rejected merge reviews, a single target advance during
-merge review and a first failed postcheck before publishing a newly approved
-descendant (stopping on rewritten history, a second target drift or a second
-failed postcheck; see [Managed delivery](MANAGED_DELIVERIES.md) and
-[Autonomous delivery](AUTONOMY.md)). The unchanged-target fast-forward path
+repairs merge conflicts, rejected merge reviews, up to two clean target advances
+during merge review and a first failed postcheck before publishing a newly
+approved descendant (stopping on rewritten history, a third known-clean target
+drift or a second failed postcheck; see [Managed delivery](MANAGED_DELIVERIES.md)
+and [Autonomous delivery](AUTONOMY.md)). The unchanged-target fast-forward path
 remains available.
 
 Tests use finite fake CLIs, real Git and isolated SQLite pools. They are not
