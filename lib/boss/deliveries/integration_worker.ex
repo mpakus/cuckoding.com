@@ -62,11 +62,22 @@ defmodule Boss.Deliveries.IntegrationWorker do
     approved = original_review.input["candidate_commit"]
     original = original_check.input["workspace"]
 
-    case Workspace.git(project.root_path, ["merge-base", "--is-ancestor", base, target]) do
-      {:ok, _} -> :ok
-      {:error, {:git_exit, _}} -> throw({:halt, :target_rewritten})
-      error -> ok!(error)
-    end
+    merge_opts =
+      case Workspace.git(project.root_path, ["merge-base", "--is-ancestor", base, target]) do
+        {:ok, _} ->
+          []
+
+        {:error, {:git_exit, _}} ->
+          # Autonomy v1 merges onto a rewritten tip by pinning the saved base as
+          # merge-tree's merge-base. Content conflicts still enter conflict repair.
+          # Legacy policy 0 still stops before merge effects.
+          if delivery.autonomy_version == 1,
+            do: [merge_base: base],
+            else: throw({:halt, :target_rewritten})
+
+        error ->
+          ok!(error)
+      end
 
     candidate = ok!(Candidate.plan(original["run_workspace"], Ecto.UUID.generate()))
 
@@ -88,7 +99,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
           ok!(Candidate.verify(original, approved))
 
           merged =
-            case Candidate.prepare_merge(candidate, target, approved) do
+            case Candidate.prepare_merge(candidate, target, approved, merge_opts) do
               {:ok, merged} ->
                 merged
 
@@ -341,7 +352,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
   end
 
   # Autonomy v1 may retarget after the first or second known-clean drift. A third
-  # known-clean drift still stops; rewritten history and unknown cleanup remain closed.
+  # known-clean drift still stops; unknown cleanup remains closed.
   defp retargetable_drift?(delivery) do
     drifts =
       delivery.id

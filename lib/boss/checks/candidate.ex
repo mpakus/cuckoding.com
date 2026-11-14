@@ -99,7 +99,14 @@ defmodule Boss.Checks.Candidate do
   end
 
   defp merge_tree(source, target, approved, opts) do
-    case git(source, ["merge-tree", "--write-tree", "--no-messages", target, approved], opts) do
+    args =
+      ["merge-tree", "--write-tree", "--no-messages"] ++
+        case Keyword.get(opts, :merge_base) do
+          base when is_binary(base) and base != "" -> ["--merge-base", base]
+          _ -> []
+        end ++ [target, approved]
+
+    case git(source, args, opts) do
       {:error, {:git_exit, 1}} -> {:error, :merge_conflict}
       result -> result
     end
