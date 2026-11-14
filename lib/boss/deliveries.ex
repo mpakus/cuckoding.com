@@ -1807,23 +1807,26 @@ defmodule Boss.Deliveries do
   end
 
   defp drifted_merge_publication(d, all) do
-    case Enum.filter(all, &(&1.kind == "merge_review")) do
-      [
-        %Step{status: "failed", receipt: receipt},
-        %Step{status: "finished"} = review
-      ] ->
-        if receipt["outcome"] in ["target_changed", "target_drift"] and
-             receipt["cleanup"] == "group_empty" and
-             get_in(review.receipt, ["report", "verdict"]) == "approved" do
-          drifted_review!(d, review)
-        else
-          nil
-        end
+    reviews = Enum.filter(all, &(&1.kind == "merge_review"))
 
-      _ ->
-        nil
+    with true <- length(reviews) in 2..3,
+         {%Step{status: "finished"} = review, earlier} <- List.pop_at(reviews, -1),
+         true <- earlier != [] and Enum.all?(earlier, &drift_failure_step?/1),
+         true <- get_in(review.receipt, ["report", "verdict"]) == "approved" do
+      drifted_review!(d, review)
+    else
+      _ -> nil
     end
   end
+
+  defp drift_failure_step?(%Step{
+         status: "failed",
+         receipt: %{"cleanup" => "group_empty", "outcome" => outcome}
+       })
+       when outcome in ["target_changed", "target_drift"],
+       do: true
+
+  defp drift_failure_step?(_), do: false
 
   defp postcheck_publication(d, all) do
     post =

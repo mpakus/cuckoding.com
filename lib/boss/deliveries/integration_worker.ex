@@ -333,13 +333,31 @@ defmodule Boss.Deliveries.IntegrationWorker do
     delivery = Repo.get!(Delivery, delivery.id)
 
     if delivery.integration_intent == %{} and conflict_repairable?(delivery) and
-         Process.get(:retargeted) != true do
-      Process.put(:retargeted, true)
+         retargetable_drift?(delivery) do
       retarget(delivery)
     else
       stop(delivery, reason)
     end
   end
+
+  # Autonomy v1 may retarget after the first or second known-clean drift. A third
+  # known-clean drift still stops; rewritten history and unknown cleanup remain closed.
+  defp retargetable_drift?(delivery) do
+    drifts =
+      delivery.id
+      |> Deliveries.steps()
+      |> Enum.count(&drift_failure?/1)
+
+    drifts in 1..2
+  end
+
+  defp drift_failure?(%{kind: "merge_review", status: "failed", receipt: receipt})
+       when is_map(receipt) do
+    receipt["cleanup"] == "group_empty" and
+      receipt["outcome"] in ["target_changed", "target_drift"]
+  end
+
+  defp drift_failure?(_), do: false
 
   defp retarget(delivery) do
     try do
@@ -532,7 +550,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
       Deliveries.complete(
         d.id,
         "blocked",
-        "Target branch changed again during integration. Retained evidence is stale; no automatic retry."
+        "Target branch changed too many times during integration. Retained evidence is stale; no automatic retry."
       )
 
   defp stop(d, {:merge_needs_spec, report}),
