@@ -138,11 +138,20 @@ defmodule Boss.MergeIntegrationWorkerTest do
     File.chmod!(Path.join(bin, "codex"), 0o700)
     File.cp!(Path.expand("../fixtures/claude_merge_review.py", __DIR__), Path.join(bin, "claude"))
     File.chmod!(Path.join(bin, "claude"), 0o700)
-    keys = ["PATH", "BOSS_DELIVERY_MODE", "BOSS_DELIVERY_FIXTURE", "BOSS_POST_CHECK_MODE"]
+
+    keys = [
+      "PATH",
+      "BOSS_DELIVERY_MODE",
+      "BOSS_DELIVERY_FIXTURE",
+      "BOSS_POST_CHECK_MODE",
+      "BOSS_INTEGRATION_WAITS"
+    ]
+
     previous = Map.take(System.get_env(), keys)
     System.put_env("PATH", bin <> ":" <> System.fetch_env!("PATH"))
     System.delete_env("BOSS_DELIVERY_MODE")
     System.delete_env("BOSS_POST_CHECK_MODE")
+    System.delete_env("BOSS_INTEGRATION_WAITS")
     System.put_env("BOSS_DELIVERY_FIXTURE", root)
 
     on_exit(fn ->
@@ -472,6 +481,121 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert length(calls(ctx, "calls")) == 5
   end
 
+  @tag timeout: 240_000
+  test "a repeated target advance during retarget review is merged again and published", ctx do
+    System.put_env("BOSS_INTEGRATION_WAITS", "2")
+    {manager, delivery, _target, user, command, first_pid} = waiting_review(ctx)
+
+    first = advance_tip(ctx, "first advance during review")
+    File.write!(Path.join(ctx.root, "integration-review-release"), "continue")
+
+    marker = Path.join(ctx.root, "integration-review-wait")
+
+    eventually(
+      fn -> File.exists?(marker) and File.read!(marker) != to_string(first_pid) end,
+      8_000
+    )
+
+    second_pid = marker |> File.read!() |> String.to_integer()
+
+    second = advance_tip(ctx, "second advance during retarget review")
+    File.write!(Path.join(ctx.root, "integration-review-release"), "continue")
+
+    eventually(
+      fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, delivery.id)) end,
+      12_000
+    )
+
+    saved = Deliveries.get(ctx.project.id, delivery.id)
+
+    assert saved.status == "done" and saved.cleanup == "group_empty",
+           inspect(
+             {saved.reason,
+              Enum.map(Deliveries.steps(saved.id), fn step ->
+                {step.kind, step.status, step.receipt["outcome"]}
+              end)},
+             limit: :infinity
+           )
+
+    reviews = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "merge_review"))
+    assert length(reviews) == 3
+    assert Enum.take(reviews, 2) |> Enum.map(& &1.status) == ["failed", "failed"]
+
+    assert Enum.take(reviews, 2) |> Enum.map(& &1.receipt["outcome"]) == [
+             "target_changed",
+             "target_changed"
+           ]
+
+    assert List.last(reviews).receipt["report"]["verdict"] == "approved"
+    published = git(ctx.source, ["rev-parse", "main"])
+    assert published == saved.integration_intent["candidate_commit"]
+    assert git(ctx.source, ["merge-base", "--is-ancestor", first, published]) == ""
+    assert git(ctx.source, ["merge-base", "--is-ancestor", second, published]) == ""
+    assert checkout(ctx) == user
+    process_gone(first_pid)
+    process_gone(second_pid)
+    wait_idle(manager)
+    assert {:ok, ^saved} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
+    assert length(calls(ctx, "calls")) == 6
+  end
+
+  @tag timeout: 240_000
+  test "a third target advance during integration stops without another retarget", ctx do
+    System.put_env("BOSS_INTEGRATION_WAITS", "3")
+    {manager, delivery, target, user, command, first_pid} = waiting_review(ctx)
+
+    _first = advance_tip(ctx, "first advance during review")
+    File.write!(Path.join(ctx.root, "integration-review-release"), "continue")
+
+    marker = Path.join(ctx.root, "integration-review-wait")
+
+    eventually(
+      fn -> File.exists?(marker) and File.read!(marker) != to_string(first_pid) end,
+      8_000
+    )
+
+    second_pid = marker |> File.read!() |> String.to_integer()
+
+    _second = advance_tip(ctx, "second advance during retarget review")
+    File.write!(Path.join(ctx.root, "integration-review-release"), "continue")
+
+    eventually(
+      fn -> File.exists?(marker) and File.read!(marker) != to_string(second_pid) end,
+      8_000
+    )
+
+    third_pid = marker |> File.read!() |> String.to_integer()
+
+    _third = advance_tip(ctx, "third advance during second retarget review")
+    File.write!(Path.join(ctx.root, "integration-review-release"), "continue")
+
+    eventually(
+      fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, delivery.id)) end,
+      12_000
+    )
+
+    saved = Deliveries.get(ctx.project.id, delivery.id)
+    assert saved.status == "blocked" and saved.cleanup == "group_empty", inspect(saved)
+    assert saved.reason =~ "too many times"
+    assert saved.integration_intent == %{}
+    assert git(ctx.source, ["rev-parse", "main"]) != target
+    refute step(saved, "publish")
+    reviews = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "merge_review"))
+    assert length(reviews) == 3
+
+    assert Enum.all?(
+             reviews,
+             &(&1.status == "failed" and &1.receipt["outcome"] == "target_changed")
+           )
+
+    assert checkout(ctx) == user
+    process_gone(first_pid)
+    process_gone(second_pid)
+    process_gone(third_pid)
+    wait_idle(manager)
+    assert {:ok, ^saved} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
+  end
+
   test "Stop reaches fresh merge review while Manager is suspended and retains the unpublished candidate",
        ctx do
     {manager, delivery, target, user, command, pid} = waiting_review(ctx)
@@ -602,6 +726,7 @@ defmodule Boss.MergeIntegrationWorkerTest do
     target = advance(ctx)
     user = preserve_checkout(ctx)
     System.put_env("BOSS_DELIVERY_MODE", "integration_wait")
+    System.put_env("BOSS_INTEGRATION_WAITS", System.get_env("BOSS_INTEGRATION_WAITS") || "1")
     command = Ecto.UUID.generate()
     assert {:ok, _} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
     marker = Path.join(ctx.root, "integration-review-wait")
@@ -609,6 +734,14 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert step(delivery, "merge_review").status == "running"
     pid = marker |> File.read!() |> String.to_integer()
     {manager, delivery, target, user, command, pid}
+  end
+
+  defp advance_tip(ctx, message) do
+    target = git(ctx.source, ["rev-parse", "main"])
+    tree = git(ctx.source, ["rev-parse", "#{target}^{tree}"])
+    changed = git(ctx.source, ["commit-tree", tree, "-p", target, "-m", message])
+    git(ctx.source, ["update-ref", "refs/heads/main", changed, target])
+    changed
   end
 
   defp step(delivery, kind), do: Enum.find(Deliveries.steps(delivery.id), &(&1.kind == kind))

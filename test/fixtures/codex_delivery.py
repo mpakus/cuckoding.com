@@ -185,9 +185,20 @@ else:
             assert len(data["original_candidate"]) in (40, 64)
             assert "fresh integration review" in prompt
             if mode == "integration_wait":
-                (root / "integration-review-wait").write_text(str(os.getpid()))
-                while not (root / "integration-review-release").exists():
-                    time.sleep(0.05)
+                waits = int(os.environ.get("BOSS_INTEGRATION_WAITS", "1"))
+                count_file = root / "integration-review-wait-count"
+                count = int(count_file.read_text()) if count_file.exists() else 0
+                if count < waits:
+                    count_file.write_text(str(count + 1))
+                    release = root / "integration-review-release"
+                    if release.exists():
+                        release.unlink()
+                    wait = root / "integration-review-wait"
+                    if wait.exists():
+                        wait.unlink()
+                    wait.write_text(str(os.getpid()))
+                    while not release.exists():
+                        time.sleep(0.05)
         first = Path("result.txt").read_text() == "candidate-1\n"
         reject = mode in ("reject_always", "repeated", "retry_unchanged", "retry_reject_always") or (mode in ("reject_once", "autonomy_wait_resolve") and first) or (mode == "autonomy_repeated" and Path("result.txt").read_text() == "unchanged\n") or (mode == "merge_repair" and "target_commit" in data)
         unclear = mode == "needs_spec" or (mode == "autonomy_review" and first)
