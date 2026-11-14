@@ -79,9 +79,10 @@ else:
             assert data["candidate_commit"] != data["original_candidate"]
             assert data["check_receipt"]["candidate_commit"] == data["candidate_commit"]
             assert data["original_review"]["verdict"] == "approved"
-            assert "offline.txt" in data["diff"]
             assert "result.txt" in data["target_diff"]
-            assert Path("offline.txt").read_text() == "offline change\n"
+            if boundary == "ready_advanced":
+                assert "offline.txt" in data["diff"]
+                assert Path("offline.txt").read_text() == "offline change\n"
         report = {"verdict": "approved", "summary": "Checked result",
                   "acceptance": [{"criterion": "Create result.txt", "status": "passed",
                                   "evidence": "Inspected result.txt"}], "issues": []}

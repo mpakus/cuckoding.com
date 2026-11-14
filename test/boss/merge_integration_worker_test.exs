@@ -293,8 +293,10 @@ defmodule Boss.MergeIntegrationWorkerTest do
     refute inspect(Deliveries.steps(saved.id), limit: :infinity) =~ "SECRET_SENTINEL"
   end
 
-  test "rewritten target history is rejected before merge effects", ctx do
+  test "rewritten target history merges onto the new tip and publishes", ctx do
     {manager, delivery} = ready(ctx)
+    original = step(delivery, "review")
+    original_sha = candidate(delivery)
     old = git(ctx.source, ["rev-parse", "main"])
     tree = git(ctx.source, ["rev-parse", "HEAD^{tree}"])
     target = git(ctx.source, ["commit-tree", tree, "-m", "rewritten root"])
@@ -302,12 +304,34 @@ defmodule Boss.MergeIntegrationWorkerTest do
     git(ctx.source, ["update-ref", "refs/heads/main", target, old])
     user = preserve_checkout(ctx)
     saved = integrate(ctx, manager, delivery)
-    assert saved.status == "blocked"
-    assert saved.reason =~ "no longer descends"
-    refute step(saved, "merge")
-    assert length(calls(ctx, "calls")) == 3
-    assert length(calls(ctx, "check-calls")) == 1
-    assert_unpublished(ctx, saved, target, user)
+
+    assert saved.status == "done" and saved.cleanup == "group_empty",
+           inspect(
+             {saved.reason,
+              Enum.map(Deliveries.steps(saved.id), fn step ->
+                {step.kind, step.status, step.receipt["outcome"]}
+              end)},
+             limit: :infinity
+           )
+
+    merge = step(saved, "merge")
+    assert merge.status == "finished"
+    assert merge.input["target_commit"] == target
+    assert merge.input["original_base"] == old
+    merged = merge.receipt["candidate_commit"]
+    assert merged not in [target, original_sha]
+
+    assert git(ctx.source, ["rev-list", "--parents", "-n", "1", merged]) ==
+             "#{merged} #{target} #{original_sha}"
+
+    assert git(ctx.source, ["rev-parse", "main"]) == merged
+    assert saved.integration_intent["base_commit"] == target
+    assert saved.integration_intent["candidate_commit"] == merged
+    assert step(saved, "merge_review").receipt["report"]["verdict"] == "approved"
+    assert step(saved, "review") == original
+    assert checkout(ctx) == user
+    assert length(calls(ctx, "calls")) == 4
+    assert length(calls(ctx, "check-calls")) == 3
   end
 
   test "saved check failure stops a clean merge before fresh review", ctx do

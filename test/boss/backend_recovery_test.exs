@@ -216,7 +216,7 @@ defmodule Boss.BackendRecoveryTest do
       assert Enum.all?(before["steps"], &(&1 in final["steps"]))
       assert Enum.all?(before["events"], &(&1 in final["events"]))
 
-      if drift in ~w(dirty ref rewritten) do
+      if drift in ~w(dirty ref) do
         assert final["batch"]["status"] == "blocked"
         assert finished["status"] == "blocked"
         assert Enum.map(final["tasks"], & &1["state"]) == ["blocked"]
@@ -226,10 +226,7 @@ defmodule Boss.BackendRecoveryTest do
         assert calls(c.root, "calls") == ~w(plan implement review)
         assert calls(c.root, "check-calls") == [first_check]
         assert git(c.source, ["rev-parse", "main"]) == offline_target
-
-        if drift == "rewritten",
-          do: assert(finished["reason"] =~ "no longer descends from the original base"),
-          else: assert(finished["reason"] =~ "could not verify the saved candidate")
+        assert finished["reason"] =~ "could not verify the saved candidate"
       else
         assert_published(c, drift, final, check, review, offline_target)
       end
@@ -301,7 +298,7 @@ defmodule Boss.BackendRecoveryTest do
     assert git(target, ["status", "--porcelain"]) == ""
     steps = Enum.sort_by(final["steps"], & &1["number"]) |> Enum.map(& &1["kind"])
 
-    if drift == "advanced" do
+    if drift in ~w(advanced rewritten) do
       merge = Enum.find(final["steps"], &(&1["kind"] == "merge"))
       fresh_check = Enum.find(final["steps"], &(&1["kind"] == "merge_check"))
       fresh_review = Enum.find(final["steps"], &(&1["kind"] == "merge_review"))
@@ -313,7 +310,12 @@ defmodule Boss.BackendRecoveryTest do
       assert git(target, ["rev-list", "--parents", "-n", "1", sha]) ==
                "#{sha} #{offline_target} #{approved}"
 
-      assert File.read!(Path.join(target, "offline.txt")) == "offline change\n"
+      if drift == "advanced" do
+        assert File.read!(Path.join(target, "offline.txt")) == "offline change\n"
+      else
+        refute File.exists?(Path.join(target, "offline.txt"))
+      end
+
       assert File.read!(Path.join(target, "result.txt")) == "candidate-1\n"
       for key <- ~w(check_id path ref), do: refute(fresh[key] == original[key])
       assert git(fresh["path"], ["rev-parse", "HEAD"]) == sha
