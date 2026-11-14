@@ -433,7 +433,39 @@ defmodule BossWeb.AutopilotLiveTest do
     refute_receive {:started, _, _}, 30
   end
 
-  for blocker <- [:manual, :managed, :paused] do
+  test "a fresh Start releases managed unknown cleanup elsewhere without replaying it", c do
+    other = project("Other project")
+    saved = task(other, "Other task")
+
+    {:ok, {:new, delivery}} =
+      Deliveries.admit(other.id, saved.task.id, Ecto.UUID.generate(), "true")
+
+    {:ok, interrupted} = Deliveries.interrupt(delivery.id)
+    assert interrupted.status == "interrupted"
+    assert interrupted.cleanup == "unknown"
+    assert interrupted.autonomy_version == 1
+
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+    settle(view)
+    view |> element("#project-autopilot") |> render_click()
+    view |> form("#autopilot-form", params()) |> render_submit()
+    assert_receive {:started, _, started_id}, 1_500
+    refute started_id == interrupted.id
+    settle(view)
+
+    released = Repo.get!(Deliveries.Delivery, interrupted.id)
+    assert released.status == "blocked"
+    assert released.cleanup == "group_empty"
+    assert released.reason =~ "Execution stopped without a final receipt"
+    assert released.reason =~ "no stage was replayed"
+    assert Repo.get!(Tasks.Task, saved.task.id).state == "interrupted"
+    assert {:ok, %{status: "running"}} = Engine.current(c.project.id)
+    assert has_element?(view, "#autopilot-status", "Running")
+    refute has_element?(view, "#autopilot-error", "Wait or pause it first")
+    refute has_element?(view, "#autopilot-error", "cleanup is unconfirmed")
+  end
+
+  for blocker <- [:manual, :paused] do
     test "#{blocker} ownership elsewhere refuses Start without suggesting waiting clears quarantine",
          c do
       other = project("Other project")
@@ -443,12 +475,6 @@ defmodule BossWeb.AutopilotLiveTest do
         :manual ->
           {:ok, {:new, _}} = Runs.admit(other.id, saved.task.id, Ecto.UUID.generate())
           {:ok, _} = Runs.reconcile()
-
-        :managed ->
-          {:ok, {:new, delivery}} =
-            Deliveries.admit(other.id, saved.task.id, Ecto.UUID.generate(), "true")
-
-          {:ok, _} = Deliveries.interrupt(delivery.id)
 
         :paused ->
           {:ok, batch} =
