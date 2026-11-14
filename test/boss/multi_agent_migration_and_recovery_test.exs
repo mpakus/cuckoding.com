@@ -45,7 +45,8 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     {20_261_110_250_000, Boss.Repo.Migrations.PinCursorAnalytic},
     {20_261_110_260_000, Boss.Repo.Migrations.AllowClaudeAndIntakePlanner},
     {20_261_110_270_000, Boss.Repo.Migrations.PersistAgentDetectionsAndRoleModels},
-    {20_261_110_280_000, Boss.Repo.Migrations.AllowOpenCodeRunner}
+    {20_261_110_280_000, Boss.Repo.Migrations.AllowOpenCodeRunner},
+    {20_261_114_120_000, Boss.Repo.Migrations.ReleaseUnknownCleanup}
   ]
 
   setup do
@@ -377,12 +378,20 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     assert {:ok, %{parent: ^r_parent}} = Retry.source(r_child)
   end
 
+  # Compile-time atoms so authorize_agents! does not depend on module load order.
+  @agent_atoms %{
+    "cursor" => :cursor,
+    "opencode" => :opencode,
+    "claude" => :claude,
+    "codex" => :codex
+  }
+
   defp authorize_agents!(ids) do
     ts = DateTime.utc_now() |> DateTime.truncate(:second)
 
     entries =
       for id <- ids do
-        atom = String.to_existing_atom(id)
+        atom = Map.fetch!(@agent_atoms, id)
 
         %{
           id: atom,

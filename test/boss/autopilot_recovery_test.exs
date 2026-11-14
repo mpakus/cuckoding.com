@@ -201,7 +201,7 @@ defmodule Boss.AutopilotRecoveryTest do
     assert Enum.map(requests, &Repo.get!(Request, &1.id)) == requests
   end
 
-  test "cancelled and unknown-cleanup tasks are excluded without clearing the global gate", c do
+  test "cancelled and unknown-cleanup tasks are excluded and cleanup release unblocks Start", c do
     [cancelled, interrupted, remaining] = c.tasks
 
     {:ok, _} =
@@ -216,15 +216,20 @@ defmodule Boss.AutopilotRecoveryTest do
       Deliveries.admit(c.project.id, interrupted.id, Ecto.UUID.generate(), "true")
 
     {:ok, _} = Deliveries.interrupt(delivery.id)
+    assert Repo.get!(Deliveries.Delivery, delivery.id).cleanup == "unknown"
     assert {:ok, [id]} = Autopilot.selection(c.project.id)
     assert id == remaining.id
 
-    assert {:error, :busy} =
+    assert {:ok, batch} =
              Autopilot.admit(c.project.id, Ecto.UUID.generate(), [id], "true", "codex")
 
-    assert Repo.aggregate(AutopilotBatch, :count) == 0
+    assert batch.task_ids == [id]
+    assert Repo.aggregate(AutopilotBatch, :count) == 1
     assert Tasks.get_task!(cancelled.id).state == "cancelled"
-    assert Repo.get!(Deliveries.Delivery, delivery.id).cleanup == "unknown"
+    released = Repo.get!(Deliveries.Delivery, delivery.id)
+    assert released.status == "blocked" and released.cleanup == "group_empty"
+    assert released.reason =~ "released after the worker exited"
+    refute Boss.Deliveries.Scheduling.quarantined?()
   end
 
   test "legacy model-route exhaustion prevents another selected task from being claimed", c do

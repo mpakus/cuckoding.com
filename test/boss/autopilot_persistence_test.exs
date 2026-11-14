@@ -31,7 +31,8 @@ defmodule Boss.AutopilotPersistenceTest do
     {20_261_106_140_000, Boss.Repo.Migrations.AddExecutionRecovery},
     {20_261_106_150_000, Boss.Repo.Migrations.AddCheckpointRecovery},
     {20_261_106_160_000, Boss.Repo.Migrations.AddProviderRecovery},
-    {20_261_110_240_000, Boss.Repo.Migrations.PinRoleColumnsSchema}
+    {20_261_110_240_000, Boss.Repo.Migrations.PinRoleColumnsSchema},
+    {20_261_114_120_000, Boss.Repo.Migrations.ReleaseUnknownCleanup}
   ]
 
   setup do
@@ -148,7 +149,7 @@ defmodule Boss.AutopilotPersistenceTest do
     assert {:ok, %{max_parallel_tasks: 3}} = Boss.Deliveries.Scheduling.get()
   end
 
-  test "manager retains the automatic slot until actual EXIT and halts on unknown cleanup", c do
+  test "manager retains the automatic slot until actual EXIT then releases unknown cleanup", c do
     parent = self()
 
     worker = fn delivery, _, manager ->
@@ -172,12 +173,31 @@ defmodule Boss.AutopilotPersistenceTest do
     assert {:ok, %{status: "running"}} = Autopilot.current(c.project.id)
     assert Repo.aggregate(Deliveries.Delivery, :count) == 1
     send(pid, :release)
-    eventually(fn -> match?({:ok, %{status: "blocked"}}, Autopilot.current(c.project.id)) end)
-    {:ok, blocked} = Autopilot.current(c.project.id)
-    assert blocked.id == batch.id
-    assert Enum.count(blocked.items, &(&1.request_status == "cancelled")) == 3
-    assert Deliveries.get(c.project.id, delivery.id).status == "interrupted"
-    refute_receive {:held, _, _}, 50
+    assert_receive {:held, next, next_pid}, 3_000
+    assert next.id != delivery.id
+    saved = Deliveries.get(c.project.id, delivery.id)
+    assert saved.status == "blocked" and saved.cleanup == "group_empty"
+    assert saved.reason =~ "released after the worker exited"
+    assert {:ok, %{id: id, status: "running"}} = Autopilot.current(c.project.id)
+    assert id == batch.id
+    # The live successor already wrote interrupted+unknown; quarantine clears on EXIT.
+    assert Boss.Deliveries.Scheduling.quarantined?()
+    send(next_pid, :release)
+
+    for _ <- 1..2 do
+      receive do
+        {:held, _, worker} -> send(worker, :release)
+      after
+        3_000 -> flunk("expected Autopilot to continue after unknown-cleanup release")
+      end
+    end
+
+    eventually(fn -> not Boss.Deliveries.Scheduling.quarantined?() end)
+
+    assert Repo.query!(
+             "SELECT COUNT(*) FROM deliveries WHERE project_id=? AND cleanup!='group_empty'",
+             [c.project.id]
+           ).rows == [[0]]
   end
 
   test "Stop signals live owner while Manager and SQLite writer are stalled", c do
@@ -302,6 +322,22 @@ defmodule Boss.AutopilotPersistenceTest do
     assert :ok =
              Ecto.Migrator.down(
                Repo,
+               20_261_114_120_000,
+               Boss.Repo.Migrations.ReleaseUnknownCleanup,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
+               20_261_110_240_000,
+               Boss.Repo.Migrations.PinRoleColumnsSchema,
+               log: false
+             )
+
+    assert :ok =
+             Ecto.Migrator.down(
+               Repo,
                20_261_106_160_000,
                Boss.Repo.Migrations.AddProviderRecovery,
                log: false
@@ -362,7 +398,9 @@ defmodule Boss.AutopilotPersistenceTest do
              20_261_106_130_000,
              20_261_106_140_000,
              20_261_106_150_000,
-             20_261_106_160_000
+             20_261_106_160_000,
+             20_261_110_240_000,
+             20_261_114_120_000
            ] =
              Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
 
