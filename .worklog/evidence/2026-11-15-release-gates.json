@@ -1,0 +1,55 @@
+{
+  "source_commit": "e757fa1b9777f65ac51a748828a3431c880badf3",
+  "source_local_changes": false,
+  "runtime": {
+    "prefix": "_build/release-runtime-20261115",
+    "otp": "28.5.0.8",
+    "erts": "16.4.0.7",
+    "openssl": "OpenSSL 3.5.9 29 Sep 2026",
+    "crypto_linkage": "static",
+    "crypto_sha256": "856eca12659511b963dc8088048bd4279da7f1df1056da66f91af4c68aef5b96",
+    "runtime_manifest_sha256": "84bbdc57c18f7dc8e4cc84e2b1e129343b29b0dddeb7ca4c2c5d2f62977bc845"
+  },
+  "tests": {
+    "build_release_runtime_py": "5 passed",
+    "sign_macos_release_py": "4 passed",
+    "rel_test_package": "9 passed",
+    "mix_test_seed": 1511,
+    "mix_test": "910 passed, 1 skipped",
+    "hex_audit": "No retired or security advisory packages found",
+    "npm_audit_high": "0 vulnerabilities",
+    "check_site": "PASS 44 links/assets",
+    "motion_tests": "12 passed"
+  },
+  "archive": {
+    "path": "_build/prod/boss-0.1.0-rc.2.tar.gz",
+    "bytes": 17248342,
+    "sha256": "ce82ba4e6e959f705ae003c6d9de2041c006739dbe967f03e72d3edffd36d758",
+    "smoke_release": "passed"
+  },
+  "signing": {
+    "identity_sha1": "8652753D50EE045DC63F725BB5B1D3E914F657A1",
+    "team_id": "G4HV2FL5N2",
+    "output": "_build/prod/boss-0.1.0-rc.2-signed-e757fa1",
+    "native_images": 24,
+    "hardened_runtime": true,
+    "beam_allow_jit_only": true,
+    "dmg_sha256": "4837245cc0ad576e69f7385b447d16a4112c616696f6a2ec177031d8e3fb4d9a",
+    "signed_payload_smoke": "passed",
+    "notarization": "not_performed"
+  },
+  "notarization_preflight": {
+    "profile_selector": "Cuckoding-v3",
+    "command": "notarytool history --keychain-profile Cuckoding-v3 --output-format json",
+    "exit_code": 69,
+    "result": "No Keychain password item found for profile",
+    "submission_count": 0,
+    "other_profiles_guessed": false,
+    "credential_values_read": false
+  },
+  "gatekeeper": {
+    "spctl_open_primary_signature": "not Accepted without notarization (expected)",
+    "clean_machine_quarantined_download": "blocked until notarization Accepted + staple"
+  },
+  "next_owner_action": "In a real user Terminal, run `xcrun notarytool store-credentials` for an Apple notarization Keychain profile (app-specific password entered only into Apple's prompt), then `xcrun notarytool history --keychain-profile <name>` until exit 0. After that, authorize one submit of the exact signed DMG sha256 4837245cc0ad576e69f7385b447d16a4112c616696f6a2ec177031d8e3fb4d9a."
+}
