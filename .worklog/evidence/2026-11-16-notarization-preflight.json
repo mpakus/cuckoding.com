@@ -1,0 +1,41 @@
+{
+  "continuation_of": ".worklog/evidence/2026-11-15-release-gates.json",
+  "probed_at": "2026-11-16T22:12:50Z",
+  "source_commit_at_probe": "f56fc3a",
+  "signed_dmg": {
+    "path": "_build/prod/boss-0.1.0-rc.2-signed-e757fa1/boss.dmg",
+    "present": true,
+    "sha256": "4837245cc0ad576e69f7385b447d16a4112c616696f6a2ec177031d8e3fb4d9a",
+    "hash_match_prior_gate": true,
+    "rebuild_performed": false,
+    "resign_performed": false
+  },
+  "keychain_visibility": {
+    "default_keychain_basename": "login.keychain-db",
+    "searchable_keychain_count": 1,
+    "developer_id_application_available": true,
+    "certificate_sha1": "8652753D50EE045DC63F725BB5B1D3E914F657A1",
+    "team_id": "G4HV2FL5N2",
+    "credential_values_read": false
+  },
+  "credential_preflight": {
+    "profiles_probed": ["Cuckoding-v3"],
+    "other_profiles_guessed": false,
+    "documented_selectors_only": true,
+    "results": [
+      {
+        "profile": "Cuckoding-v3",
+        "command": "xcrun notarytool history --keychain-profile Cuckoding-v3 --output-format json --no-progress",
+        "exit_code": 69,
+        "result": "No Keychain password item found for profile"
+      }
+    ]
+  },
+  "submission_count": 0,
+  "submission_id": null,
+  "notarization_status": "not submitted; Keychain profile still unresolved",
+  "stapling": "not performed",
+  "gatekeeper": "not performed",
+  "quarantined_clean_machine": "not performed",
+  "next_owner_action": "Create or repair a local notarytool Keychain profile in a real user Terminal, validate with history exit 0, then authorize one submit of the unchanged DMG."
+}
