@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-rc.2 — 2026-11-13
+## 0.1.0-rc.2 — 2026-11-18
 
 Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it.
 
@@ -10,7 +10,11 @@ Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it
   and custom roles).
 - Run managed planning, implementation, stuck-question diagnosis, documentation
   intake and independent review across **Codex**, **Claude Code**, **Cursor
-  Agent** and **OpenCode**, preserving pinned roles across explicit retries.
+  Agent** and **OpenCode**, preserving pinned `reviewer`, `implementer` and
+  `analytic` roles across explicit review, candidate, timeout, checkpoint and
+  provider rate-limit retries in both Elixir and SQLite triggers, and routing
+  mixed non-Codex `Implementer` + Codex `Analytic` `:resolve` stages through the
+  pinned Codex catalog.
 - Plan tasks from committed project documentation and run their dependency order
   through checks, independent review, publication and postchecks in Autopilot,
   with live Three.js pipeline telemetry and structured stage diagnostics.
@@ -22,7 +26,12 @@ Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it
 - Keep shared provider/credit outages, Stop and uncertain process cleanup
   visible with agent-specific diagnostics on the board and halt dispatch when
   ownership or the provider is uncertain.
-- Update Ecto to 3.14.3 for CVE-2026-118391.
+- Update Ecto to 3.14.3 for CVE-2026-118391 and Plug to 1.20.4 for
+  CVE-2026-120287.
+- Keep multi-byte UTF-8 CLI diagnostics valid across 240 B / 4 KiB / 512 KiB
+  truncation boundaries and classify exit-`0` `is_error` / `error` envelopes on
+  `Claude Code`, `Cursor Agent` and `OpenCode` instead of reporting generic
+  invalid JSON.
 
 ## 0.1.0-rc.1 — unreleased
 

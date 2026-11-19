@@ -471,4 +471,88 @@ defmodule Boss.CursorReviewTest do
     assert argv =~ "--pure"
     refute argv =~ "--auto"
   end
+
+  test "multibyte UTF-8 notices and exit-0 error envelopes stay valid JSON and classify errors" do
+    # Place a 3-byte em-dash ("—", 0xE2 0x80 0x94) spanning byte 240 so raw binary_part(0, 240) would split UTF-8.
+    prefix = String.duplicate("a", 239)
+    multibyte = prefix <> "— Credit balance is too low"
+
+    for {mod, arg2} <- [
+          {Boss.Agents.Cursor, ""},
+          {Boss.Agents.Claude, ""},
+          {Boss.Agents.OpenCode, nil}
+        ] do
+      note = mod.notice(multibyte, arg2)
+      assert String.valid?(note.reason)
+      assert Jason.encode!(note)
+    end
+
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "boss-exit0-errors-#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir!(root)
+
+    claude_script = Path.join(root, "claude")
+
+    File.write!(claude_script, """
+    #!/bin/sh
+    cat >/dev/null
+    printf '%s\\n' '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"Credit balance is too low"}'
+    exit 0
+    """)
+
+    opencode_script = Path.join(root, "opencode")
+
+    File.write!(opencode_script, """
+    #!/bin/sh
+    cat >/dev/null
+    printf '%s\\n' '{"type":"error","error":{"message":"Rate limit exceeded for free tier"}}'
+    exit 0
+    """)
+
+    File.chmod!(claude_script, 0o700)
+    File.chmod!(opencode_script, 0o700)
+    previous = System.get_env("PATH")
+    System.put_env("PATH", root <> ":" <> previous)
+
+    on_exit(fn ->
+      System.put_env("PATH", previous)
+      File.rm_rf(root)
+    end)
+
+    claude_receipt =
+      Worker.run_agent(
+        :plan,
+        root,
+        "plan via claude",
+        &Boss.Deliveries.Protocol.plan/1,
+        nil,
+        implementer: "claude",
+        report_diagnostics: true
+      )
+
+    assert claude_receipt["status"] == "failed"
+    assert claude_receipt["outcome"] == "exited"
+    assert claude_receipt["summary"]["error_class"] == "rate_limit"
+    assert claude_receipt["reason"] =~ "Claude Code: Credit balance is too low"
+    assert claude_receipt["validation_code"] == nil
+
+    opencode_receipt =
+      Worker.run_agent(
+        :implement,
+        root,
+        "implement via opencode",
+        nil,
+        nil,
+        implementer: "opencode"
+      )
+
+    assert opencode_receipt["status"] == "failed"
+    assert opencode_receipt["outcome"] == "exited"
+    assert opencode_receipt["summary"]["error_class"] == "rate_limit"
+    assert opencode_receipt["reason"] =~ "OpenCode: Rate limit exceeded"
+  end
 end

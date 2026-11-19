@@ -46,7 +46,8 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     {20_261_110_260_000, Boss.Repo.Migrations.AllowClaudeAndIntakePlanner},
     {20_261_110_270_000, Boss.Repo.Migrations.PersistAgentDetectionsAndRoleModels},
     {20_261_110_280_000, Boss.Repo.Migrations.AllowOpenCodeRunner},
-    {20_261_114_120_000, Boss.Repo.Migrations.ReleaseUnknownCleanup}
+    {20_261_114_120_000, Boss.Repo.Migrations.ReleaseUnknownCleanup},
+    {20_261_118_120_000, Boss.Repo.Migrations.HardenMultiAgentRetriesAndAnalyticRouting}
   ]
 
   setup do
@@ -160,7 +161,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
 
     w = workspace(c, parent.id)
     {:ok, parent} = Deliveries.set_intent(parent.id, w)
-    plan_step = finish_plan!(parent, "cursor")
+    plan_step = finish_plan!(parent, nil)
 
     impl_step =
       finish(
@@ -171,7 +172,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
           "parent_step_id" => plan_step.id,
           "plan_step_id" => plan_step.id,
           "workspace" => fresh(w),
-          "model_profile" => %{"model" => "cursor", "reasoning_effort" => "high"}
+          "model_profile" => nil
         },
         %{
           "status" => "failed",
@@ -192,6 +193,37 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     wire_role!("implementer", "claude", "sonnet", "high")
     wire_role!("analytic", "claude", "sonnet", "high")
 
+    assert_raise Exqlite.Error, ~r/exact terminal rate-limit source/, fn ->
+      Repo.query!(
+        """
+        INSERT INTO deliveries (
+          id, project_id, task_id, spec_revision_id, command_id, admitted_version, task_version,
+          status, cleanup, cycle, check_config, config_hash, reviewer, implementer, analytic,
+          autonomy_version, routing_version, model_catalog,
+          execution_recovery_version, checkpoint_recovery_version, provider_recovery_version,
+          implementation_network_version, retry_implementation_id,
+          inserted_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'planning', 'not_started', 0, ?, ?, ?, 'claude', ?, 1, 2, '{}', 1, 1, 1, 1, ?, ?, ?)
+        """,
+        [
+          Ecto.UUID.generate(),
+          c.project.id,
+          rate_task.id,
+          parent.spec_revision_id,
+          Ecto.UUID.generate(),
+          parent.task_version + 1,
+          parent.task_version + 1,
+          Jason.encode!(parent.check_config),
+          parent.config_hash,
+          parent.reviewer,
+          parent.analytic,
+          impl_step.id,
+          "2026-11-18T00:00:00Z",
+          "2026-11-18T00:00:00Z"
+        ]
+      )
+    end
+
     {:ok, {:new, child}} =
       Deliveries.admit_checkpoint_retry(c.project.id, parent.id, Ecto.UUID.generate())
 
@@ -204,6 +236,16 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     assert child.reviewer == "cursor"
     assert child.retry_implementation_id == impl_step.id
     assert {:ok, %{source_kind: :rate_limit, parent: ^parent}} = ExecutionRetry.source(child)
+
+    assert_raise RuntimeError, ~r/Refusing to discard non-Codex execution recovery history/, fn ->
+      Ecto.Migrator.down(
+        Repo,
+        20_261_118_120_000,
+        Boss.Repo.Migrations.HardenMultiAgentRetriesAndAnalyticRouting,
+        log: false
+      )
+    end
+
     {:ok, _} = Deliveries.complete(child.id, "cancelled", "Stopped for next test.")
 
     {:ok, %{task: timeout_task}} =
@@ -230,7 +272,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
 
     tw = workspace(c, t_parent.id)
     {:ok, t_parent} = Deliveries.set_intent(t_parent.id, tw)
-    t_plan = finish_plan!(t_parent, "opencode")
+    t_plan = finish_plan!(t_parent, nil)
 
     _t_impl =
       finish(
@@ -241,7 +283,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
           "parent_step_id" => t_plan.id,
           "plan_step_id" => t_plan.id,
           "workspace" => fresh(tw),
-          "model_profile" => %{"model" => "opencode", "reasoning_effort" => "high"}
+          "model_profile" => nil
         },
         %{
           "status" => "failed",
@@ -266,6 +308,96 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     assert {:ok, %{parent: ^t_parent}} = ExecutionRetry.source(t_child)
     {:ok, _} = Deliveries.complete(t_child.id, "cancelled", "Stopped for next test.")
 
+    {:ok, %{task: chk_task}} =
+      Projects.record_spec(c.project.id, %{
+        relative_path: "checkpoint.md",
+        title: "Checkpoint recovery",
+        original_text: "# Checkpoint recovery"
+      })
+
+    {:ok, {:new, c_parent}} =
+      Deliveries.admit(
+        c.project.id,
+        chk_task.id,
+        Ecto.UUID.generate(),
+        "mix test",
+        "opencode",
+        false,
+        1,
+        2
+      )
+
+    cw = workspace(c, c_parent.id)
+    {:ok, c_parent} = Deliveries.set_intent(c_parent.id, cw)
+    c_plan = finish_plan!(c_parent, nil)
+    c_impl_ws = fresh(cw)
+
+    c_impl =
+      finish(
+        c_parent,
+        "implement",
+        1,
+        %{
+          "parent_step_id" => c_plan.id,
+          "plan_step_id" => c_plan.id,
+          "workspace" => c_impl_ws,
+          "model_profile" => nil
+        },
+        %{"workspace" => c_impl_ws, "head_commit" => @sha}
+      )
+
+    c_chk_id = Ecto.UUID.generate()
+
+    c_chk_ws = %{
+      "check_id" => c_chk_id,
+      "run_workspace" => c_impl_ws,
+      "path" => Path.join(c.root, "chk-" <> c_chk_id),
+      "ref" => "refs/boss/checks/" <> c_chk_id
+    }
+
+    c_snap =
+      finish(
+        c_parent,
+        "snapshot",
+        1,
+        %{"implementation_step_id" => c_impl.id, "plan_step_id" => c_plan.id},
+        %{"workspace" => c_chk_ws, "candidate_commit" => @sha}
+      )
+
+    c_check =
+      finish(
+        c_parent,
+        "check",
+        1,
+        %{
+          "snapshot_step_id" => c_snap.id,
+          "plan_step_id" => c_plan.id,
+          "workspace" => c_chk_ws,
+          "candidate_commit" => @sha
+        },
+        %{
+          "status" => "failed",
+          "outcome" => "checks_failed",
+          "exit_code" => 1,
+          "output_complete" => true,
+          "output_hash" => @hash
+        }
+      )
+
+    {:ok, c_parent} = Deliveries.complete(c_parent.id, "failed", "Checks failed.")
+
+    {:ok, {:new, c_child}} =
+      Deliveries.admit_checkpoint_retry(c.project.id, c_parent.id, Ecto.UUID.generate())
+
+    assert c_child.checkpoint_recovery_version == 1
+    assert c_child.provider_recovery_version == 0
+    assert c_child.implementer == "claude"
+    assert c_child.analytic == "cursor"
+    assert c_child.retry_source_check_id == c_check.id
+    assert {:ok, %{parent: ^c_parent, check: %_{id: chk_id}}} = ExecutionRetry.source(c_child)
+    assert chk_id == c_check.id
+    {:ok, _} = Deliveries.complete(c_child.id, "cancelled", "Stopped for next test.")
+
     {:ok, %{task: review_task}} =
       Projects.record_spec(c.project.id, %{
         relative_path: "review-retry.md",
@@ -287,7 +419,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
 
     rw = workspace(c, r_parent.id)
     {:ok, r_parent} = Deliveries.set_intent(r_parent.id, rw)
-    r_plan = finish_plan!(r_parent, "claude")
+    r_plan = finish_plan!(r_parent, nil)
 
     r_impl_ws = fresh(rw)
 
@@ -300,7 +432,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
           "parent_step_id" => r_plan.id,
           "plan_step_id" => r_plan.id,
           "workspace" => r_impl_ws,
-          "model_profile" => %{"model" => "claude", "reasoning_effort" => "high"}
+          "model_profile" => nil
         },
         %{"workspace" => r_impl_ws, "head_commit" => @sha}
       )
@@ -335,7 +467,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
         %{"output_complete" => true, "output_hash" => @hash}
       )
 
-    _r_review =
+    r_review =
       finish(
         r_parent,
         "review",
@@ -347,7 +479,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
           "candidate_commit" => @sha,
           "original_base" => @sha,
           "input_hash" => @hash,
-          "model_profile" => %{"model" => "opencode", "reasoning_effort" => "high"}
+          "model_profile" => nil
         },
         %{
           "report" => %{
@@ -369,6 +501,35 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
 
     wire_role!("implementer", "cursor", "auto", nil)
 
+    assert_raise Exqlite.Error, ~r/invalid rejected review source/, fn ->
+      Repo.query!(
+        """
+        INSERT INTO deliveries (
+          id, project_id, task_id, spec_revision_id, command_id, admitted_version, task_version,
+          status, cleanup, cycle, check_config, config_hash, reviewer, implementer, analytic,
+          autonomy_version, routing_version, model_catalog, retry_review_id,
+          inserted_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'planning', 'not_started', 0, ?, ?, ?, 'cursor', ?, 1, 2, '{}', ?, ?, ?)
+        """,
+        [
+          Ecto.UUID.generate(),
+          c.project.id,
+          review_task.id,
+          r_parent.spec_revision_id,
+          Ecto.UUID.generate(),
+          r_parent.task_version + 1,
+          r_parent.task_version + 1,
+          Jason.encode!(r_parent.check_config),
+          r_parent.config_hash,
+          r_parent.reviewer,
+          r_parent.analytic,
+          r_review.id,
+          "2026-11-18T00:00:00Z",
+          "2026-11-18T00:00:00Z"
+        ]
+      )
+    end
+
     {:ok, {:new, r_child}} =
       Deliveries.admit_retry(c.project.id, r_parent.id, Ecto.UUID.generate())
 
@@ -376,6 +537,119 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
     assert r_child.analytic == "cursor"
     assert r_child.reviewer == "opencode"
     assert {:ok, %{parent: ^r_parent}} = Retry.source(r_child)
+  end
+
+  test "mixed non-Codex implementer with Codex analytic routes resolve through the pinned Codex catalog",
+       c do
+    authorize_agents!(~w(cursor codex))
+    wire_role!("implementer", "cursor", "auto", nil)
+    wire_role!("analytic", "codex", "gpt-5.6-sol", "high")
+    wire_role!("reviewer", "cursor", "auto", nil)
+
+    {:ok, %{task: task}} =
+      Projects.record_spec(c.project.id, %{
+        relative_path: "mixed-analytic.md",
+        title: "Mixed analytic",
+        original_text: "# Mixed analytic"
+      })
+
+    {:ok, {:new, delivery}} =
+      Deliveries.admit(
+        c.project.id,
+        task.id,
+        Ecto.UUID.generate(),
+        "mix test",
+        "cursor",
+        false,
+        1,
+        2
+      )
+
+    assert delivery.implementer == "cursor"
+    assert delivery.analytic == "codex"
+
+    catalog = %{
+      "version" => 2,
+      "primary" => %{"model" => "gpt-5.6-sol", "reasoning_effort" => "high"},
+      "resolver" => %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"},
+      "small" => %{"model" => "gpt-5.6-luna", "reasoning_effort" => "medium"},
+      "fallbacks" => [
+        %{"model" => "gpt-5.6-sol", "reasoning_effort" => "xhigh"},
+        %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"}
+      ]
+    }
+
+    {:ok, delivery} = Deliveries.set_model_catalog(delivery.id, catalog)
+    w = workspace(c, delivery.id)
+    {:ok, delivery} = Deliveries.set_intent(delivery.id, w)
+
+    assert {:ok, nil} = Deliveries.model_profile(delivery, :plan, 0)
+    plan_step = finish_plan!(delivery, nil)
+    assert {:ok, nil} = Deliveries.model_profile(delivery, :implement, 1, plan_step.id)
+
+    assert {:ok, %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"}} =
+             Deliveries.model_profile(delivery, :resolve, 1, plan_step.id)
+
+    failed_impl =
+      finish(
+        delivery,
+        "implement",
+        1,
+        %{
+          "parent_step_id" => plan_step.id,
+          "plan_step_id" => plan_step.id,
+          "workspace" => fresh(w),
+          "model_profile" => nil
+        },
+        %{
+          "status" => "failed",
+          "outcome" => "exited",
+          "exit_code" => 1
+        }
+      )
+
+    resolve_ws = fresh(w)
+
+    assert {:error, :invalid_step} =
+             Deliveries.begin_step(
+               delivery.id,
+               "resolve",
+               1,
+               pins(delivery, %{
+                 "parent_step_id" => failed_impl.id,
+                 "source_step_id" => failed_impl.id,
+                 "plan_step_id" => plan_step.id,
+                 "workspace" => resolve_ws,
+                 "candidate_commit" => @sha,
+                 "feedback_hash" => @hash,
+                 "input_hash" => @hash,
+                 "model_profile" => nil,
+                 "resolution_attempt" => 1
+               })
+             )
+
+    assert {:ok, resolve_step} =
+             Deliveries.begin_step(
+               delivery.id,
+               "resolve",
+               1,
+               pins(delivery, %{
+                 "parent_step_id" => failed_impl.id,
+                 "source_step_id" => failed_impl.id,
+                 "plan_step_id" => plan_step.id,
+                 "workspace" => resolve_ws,
+                 "candidate_commit" => @sha,
+                 "feedback_hash" => @hash,
+                 "input_hash" => @hash,
+                 "model_profile" => %{"model" => "gpt-5.6-terra", "reasoning_effort" => "xhigh"},
+                 "resolution_attempt" => 1
+               })
+             )
+
+    assert resolve_step.input["model_profile"] == %{
+             "model" => "gpt-5.6-terra",
+             "reasoning_effort" => "xhigh"
+           }
   end
 
   # Compile-time atoms so authorize_agents! does not depend on module load order.
@@ -450,6 +724,9 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
   end
 
   defp finish_plan!(d, model_name) do
+    profile =
+      if is_nil(model_name), do: nil, else: %{"model" => model_name, "reasoning_effort" => "high"}
+
     finish(
       d,
       "plan",
@@ -457,7 +734,7 @@ defmodule Boss.MultiAgentMigrationAndRecoveryTest do
       %{
         "workspace" => d.intent,
         "input_hash" => @hash,
-        "model_profile" => %{"model" => model_name, "reasoning_effort" => "high"}
+        "model_profile" => profile
       },
       %{
         "report" => %{

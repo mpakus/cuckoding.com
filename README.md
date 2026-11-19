@@ -419,8 +419,10 @@ rtk proxy mix assets.deploy
 Tests ignore `BOSS_DATA_DIR`, exclusively create a random temporary data directory
 and delete only that directory after stopping the test application. No existing
 `~/.boss` data is used by tests. `mix test` does not call a live provider. The
-release guide records one earlier opt-in Codex smoke of a single tiny task. It
-does not establish acceptance for the current beta, Claude, or arbitrary work.
+[release guide](docs/RELEASE.md) records the `0.1.0-rc.2` 910-test regression,
+Developer ID signing evidence, and one-task live paid Codex Autopilot measurement
+(`~106s` to verified `Done`); broader multi-task and non-Codex live provider
+acceptance remain separate opt-in gates.
 Folder-picker process tests use Python 3 fixtures; they do not open desktop dialogs.
 Linux/Zenity GUI behavior has not yet been verified on a Linux desktop.
 

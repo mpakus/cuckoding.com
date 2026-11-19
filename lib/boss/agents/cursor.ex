@@ -129,8 +129,43 @@ defmodule Boss.Agents.Cursor do
     )
   end
 
-  defp clip(line, max) do
-    if byte_size(line) <= max, do: line, else: binary_part(line, 0, max) <> "…"
+  defp clip(line, max), do: clip_utf8(line, max)
+
+  @doc false
+  def clip_utf8(line, max) when is_binary(line) and is_integer(max) and max > 0 do
+    if byte_size(line) <= max do
+      line
+    else
+      utf8_prefix(line, max) <> "…"
+    end
+  end
+
+  @doc false
+  def utf8_prefix(bin, max) when is_binary(bin) and is_integer(max) and max >= 0 do
+    slice = binary_part(bin, 0, min(byte_size(bin), max))
+    utf8_valid_prefix(slice)
+  end
+
+  @doc false
+  def utf8_valid_prefix(bin) when is_binary(bin) do
+    case String.chunk(bin, :valid) do
+      [] ->
+        ""
+
+      chunks ->
+        chunks
+        |> Enum.take_while(&String.valid?/1)
+        |> IO.iodata_to_binary()
+    end
+  end
+
+  @doc false
+  def utf8_valid_suffix(bin) when is_binary(bin) do
+    bin
+    |> String.chunk(:valid)
+    |> Enum.drop_while(&(not String.valid?(&1)))
+    |> Enum.take_while(&String.valid?/1)
+    |> IO.iodata_to_binary()
   end
 
   @doc false

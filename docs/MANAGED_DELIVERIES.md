@@ -1,11 +1,17 @@
 # Managed task delivery
 
 An explicit owner-local review retry is available through
-`Boss.Deliveries.Retry.start(project_id, blocked_delivery_id, new_command_uuid)`.
-It derives the saved checks/reviewer/spec from the latest rejected review; callers
-cannot substitute evidence or a base commit. This creates a new attempt and uses
-the configured provider account, so it requires fresh explicit authorization.
-Ordinary **Start workflow** retains its existing fresh-start behavior.
+`Boss.Deliveries.Retry.start(project_id, blocked_delivery_id, new_command_uuid)`
+(alongside `Retry.start_candidate/5`, `Retry.start_timeout/4` and
+`Retry.start_checkpoint/4`; these explicit retained-work retry entrypoints are
+currently public Manager/console APIs, while the task drawer UI offers fresh
+**Start workflow** / **Queue workflow**).
+It derives the saved checks, pinned roles (`implementer`, `analytic`,
+`reviewer`) and spec from the latest rejected review; callers and raw SQL
+inserts cannot substitute evidence, pinned roles or a base commit. This creates
+a new attempt and uses the configured provider account, so it requires fresh
+explicit authorization. Ordinary **Start workflow** retains its existing
+fresh-start behavior.
 The ordinary review retry requires a current Blocked task with a final rejected
 review. For a Failed delivery with an earlier rejection and a later passing
 final check, the owner can explicitly call
@@ -220,10 +226,13 @@ versioned event are part of the same Repo-pinned transaction as delivery progres
 caller-provided verdicts/SHAs cannot directly command a terminal task state.
 
 Tests use finite fake CLIs, real Git, native macOS transport and exclusively created
-SQLite databases with real pools. They cover rejection/fixes, full feedback, budget,
-Stop, restart/replay, source preservation, target reservation, exact publication,
-postcheck failure, configured capacity, overlapping scopes and unknown receipt/Repo loss.
-One bounded original packaged real Codex workflow with Codex review passed through verified
-Done (3calls/100.875s,5/5 criteria); this is a tiny smoke, not general task or Claude
-acceptance. Linux execution, clean-machine acceptance and public signing remain
-open. See [release evidence](RELEASE.md) and `.worklog/` for exact scope/results.
+SQLite databases with real pools (`910 passed, 1 Linux-only skipped` on `0.1.0-rc.2`).
+They cover rejection/fixes, full feedback, budget, Stop, restart/replay, source
+preservation, target reservation, exact publication, merge/postcheck repair,
+unknown-cleanup release, multi-agent role retries, configured capacity,
+overlapping scopes and unknown receipt/Repo loss. Bounded opt-in real Codex
+workflows (`rc.1` packaged smoke in `100.875s`; `rc.2` `2026-11-15` Autopilot
+measurement in `~106s`) passed through verified Done; broader multi-task and
+non-Codex live provider acceptance, notarized clean-machine download and Linux
+execution remain open. See [release evidence](RELEASE.md) and `.worklog/` for
+exact scope/results.

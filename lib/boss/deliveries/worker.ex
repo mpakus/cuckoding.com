@@ -1915,7 +1915,21 @@ defmodule Boss.Deliveries.Worker do
               end
 
             _ ->
-              Map.merge(receipt, failure(:invalid_report))
+              if not is_nil(note.class) or envelope_error?(stdout) do
+                receipt
+                |> Map.merge(%{
+                  "status" => "failed",
+                  "outcome" => "exited",
+                  "reason" => note.reason,
+                  "summary" => %{
+                    "error_class" => note.class,
+                    "stdout_bytes" => out_bytes,
+                    "stderr_bytes" => err_bytes
+                  }
+                })
+              else
+                Map.merge(receipt, failure(:invalid_report))
+              end
           end
 
         true ->
@@ -1990,6 +2004,13 @@ defmodule Boss.Deliveries.Worker do
                  result.eof == %{stdout: true, stderr: true} and
                  result.outcome == :failed and Map.get(result, :reason) == :lingering_processes do
               Map.put(receipt, "outcome", "exited")
+            else
+              receipt
+            end
+
+          receipt =
+            if state.error == :rate_limit do
+              put_in(receipt, ["summary", "error_class"], "rate_limit")
             else
               receipt
             end
@@ -2201,19 +2222,37 @@ defmodule Boss.Deliveries.Worker do
               })
 
             {:error, note} ->
-              if diagnostics? and is_nil(note.class) do
-                receipt
-                |> Map.merge(failure(:invalid_report))
-                |> Map.merge(%{
-                  "report_bytes" => state.stdout_bytes,
-                  "validation_code" => "invalid_json",
-                  "summary" => OpenCode.summary(state)
-                })
+              if not is_nil(note.class) or state.error == :agent_error do
+                base =
+                  receipt
+                  |> Map.merge(%{
+                    "status" => "failed",
+                    "outcome" => "exited",
+                    "reason" => note.reason,
+                    "summary" => Map.put(OpenCode.summary(state), "error_class", note.class)
+                  })
+
+                if diagnostics?,
+                  do: Map.merge(base, %{"report_bytes" => nil, "validation_code" => nil}),
+                  else: base
               else
-                receipt
-                |> Map.merge(failure(:invalid_report))
-                |> Map.put("reason", note.reason)
-                |> Map.put("summary", Map.put(OpenCode.summary(state), "error_class", note.class))
+                if diagnostics? do
+                  receipt
+                  |> Map.merge(failure(:invalid_report))
+                  |> Map.merge(%{
+                    "report_bytes" => state.stdout_bytes,
+                    "validation_code" => "invalid_json",
+                    "summary" => OpenCode.summary(state)
+                  })
+                else
+                  receipt
+                  |> Map.merge(failure(:invalid_report))
+                  |> Map.put("reason", note.reason)
+                  |> Map.put(
+                    "summary",
+                    Map.put(OpenCode.summary(state), "error_class", note.class)
+                  )
+                end
               end
           end
 
@@ -2273,7 +2312,10 @@ defmodule Boss.Deliveries.Worker do
 
             :ets.insert(
               parser,
-              {:stdout, current <> binary_part(bytes, 0, min(byte_size(bytes), room))}
+              {:stdout,
+               Cursor.utf8_valid_prefix(
+                 current <> binary_part(bytes, 0, min(byte_size(bytes), room))
+               )}
             )
           end
 
@@ -2359,16 +2401,35 @@ defmodule Boss.Deliveries.Worker do
               })
 
             _ ->
-              if diagnostics? do
-                receipt
-                |> Map.merge(failure(:invalid_report))
-                |> Map.merge(%{
-                  "report_bytes" => out_bytes,
-                  "validation_code" => "invalid_json",
-                  "summary" => %{"stdout_bytes" => out_bytes, "stderr_bytes" => err_bytes}
-                })
+              if not is_nil(note.class) or envelope_error?(stdout) do
+                base =
+                  receipt
+                  |> Map.merge(%{
+                    "status" => "failed",
+                    "outcome" => "exited",
+                    "reason" => note.reason,
+                    "summary" => %{
+                      "error_class" => note.class,
+                      "stdout_bytes" => out_bytes,
+                      "stderr_bytes" => err_bytes
+                    }
+                  })
+
+                if diagnostics?,
+                  do: Map.merge(base, %{"report_bytes" => nil, "validation_code" => nil}),
+                  else: base
               else
-                Map.merge(receipt, failure(:invalid_report))
+                if diagnostics? do
+                  receipt
+                  |> Map.merge(failure(:invalid_report))
+                  |> Map.merge(%{
+                    "report_bytes" => out_bytes,
+                    "validation_code" => "invalid_json",
+                    "summary" => %{"stdout_bytes" => out_bytes, "stderr_bytes" => err_bytes}
+                  })
+                else
+                  Map.merge(receipt, failure(:invalid_report))
+                end
               end
           end
 
@@ -2411,10 +2472,19 @@ defmodule Boss.Deliveries.Worker do
 
     if byte_size(current) < 4_096 do
       room = 4_096 - byte_size(current)
-      :ets.insert(parser, {stream, current <> binary_part(bytes, 0, min(byte_size(bytes), room))})
+
+      :ets.insert(
+        parser,
+        {stream,
+         Cursor.utf8_valid_prefix(current <> binary_part(bytes, 0, min(byte_size(bytes), room)))}
+      )
     end
 
     :ok
+  end
+
+  defp envelope_error?(stdout) when is_binary(stdout) do
+    match?({:ok, %{"type" => "result", "is_error" => true}}, Jason.decode(String.trim(stdout)))
   end
 
   defp run_codex(kind, path, prompt, decode, profile, opts) do

@@ -66,9 +66,11 @@
 - Release candidates must bundle and verify native library closure, notices and
   build provenance; test the extracted archive with private fresh data. Keep
   distribution disabled for the local launcher. A local package/smoke is not
-  clean-machine, signing, provider, Linux or remote-CI acceptance. Never hide
+  clean-machine, signing, provider, Linux or remote-CI acceptance.   Never hide
   dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
-  Keep the direct Phoenix.HTML requirement at or above 4.4.0 for CVE-2026-117645.
+  Keep the direct Phoenix.HTML requirement at or above 4.4.0 for CVE-2026-117645,
+  Ecto at or above 3.14.3 for CVE-2026-118391, and Plug at or above 1.20.4 for
+  CVE-2026-120287.
   Seed historical migration fixtures against their old schema. Apply independent
   schema additions before calling current contexts without advancing the migration
   under test.
@@ -246,16 +248,21 @@
 - Pin the managed reviewer, implementer, and analytic runners (`codex`, `claude`,
   `cursor`, `opencode`) before effects; changing the reviewer with the same
   command UUID conflicts, and explicit retries preserve the parent's pinned
-  roles. Existing deliveries default to Codex. Discover the Codex model catalog
-  only when a pinned role uses Codex. Claude review remains an evidence-only
-  reviewer with no model filesystem/shell tools, fresh scratch cwd, stdin input,
-  and balanced `StructuredOutput` tool-result verification; Claude read-only
-  stages (`:plan`, `:resolve`, `:intake`) restrict tools to `Read,Glob,Grep` and
-  `dontAsk`, while `:implement` runs in an isolated worktree. Cursor defaults to
-  `--model auto` (with `--force` on `:implement`, `--mode ask --sandbox enabled`
-  on read-only/review stages, and a single fallback to `auto` on
-  `model_unavailable`) and tolerates `:lingering_processes` only after confirmed
-  `group_empty` cleanup, `exit 0`, both EOFs, and a valid result envelope.
+  `reviewer`, `implementer`, and `analytic` in both Elixir and SQLite triggers.
+  Existing deliveries default to Codex. Discover the Codex model catalog
+  whenever any pinned role uses Codex (`implementer` owns `:plan`/`:implement`,
+  `analytic` owns `:resolve`/`:intake`, `reviewer` owns `:review`/`:merge_review`,
+  so a non-Codex `implementer` paired with a Codex `analytic` still pins and
+  validates the Codex resolver profile on `:resolve`). Claude review remains an
+  evidence-only reviewer with no model filesystem/shell tools, fresh scratch cwd,
+  stdin input, and balanced `StructuredOutput` tool-result verification; Claude
+  read-only stages (`:plan`, `:resolve`, `:intake`) restrict tools to
+  `Read,Glob,Grep` and `dontAsk`, while `:implement` runs in an isolated
+  worktree. Cursor defaults to `--model auto` (with `--force` on `:implement`,
+  `--mode ask --sandbox enabled` on read-only/review stages, and a single
+  fallback to `auto` on `model_unavailable`). Both Cursor and Claude envelope
+  stages tolerate `:lingering_processes` only after confirmed `group_empty`
+  cleanup, `exit 0`, both EOFs, and a valid result/structured-output envelope.
   OpenCode runs `opencode run --pure --format json` over stdin with
   `OPENCODE_PERMISSION` write-deny on read-only/review stages and `--auto` only
   in isolated `:implement` worktrees, requiring terminal `step_finish` (`stop`).
@@ -269,34 +276,42 @@
   requires full criterion coverage; Done requires explicit exact-SHA publication,
   passing postchecks and verified retained checkout. Never accept caller-selected
   state or insert completed delivery/stage rows to bypass these gates.
-- Explicit review retries create a new delivery/UUID from an immutable rejected
-  review. Preserve original spec/base/config/reviewer and exact acceptance strings;
-  revalidate the retained candidate. Pin the parent's committed terminal task event
-  (terminal delivery.task_version is the preceding version). Fresh cycle0 snapshot
-  and check must supply complete transient output before fixes; never manufacture
-  old output or inherit approval. Preserve the parent's saved autonomy policy:
-  legacy has three cycles/twenty stages; version 1 has five cycles/forty-eight stages.
-- Explicit implementation-timeout retry pins a new execution_recovery_version1
-  and source implementation/terminal event before effects. Preserve old policy0,
-  original plan/criteria/spec/base/checks/reviewer/catalog and immutable failures.
-  Retained-plan adoption is typed provenance, never invented CLI/approval evidence.
-  Save partial-snapshot intent before Git, then fresh checks and a distinct-model
-  resolver before replacement implementation. Only confirmed timeout with known
-  cleanup/EOF qualifies; Stop and unknown stay closed. Keep five cycles/48 stages,
-  full original-base review and exact publication/postcheck gates. No old batch
-  or task is reopened by replay. See docs/AUTONOMY.md.
-- Candidate retry after Failed requires an explicit full commit SHA, the latest
-  historical rejection, a later passing final check and a matching terminal event.
-  Pin the selected SHA separately from the old review SHA and prove ancestry
-  before provider effects. Keep historical findings distinct from fresh approval.
-- Explicit checkpoint recovery pins a new checkpoint/source-check and implementation
-  network policy before effects; retain original spec/criteria/base/checks/reviewer.
-  Preserve old terminal attempts and policy0. Capture the exact retained candidate,
-  run fresh checks, and resolve before replacement implementation. A known-clean
-  actual check timeout may feed diagnosis only after fresh candidate verification:
-  preserve timeout/incomplete-output evidence, use no invented output/hash or approval.
-  Stop, unknown cleanup, output-limit failures and changed candidates remain closed.
-  Final review/publication/postchecks still require complete passing checks.
+- Explicit review retries (`Boss.Deliveries.Retry.start/4`) create a new
+  delivery/UUID from an immutable rejected review. Preserve original
+  spec/base/config/roles (`reviewer`, `implementer`, `analytic`) and exact
+  acceptance strings; revalidate the retained candidate. Pin the parent's
+  committed terminal task event (terminal delivery.task_version is the preceding
+  version). Fresh cycle0 snapshot and check must supply complete transient output
+  before fixes; never manufacture old output or inherit approval. Preserve the
+  parent's saved autonomy policy: legacy has three cycles/twenty stages; version 1
+  has five cycles/forty-eight stages.
+- Explicit implementation-timeout retry (`Retry.start_timeout/4`) pins a new
+  execution_recovery_version1 and source implementation/terminal event before
+  effects. Preserve old policy0, original plan/criteria/spec/base/checks, pinned
+  roles (`reviewer`, `implementer`, `analytic`), catalog (`{}` when Codex is
+  unused; `model_profile: nil` permitted on non-Codex `:implement` steps) and
+  immutable failures. Retained-plan adoption is typed provenance, never invented
+  CLI/approval evidence. Save partial-snapshot intent before Git, then fresh
+  checks and a distinct-model resolver before replacement implementation. Only
+  confirmed timeout with known cleanup/EOF qualifies; Stop and unknown stay
+  closed. Keep five cycles/48 stages, full original-base review and exact
+  publication/postcheck gates. No old batch or task is reopened by replay. See
+  docs/AUTONOMY.md.
+- Candidate retry after Failed (`Retry.start_candidate/5`) requires an explicit
+  full commit SHA, the latest historical rejection, a later passing final check
+  and a matching terminal event. Pin the selected SHA separately from the old
+  review SHA, preserve pinned roles, and prove ancestry before provider effects.
+  Keep historical findings distinct from fresh approval.
+- Explicit checkpoint recovery (`Retry.start_checkpoint/4`) pins a new
+  checkpoint/source-check and implementation network policy before effects;
+  retain original spec/criteria/base/checks and pinned roles (`reviewer`,
+  `implementer`, `analytic`). Preserve old terminal attempts and policy0. Capture
+  the exact retained candidate, run fresh checks, and resolve before replacement
+  implementation. A known-clean actual check timeout may feed diagnosis only
+  after fresh candidate verification: preserve timeout/incomplete-output evidence,
+  use no invented output/hash or approval. Stop, unknown cleanup, output-limit
+  failures and changed candidates remain closed. Final review/publication/postchecks
+  still require complete passing checks.
   Implementation network policy1 keeps workspace-write, uses an immutable explicit
   package-host proxy policy and local-binding support; the latter permits broader
   local/private access, not only one PostgreSQL port. Read-only stages and old
@@ -305,9 +320,9 @@
 - An explicit checkpoint can recover a retained implementation after a typed
   provider rate limit. Pin `provider_recovery_version: 1` on the new request.
   Require the saved terminal task event, natural nonzero exit, both EOFs, known
-  cleanup and exact implementation workspace. Save capture intent before Git,
-  then check, diagnose and implement before fresh review. Provider failure
-  still stops dispatch.
+  cleanup and exact implementation workspace (including `model_profile: nil` on
+  non-Codex implementers). Save capture intent before Git, then check, diagnose
+  and implement before fresh review. Provider failure still stops dispatch.
 - Documentation projects use one explicit persisted intake before Autopilot.
   New planning_version1 retains at most three immutable model attempts under one
   absolute deadline. Save model/source intent before effects and sanitized receipt
@@ -331,16 +346,19 @@
   queue authorization. Pending requests block same-task Start and source adoption.
   Pause unstarted requests on restart; Resume retains the original inputs. A
   started request never returns to the queue or automatically respawns a stage.
-- Autopilot requires an explicit whole-current-Backlog snapshot (present New tasks,
-  max256), immutable request links and integration UUIDs. Replay precedes readiness;
-  require every member before dispatch. Only one task runs at a time, regardless
-  of saved worker capacity. Bound dependency sweeps without waiting writes; reset
-  the sweep cursor after Resume. Pause prevents
-  new tasks/integration but lets admitted work finish. Stop withdraws the batch and
-  signals its owned worker directly. Restart pauses. A pre-integration failure,
-  block or clarification with known cleanup releases only the execution slot;
-  it never satisfies dependencies
-  or retries that task. Stop, unknown cleanup and integration failures still halt.
+- Autopilot requires an explicit whole-current-Backlog snapshot (routing v2:
+  eligible present `new`, `failed`, `blocked` and `needs_input` tasks, max 256;
+  legacy routing v1: `new` only), immutable request links and integration UUIDs.
+  Replay precedes readiness; require every member before dispatch, and release
+  autonomy v1 managed unknown-cleanup quarantines to `blocked`/`group_empty` on
+  admit. Only one task runs at a time, regardless of saved worker capacity. Bound
+  dependency sweeps without waiting writes; reset the sweep cursor after Resume.
+  Pause prevents new tasks/integration but lets admitted work finish. Stop
+  withdraws the batch (guarded via ETS `:boss_autopilot_cancelling`) and signals
+  its owned worker directly. Restart pauses. A pre-integration failure, block or
+  clarification with known cleanup releases only the execution slot; it never
+  satisfies dependencies or retries that task within the same batch. Stop,
+  unreleased unknown cleanup and integration failures still halt.
   Keep the intake base pin until the first verified Done. Check target
   availability before model effects and at publication.
   See docs/AUTOPILOT.md; ordinary Start/Queue never imply automatic integration.
@@ -508,3 +526,24 @@
   guard `Autopilot.cancel/4` via ETS `:boss_autopilot_cancelling` so fast worker
   exit cannot race `cancel` into `:request_finished`. Verify narrow layouts and
   keyboard/reduced-motion behavior without triggering real work.
+
+- Remaining gates to finish v0.1 public distribution and cross-platform support
+  (keep each gate evidenced separately; never collapse or fake completion):
+  1. **macOS notarization & stapling (`BOSS-018e`)**: rebuild/sign clean `0.1.0-rc.2`
+     after any source/migration commit since `e757fa1`, configure a local Keychain
+     profile via `xcrun notarytool store-credentials` in a real owner Terminal
+     (`notarytool history --keychain-profile <PROFILE>` exit `0`), submit once,
+     save the submission ID until `Accepted`, and staple/validate a byte-identical
+     copy (`xcrun stapler staple`/`validate` + `spctl`).
+  2. **Quarantined clean-machine macOS acceptance**: verify downloaded DMG mount,
+     launch, native folder chooser and one authorized workflow on a clean Mac
+     without Gatekeeper bypass.
+  3. **Remote CI & broader live provider measurement**: confirm
+     `.github/workflows/release-candidate.yml` on the current `rc.2` head, and
+     measure multi-task/documentation-intake/non-Codex live runs opt-in (`Cursor`
+     requires `agent login`; `Claude` requires active API/plan quota; `Hermes`
+     and `Pi` live metadata probes wait on local CLI installation).
+  4. **Linux runtime & packaging**: implement a Linux process-group/subreaper
+     guardian for `Boss.Agents.Process` (`c_src/boss_guardian.c` currently uses
+     macOS `<libproc.h>`), Linux catalog/login helpers, Linux release packaging in
+     `rel/package.exs`, and desktop `zenity` verification.

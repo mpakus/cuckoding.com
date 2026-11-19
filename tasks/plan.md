@@ -650,3 +650,33 @@ original task event, plan, implementation workspace and source receipt before
 capturing it. Run the saved check and model diagnosis before repair and retain
 the original review, publication and postcheck gates. Prove the native sequence
 through Done with finite fixtures before continuing the real task.
+
+## Multi-agent roles, autonomy v1 integration closure, and 0.1.0-rc.2 status — 2026-11-18
+
+- Six-CLI detection/authorization/model catalogs (`Codex`, `Claude Code`, `Cursor
+  Agent`, `Hermes`, `Pi`, `OpenCode`) and permanent `Reviewer` / `Implementer` /
+  `Analytic` role bindings persisted in SQLite; managed execution, intake,
+  diagnosis and independent review support `Codex`, `Claude Code`, `Cursor Agent`
+  and `OpenCode`.
+- Autonomy v1 closes remaining integration owner-stops: conflict repair from
+  current target, rejected merge-review repair, up to two clean target-drift
+  retargets, rewritten-tip merge via `--merge-base=<saved base>`, one-shot
+  postcheck repair on top of a published commit, and managed unknown-cleanup
+  quarantine release after worker exit (or before fresh Autopilot admit).
+- Migration `20261118120000` and `ExecutionRetry` / `Deliveries` complete
+  non-Codex retry parity (`model_profile: nil` on real non-Codex `:implement`
+  steps, SQL trigger role-pinning across `reviewer`/`implementer`/`analytic`,
+  and mixed non-Codex `Implementer` + Codex `Analytic` catalog routing on
+  `:resolve`).
+- `0.1.0-rc.2` (`e757fa1`) passed 910 application tests (1 Linux skip), isolated
+  OTP `28.5.0.8` / static OpenSSL `3.5.9` build, unpacked smoke, Developer ID
+  signing + signed-payload smoke, and a one-task live paid Codex `0.166.0`
+  Autopilot run (`~106s` to verified `Done`).
+- Remaining open gates to finish v0.1 public release:
+  1. Rebuild/sign clean `0.1.0-rc.2` after latest `main` commits, configure a
+     local `notarytool` Keychain profile (`BOSS-018e`), submit once -> `Accepted`,
+     and staple/validate a copy.
+  2. Quarantined clean-machine macOS acceptance without Gatekeeper bypass.
+  3. Remote CI verification on final `rc.2` head and opt-in multi-task /
+     documentation-intake / non-Codex live provider measurements.
+  4. Linux native process guardian, release packager and desktop `zenity` smoke.

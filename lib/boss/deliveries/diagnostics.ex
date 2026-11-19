@@ -248,6 +248,20 @@ defmodule Boss.Deliveries.Diagnostics do
   defp stage_name("resolve"), do: "Diagnosis"
   defp stage_name("implement"), do: "Implementation"
   defp stage_name("review"), do: "Review"
-  defp stage_name(kind) when kind in ["check", "retry_check", "post_check"], do: "Checks"
+  defp stage_name("merge_review"), do: "Merge review"
+  defp stage_name("merge"), do: "Merge candidate"
+  defp stage_name("publish"), do: "Publication"
+
+  defp stage_name(kind)
+       when kind in [
+              "check",
+              "retry_check",
+              "timeout_check",
+              "checkpoint_check",
+              "merge_check",
+              "post_check"
+            ],
+       do: "Checks"
+
   defp stage_name(_), do: "Workflow stage"
 end

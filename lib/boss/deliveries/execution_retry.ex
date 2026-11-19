@@ -51,7 +51,7 @@ defmodule Boss.Deliveries.ExecutionRetry do
                s.input["spec_revision_id"] == parent.spec_revision_id
            end),
          true <- workspace?(parent, implementation.input["workspace"]),
-         true <- is_binary(get_in(implementation.input, ["model_profile", "model"])) do
+         true <- valid_implementation_profile?(parent, implementation) do
       {:ok, %{parent: parent, implementation: implementation, plan: plan, terminal: terminal}}
     else
       _ -> {:error, :execution_retry_unavailable}
@@ -124,7 +124,7 @@ defmodule Boss.Deliveries.ExecutionRetry do
          true <- snapshot.input["plan_step_id"] == plan.id,
          true <- identity?(Repo.get(Projects.Project, parent.project_id), parent.intent),
          true <- workspace?(parent, implementation.input["workspace"]),
-         true <- is_binary(get_in(implementation.input, ["model_profile", "model"])) do
+         true <- valid_implementation_profile?(parent, implementation) do
       {:ok,
        %{
          parent: parent,
@@ -246,6 +246,15 @@ defmodule Boss.Deliveries.ExecutionRetry do
       if parent.model_catalog == %{},
         do: :ok,
         else: Boss.Agents.ModelCatalog.validate(parent.model_catalog)
+    end
+  end
+
+  defp valid_implementation_profile?(parent, implementation) do
+    if Map.get(parent, :implementer, "codex") in ["claude", "cursor", "opencode"] do
+      is_nil(implementation.input["model_profile"]) or
+        is_binary(get_in(implementation.input, ["model_profile", "model"]))
+    else
+      is_binary(get_in(implementation.input, ["model_profile", "model"]))
     end
   end
 

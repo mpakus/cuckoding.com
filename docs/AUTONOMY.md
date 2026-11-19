@@ -21,12 +21,17 @@ When any pinned role on a workflow uses Codex, BOSS runs the fixed metadata comm
 `codex --config 'model_provider="openai"' debug models` outside the project before
 the first agent stage, with a 12-second execution bound, bounded cleanup and a
 1 MiB output limit. It validates visible supported models and reasoning levels,
-then persists a reduced immutable catalog. Workflows whose pinned `Implementer`,
-`Analytic` and `Reviewer` are all non-Codex (`Claude Code`, `Cursor Agent`,
-`OpenCode`) skip Codex catalog discovery and use the model and reasoning effort
-configured for each role on the **Agents** screen (`Cursor Agent` defaults to
-`--model auto` and falls back once to `auto` on `model_unavailable`). Catalog
-presence is metadata, not proof of account entitlement or a successful inference.
+then persists a reduced immutable catalog. Stage routing follows the exact role
+assigned to that stage (`Implementer` owns `:plan` and `:implement`, `Analytic`
+owns `:resolve` and documentation `:intake`, and `Reviewer` owns `:review` and
+`:merge_review`), so a non-Codex `Implementer` paired with a Codex `Analytic`
+still pins and validates the Codex resolver profile on `:resolve`. Workflows
+whose pinned `Implementer`, `Analytic` and `Reviewer` are all non-Codex (`Claude
+Code`, `Cursor Agent`, `OpenCode`) skip Codex catalog discovery (`model_catalog`
+stays `{}`) and use the model and reasoning effort configured for each role on
+the **Agents** screen (`Cursor Agent` defaults to `--model auto` and falls back
+once to `auto` on `model_unavailable`). Catalog presence is metadata, not proof
+of account entitlement or a successful inference.
 
 | Work | Routing version 2 |
 | --- | --- |
@@ -131,9 +136,12 @@ A published commit is not rolled back. Real-provider acceptance remains separate
 `Boss.Deliveries.Retry.start_timeout/4` admits an explicit new request from a
 terminal managed implementation timeout. It pins `execution_recovery_version: 1`,
 the source implementation and terminal task event, original specification and
-acceptance criteria, original Git base, check configuration, reviewer and model
-catalog. Historical and ordinary requests retain version 0. Replaying the same
-command returns the saved request; it never reopens the failed delivery.
+acceptance criteria, original Git base, check configuration, pinned `implementer`,
+`analytic` and `reviewer` roles (enforced in both Elixir and SQLite triggers),
+and model catalog (`{}` when Codex is unused; `model_profile: nil` is accepted on
+non-Codex parent `:implement` steps). Historical and ordinary requests retain
+version 0. Replaying the same command returns the saved request; it never reopens
+the failed delivery.
 
 The first stage validates and adopts the exact retained plan. Its typed
 `retained_plan` outcome is source provenance, with no invented model, process exit,
@@ -200,11 +208,17 @@ Do not improve these numbers by weakening tests or renaming unfinished work Done
 
 Implementation and verification results are recorded in `tasks/todo.md` and the
 dated worklogs. Finite native CLI acceptance covers planning questions,
-rejected changes, unavailable model exits, partial implementations, Stop and Repo
-loss. Before routing version 2, the complete macOS application regression passed
-660 tests with one Linux-only skip (seed 1208). Current catalog-routing and recovery
-results are recorded in the November3 worklog. Real account availability, cost
-and delivery speed remain unverified.
+rejected changes, unavailable model exits, partial implementations, merge/postcheck
+repairs, unknown-cleanup release, multi-agent role retries, Stop and Repo loss.
+On `2026-11-15`, the complete macOS `0.1.0-rc.2` application regression passed
+**910 tests with 1 Linux-only skip** (seed `1511`), and an explicitly authorized
+live paid Codex `0.166.0` Autopilot measurement on a fresh repository and data
+root completed `plan → implement → snapshot → check → review → publish →
+post_check → Done` in **~106s** with zero mid-run owner intervention (while a
+prior Claude Code `2.1.142` attempt verified typed `provider_rate_limit` fast-stop
+in ~3s on `$0` credit balance; see [`.worklog/2026-11-15.md`](../.worklog/2026-11-15.md)).
+Multi-task backlogs, documentation-mode live intake, and non-Codex live paid
+end-to-end measurements remain separate opt-in gates.
 
 Project commands run without the four launcher-owned defaults `MIX_ENV`, `PORT`,
 `PHX_SERVER` and `BOSS_DATA_DIR`. Explicit per-child environment overrides still

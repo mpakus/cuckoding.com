@@ -44,14 +44,18 @@ as full host isolation or as Claude inspecting repository files.
 
 Streamed text, tool payloads, session/account identifiers and raw errors are not
 persisted. Only bounded event types/counts/usage and the validated typed review
-report enter receipts. The final `result.structured_output` is authoritative;
-intermediate formatter calls and a success/exit message alone are insufficient.
-The report must satisfy the existing strict schema and exactly cover the saved
-plan's acceptance criteria. Unexpected tools, denied permissions, malformed or
-truncated output and failed terminal results cannot approve a candidate.
+report enter receipts. The final `result.structured_output` is authoritative and
+requires every opened `StructuredOutput` `tool_use` to have a matching
+`tool_result` (`Claude.complete?/1`); intermediate formatter calls and a
+success/exit message alone are insufficient. The report must satisfy the existing
+strict schema and exactly cover the saved plan's acceptance criteria. Unexpected
+tools, denied permissions, malformed or truncated output and failed terminal
+results cannot approve a candidate.
 
 The same native macOS guardian owns the process group. A normal exit0, both
-actual EOFs, known group cleanup and valid protocol/report are all required.
+actual EOFs, known group cleanup (`group_empty`, including reaped lingering MCP
+stdio helpers after exit 0 and a complete structured envelope) and valid
+protocol/report are all required.
 Stop, output/time limits, missing receipts and Repo loss keep the existing
 failure/quarantine rules. An implementation approval leads to Ready. A fresh
 integration approval authorizes only its exact merge candidate; publication and

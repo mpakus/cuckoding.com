@@ -371,8 +371,13 @@ defmodule BossWeb.DeliveryPanel do
               An unchanged target fast-forwards to this approved commit. If the target has advanced,
               BOSS prepares a merge candidate, reruns the saved checks and requests a fresh review
               from {reviewer(delivery.reviewer)} before publication.
-              Conflicts, failed checks, a rejected review or another target change block integration
-              without automatic repair or retry.
+              <%= if Map.get(delivery, :autonomy_version, 0) == 1 do %>
+                Under autonomy policy 1, merge conflicts, rejected merge reviews, up to two clean target advances,
+                rewritten tips and a first failed postcheck enter bounded diagnosis and fresh verification before moving the branch.
+              <% else %>
+                Conflicts, failed checks, a rejected review or another target change block integration
+                without automatic repair or retry.
+              <% end %>
               The target branch must not be checked out in your working folders.
               Done requires successful checks after publication.
             </p>
@@ -692,6 +697,10 @@ defmodule BossWeb.DeliveryPanel do
   defp stage("resolve"), do: "Resolving with another model"
   defp stage("retry_snapshot"), do: "Preparing retained candidate"
   defp stage("retry_check"), do: "Rechecking retained candidate"
+  defp stage("timeout_snapshot"), do: "Capturing timed-out workspace"
+  defp stage("timeout_check"), do: "Checking timed-out snapshot"
+  defp stage("checkpoint_snapshot"), do: "Capturing retained checkpoint"
+  defp stage("checkpoint_check"), do: "Checking retained checkpoint"
   defp stage("implement"), do: "Implementation"
   defp stage("snapshot"), do: "Snapshot"
   defp stage("check"), do: "Checks"

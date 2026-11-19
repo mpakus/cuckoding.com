@@ -174,9 +174,7 @@ defmodule Boss.Agents.Claude do
     )
   end
 
-  defp clip_line(line, max) do
-    if byte_size(line) <= max, do: line, else: binary_part(line, 0, max) <> "…"
-  end
+  defp clip_line(line, max), do: Boss.Agents.Cursor.clip_utf8(line, max)
 
   defp stage_summary(envelope) do
     duration = envelope["duration_ms"]

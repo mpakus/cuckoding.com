@@ -1,9 +1,47 @@
 # BOSS macOS beta
 
 `v0.1.0-rc.2` identifies the local beta source. The archive produced by the
-build below is `boss-0.1.0-rc.2.tar.gz`. See the November 7 worklog for local
-acceptance. The previous candidate's CI and signing evidence applies to the
-specific rc.1 artifacts below.
+build below is `boss-0.1.0-rc.2.tar.gz`.
+
+## Current candidate (0.1.0-rc.2)
+
+Clean local `main` commit `e757fa1b9777f65ac51a748828a3431c880badf3` passed the
+local release gates recorded in
+[`.worklog/2026-11-15.md`](../.worklog/2026-11-15.md) and
+[`.worklog/evidence/2026-11-15-release-gates.json`](../.worklog/evidence/2026-11-15-release-gates.json):
+
+- Isolated source-built runtime `_build/release-runtime-20261115`: OTP `28.5.0.8`,
+  ERTS `16.4.0.7`, static OpenSSL `3.5.9` (`crypto.so` SHA256
+  `856eca12659511b963dc8088048bd4279da7f1df1056da66f91af4c68aef5b96`).
+- Audits & checks: `mix hex.audit` (0 advisories, including Ecto `3.14.3` for
+  CVE-2026-118391, Bandit `1.14.1`, Phoenix.HTML `4.4.0+`), `npm --prefix assets
+  audit --audit-level=high` (0 vulnerabilities), `mix compile --warnings-as-errors`,
+  `rel/test_package.exs` (9 passed), runtime/signing Python tests (5 + 4 passed),
+  `scripts/check_site.py` (44 links/assets) and Node motion/flow suites (12 passed).
+- Full macOS regression: **910 passed, 1 Linux-only skipped** (seed `1511`).
+- Unpacked smoke & archive: `_build/prod/boss-0.1.0-rc.2.tar.gz` (`17,248,342`
+  bytes, SHA256 `ce82ba4e6e959f705ae003c6d9de2041c006739dbe967f03e72d3edffd36d758`)
+  passed `scripts/smoke_release.py`.
+- Developer ID signing & signed-payload smoke: signed with certificate
+  `8652753D50EE045DC63F725BB5B1D3E914F657A1` (Team `G4HV2FL5N2`, 24 native images,
+  hardened runtime, `beam.smp`-only `allow-jit`) into
+  `_build/prod/boss-0.1.0-rc.2-signed-e757fa1/boss.dmg` (SHA256
+  `4837245cc0ad576e69f7385b447d16a4112c616696f6a2ec177031d8e3fb4d9a`).
+- Live paid Codex Autopilot measurement (`2026-11-15`): one-task repository in an
+  isolated data root reached verified `Done` (`plan → implement → snapshot →
+  check → review → publish → post_check`) in **~106s** with zero mid-run owner
+  intervention on Codex `0.166.0`.
+- Open gates for `0.1.0-rc.2`:
+  1. Any source or migration commit after `e757fa1` requires rebuilding a clean
+     `boss-0.1.0-rc.2.tar.gz` and re-running `scripts/sign_macos_release.py` so
+     `BUILD_INFO` and `SIGNING_INFO.json` bind the exact distributed commit.
+  2. **Notarization & stapling (`BOSS-018e`)**: Keychain profile preflight on
+     `2026-11-15` and `2026-11-16` ([evidence](../.worklog/evidence/2026-11-16-notarization-preflight.json))
+     returned exit `69` (`No Keychain password item found for profile`); no upload
+     has been submitted yet.
+  3. **Quarantined clean-machine macOS download**, **remote CI on current `rc.2`
+     head**, **multi-task/non-Codex live provider acceptance**, and **Linux
+     process-guardian/packaging support** remain separate open gates.
 
 ## Previous candidate (0.1.0-rc.1)
 
@@ -155,7 +193,7 @@ fingerprint, rather than automatically using the first identity. Signing uses
 Apple's secure timestamp service. From a reviewed clean source checkout:
 
 ```sh
-python3 -B scripts/sign_macos_release.py /absolute/boss-0.1.0-rc.1.tar.gz \
+python3 -B scripts/sign_macos_release.py /absolute/boss-0.1.0-rc.2.tar.gz \
   --identity CERTIFICATE_SHA1 --output /absolute/new-boss-distribution
 ```
 
@@ -318,14 +356,14 @@ restore must not silently discard work created after the backup.
 
 | Gate | Required evidence |
 |---|---|
-| Full regression | All application tests pass on the final source/dependency tree; no hidden fixture failures. |
-| Package | Actual unpacked startup, unlock/assets, native helper and durable restart with bundled runtime; checksum and provenance. |
-| Dependency audit | Hex and npm audit pass without suppressing findings. |
-| Clean-machine macOS | Supported architecture/OS acceptance with user-installed Git and CLI; actual folder chooser and provider workflow. |
-| Provider | Baseline archive9596162 passed one Codex/Codex-review workflow through Done (3calls/100.875s). Fresh acceptance after the Git-registration runtime fix and other providers remain separate gates. |
-| Distribution | Apache-2.0 included; local Developer ID signing and signed-payload smoke verified. Notarization and download acceptance remain open. Third-party notices retain their original licenses. |
-| Remote CI | Pinned macOS workflow runs successfully on the published commit; local YAML validation is not a remote result. |
-| Linux stable support | Linux process ownership/cleanup, native chooser and complete workflow acceptance. Current runner rejects non-macOS execution. |
+| Full regression | All application tests pass on the final source/dependency tree (`0.1.0-rc.2` `e757fa1`: 910 passed, 1 Linux-only skipped; rerun after newer source/migration commits). |
+| Package | Actual unpacked startup, unlock/assets, native helper, host-tool PATH handoff and durable restart with bundled runtime; checksum and provenance (`e757fa1` verified). |
+| Dependency audit | Hex and npm audit pass without suppressing findings (`phoenix_html >= 4.4.0`, `bandit 1.14.1`, `ecto 3.14.3`, `plug 1.20.4`). |
+| Clean-machine macOS | Supported architecture/OS acceptance from a stapled quarantined download with user-installed Git and CLI; actual folder chooser and provider workflow (**open**). |
+| Provider | `rc.1` `9596162` passed one packaged Codex smoke (`100.875s`); `rc.2` (`2026-11-15`) passed one live paid Codex `0.166.0` Autopilot task through `Done` (`~106s`). Multi-task/intake and non-Codex paid provider runs remain separate opt-in gates. |
+| Distribution | Apache-2.0 and 45+ third-party notices (`Tailwind-LICENSE`, `Three-LICENSE`, OTP/OpenSSL/Hex) included; local Developer ID signing and signed-payload smoke verified on `rc.2` `e757fa1`. Notarization (`Accepted`), copy-only stapling and Gatekeeper acceptance remain **open** (`BOSS-018e`). |
+| Remote CI | Pinned macOS workflow runs successfully on the published commit (`rc.1` `1ef9f95` passed run `40980336307`; rerun on final `rc.2` head). |
+| Linux stable support | Linux process-group/subreaper guardian, catalog/login helpers, release packager, native `zenity` chooser and complete workflow acceptance (**open**; current runner rejects non-macOS execution). |
 
 The [candidate workflow](../.github/workflows/release-candidate.yml) tests, audits,
 assembles and smoke-checks a host-specific artifact with a checksum. It has read-only

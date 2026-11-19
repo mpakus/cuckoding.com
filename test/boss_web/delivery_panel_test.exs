@@ -98,6 +98,24 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "Done requires successful checks after publication"
     refute html =~ "Done — integrated and checks passed"
     refute html =~ "Stop workflow"
+
+    v1_ready =
+      delivery("ready_to_merge")
+      |> Map.put(:autonomy_version, 1)
+      |> Map.update!(:steps, fn steps ->
+        steps ++
+          [
+            %{number: 10, kind: "timeout_snapshot", status: "finished", input: %{}, receipt: %{}},
+            %{number: 11, kind: "checkpoint_check", status: "finished", input: %{}, receipt: %{}}
+          ]
+      end)
+
+    v1_html = panel([v1_ready])
+    assert v1_html =~ "Under autonomy policy 1, merge conflicts, rejected merge reviews"
+    assert v1_html =~ "Capturing timed-out workspace"
+    assert v1_html =~ "Checking retained checkpoint"
+    refute v1_html =~ "timeout_snapshot"
+    refute v1_html =~ "checkpoint_check"
   end
 
   test "validated plan and review text are escaped and stages stay separate" do

@@ -451,8 +451,8 @@ defmodule BossWeb.AgentsLive do
       <h2 id="roles-title" class="app-panel-heading">Roles</h2>
       <p id="roles-help" class="mt-2 max-w-3xl text-sm leading-6 text-body">
         Assign detected and authorized agents to a role, then choose a model for each agent.
-        Managed workflows run with Codex, Claude Code, and Cursor Agent. Codex uses its workflow
-        model policy. Pi, Hermes, and OpenCode selections are saved in the roster.
+        Managed workflows run with Codex, Claude Code, Cursor Agent, and OpenCode. Codex uses its
+        workflow model policy. Pi and Hermes selections are saved in the roster.
       </p>
       <form id="create-role" phx-submit="create_role" class="mt-4 flex flex-wrap items-end gap-3">
         <div class="min-w-0 flex-1">

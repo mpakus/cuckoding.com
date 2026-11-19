@@ -18,9 +18,16 @@
   потомок базы, вызывает повторный merge (seed 1121, 10 passed). Упавший
   postcheck сохраняет опубликованный SHA и публикует только новый проверенный
   потомок (`merge_integration_worker_test.exs`, seed 1129, 12 passed). Повторный
-  отказ postcheck оставляет этот коммит и останавливается. Второй drift и
-  переписанная история по-прежнему останавливают работу.
-- [ ] Отдельно измерить реальное автономное завершение и время владельца.
+  отказ postcheck оставляет этот коммит и останавливается. Второй чистый drift
+  теперь также делает retarget (`seed 1204`, 14 passed; третий drift
+  останавливается), переписанная история мержится с `--merge-base=<saved base>`
+  (`seed 1303`), а managed unknown-cleanup освобождается в `blocked`/`group_empty`
+  после выхода worker (`seed 1403`).
+- [x] Измерить первый реальный автономный проход Autopilot и время владельца
+  (`2026-11-15`, Codex `0.166.0`, изолированный проект и БД: `~106s` от Start до
+  проверенного `Done`, 0 вмешательств во время прогона).
+- [ ] Отдельно измерить multi-task backlog, documentation-intake и non-Codex
+  live-provider прогоны (при активном `agent login` / положительном балансе).
 
 Доказательства первого прохода: 20 native recovery tests (seed 1203), два повторных
 сценария partial-work recovery после усиления SQL (1204), 15 pooled SQLite tests
@@ -1008,3 +1015,30 @@ See the [beta worklog](../.worklog/2026-11-07.md).
 - [ ] Verify live Pi and Hermes metadata when their CLIs are installed locally.
 
 See the [agent detection worklog](../.worklog/2026-11-11.md).
+
+## Multi-agent runners, autonomy v1 closure & 0.1.0-rc.2 gates — 2026-11-12..18
+
+- [x] Four execution/intake/diagnosis/review runners (`Codex`, `Claude Code`,
+  `Cursor Agent`, `OpenCode`), Three.js Autopilot pipeline (`Three-LICENSE`),
+  and ETS `:boss_autopilot_cancelling` Stop race fix.
+- [x] Autonomy v1 second clean target-drift retarget, rewritten-tip merge
+  (`--merge-base`), and managed unknown-cleanup quarantine release after worker
+  exit / Autopilot admit.
+- [x] Clean `0.1.0-rc.2` (`e757fa1`) runtime rebuild (`OTP 28.5.0.8` / static
+  `OpenSSL 3.5.9`), **910 passed / 1 skipped** regression (`seed 1511`), unpacked
+  smoke, Developer ID signing + signed-payload smoke (`boss.dmg`), and one-task
+  live paid Codex `0.166.0` Autopilot measurement (`~106s` to verified `Done`).
+- [x] Harden real non-Codex `model_profile: nil` execution/checkpoint/rate-limit
+  retries, SQL retry role-pinning triggers (`reviewer`/`implementer`/`analytic`),
+  and mixed non-Codex `Implementer` + Codex `Analytic` `:resolve` catalog routing
+  (`20261118120000`, `.worklog/2026-11-18.md`).
+- [ ] **Remaining v0.1 release & platform gates**:
+  - Rebuild & Developer ID sign clean `0.1.0-rc.2` after latest `main` commits.
+  - Configure local `notarytool` Keychain profile (`BOSS-018e`), submit once ->
+    `Accepted`, and copy-only `stapler staple`/`validate` + `spctl` check.
+  - Quarantined clean-machine macOS acceptance without Gatekeeper bypass.
+  - Remote GitHub Actions CI run on final `0.1.0-rc.2` head.
+  - Opt-in multi-task / documentation-intake / non-Codex live provider runs.
+  - Linux process-group/subreaper guardian, release packager & desktop `zenity`
+    verification (earlier `BOSS-000a` `erlexec` checkboxes stay closed because
+    macOS `boss_guardian` replaced `erlexec` in production).

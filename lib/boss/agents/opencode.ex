@@ -95,7 +95,10 @@ defmodule Boss.Agents.OpenCode do
     head =
       if byte_size(state.stderr_head) < 4_096 do
         room = 4_096 - byte_size(state.stderr_head)
-        state.stderr_head <> binary_part(bytes, 0, min(byte_size(bytes), room))
+
+        Cursor.utf8_valid_prefix(
+          state.stderr_head <> binary_part(bytes, 0, min(byte_size(bytes), room))
+        )
       else
         state.stderr_head
       end
@@ -277,11 +280,12 @@ defmodule Boss.Agents.OpenCode do
       %{state | texts: [chunk | state.texts], text_bytes: next_bytes}
     else
       keep =
-        binary_part(
-          chunk,
+        chunk
+        |> binary_part(
           max(byte_size(chunk) - @text_limit, 0),
           min(byte_size(chunk), @text_limit)
         )
+        |> Cursor.utf8_valid_suffix()
 
       %{state | texts: [keep], text_bytes: byte_size(keep)}
     end
@@ -320,7 +324,5 @@ defmodule Boss.Agents.OpenCode do
     )
   end
 
-  defp clip(line, max) do
-    if byte_size(line) <= max, do: line, else: binary_part(line, 0, max) <> "…"
-  end
+  defp clip(line, max), do: Cursor.clip_utf8(line, max)
 end
