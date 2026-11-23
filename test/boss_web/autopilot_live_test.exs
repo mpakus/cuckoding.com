@@ -228,6 +228,48 @@ defmodule BossWeb.AutopilotLiveTest do
     assert {:ok, nil} = Engine.current(c.project.id)
   end
 
+  test "reload restores the exact whole-brief check and reviewer before retry", c do
+    {:ok, socket} = Autopilot.mount(%Phoenix.LiveView.Socket{})
+
+    socket =
+      Phoenix.Component.assign(socket,
+        project: c.project,
+        entries: [%{task_id: 12, state: "blocked", missing: false}],
+        supported: true,
+        generation: 1
+      )
+
+    intake = %{
+      status: "finished",
+      brief_task: %{id: 12, state: "blocked"},
+      check_text: "mix   test",
+      reviewer: "claude"
+    }
+
+    {:noreply, restored} =
+      Autopilot.handle_async({:load, 1}, {:ok, {{:ok, nil}, intake, {:ok, [12]}}}, socket)
+
+    assert restored.assigns.text == "mix   test"
+    assert restored.assigns.reviewer == "claude"
+
+    {:noreply, edited} =
+      Autopilot.handle_event("edit", %{"command" => "", "reviewer" => "codex"}, restored)
+
+    assert edited.assigns.text == "mix   test"
+    assert edited.assigns.reviewer == "claude"
+
+    for forged <- [%{"command" => ""}, %{"reviewer" => "codex"}] do
+      {:noreply, refused} = Autopilot.handle_event("start", forged, edited)
+      assert refused.assigns.error =~ "original documentation Start"
+      assert refused.assigns.pending == nil
+    end
+
+    {:noreply, started} = Autopilot.handle_event("start", %{}, edited)
+
+    assert %{kind: :start, tasks: [12], text: "mix   test", reviewer: "claude"} =
+             started.assigns.pending
+  end
+
   test "unknown outcomes freeze the original UUID and inputs instead of silently changing authorization" do
     request = %{
       kind: :start,

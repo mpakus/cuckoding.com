@@ -69,6 +69,40 @@ defmodule Boss.IntakeStartPolicyTest do
              Intake.admit(project.id, id, "true", "codex", false, false, previous)
   end
 
+  test "conflicting task and batch requests for the whole brief save no new intent", %{project: p} do
+    assert {:ok, {:new, request}} =
+             Intake.admit(p.id, Ecto.UUID.generate(), "mix test", "claude", false, false)
+
+    assert {:ok, %{task: task, revision: revision}} =
+             Boss.Projects.record_spec(p.id, %{
+               relative_path: "gate.md",
+               title: "Gate",
+               original_text: "# Gate"
+             })
+
+    Repo.query!(
+      "INSERT INTO project_brief_tasks(task_id,intake_id,source_revision_id,documents) VALUES (?,?,?,?)",
+      [task.id, request.id, revision.id, JSON.encode!(%{"brief.md" => "# Gate"})]
+    )
+
+    for {command, reviewer} <- [{"", "claude"}, {"mix test", "codex"}] do
+      assert {:error, :brief_policy_mismatch} =
+               Boss.Deliveries.Queue.admit(p.id, task.id, Ecto.UUID.generate(), command, reviewer)
+
+      assert {:error, :brief_policy_mismatch} =
+               Boss.Deliveries.Autopilot.admit(
+                 p.id,
+                 Ecto.UUID.generate(),
+                 [task.id],
+                 command,
+                 reviewer
+               )
+    end
+
+    assert Boss.Deliveries.Queue.list(p.id, task.id) == []
+    assert {:ok, nil} = Boss.Deliveries.Autopilot.current(p.id)
+  end
+
   test "fresh documentation Start requires a real command and saves no intent on refusal", %{
     project: project
   } do

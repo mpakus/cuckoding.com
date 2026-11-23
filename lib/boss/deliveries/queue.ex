@@ -87,16 +87,21 @@ defmodule Boss.Deliveries.Queue do
                ),
                do: Repo.rollback(:idempotency_conflict)
 
-            current =
+            {current, intake_mode} =
               Repo.one(
                 from t in Tasks.Task,
                   join: s in Spec,
                   on: s.id == t.spec_id,
+                  join: p in Boss.Projects.Project,
+                  on: p.id == s.project_id,
                   where: t.id == ^task and s.project_id == ^project,
-                  select: t
+                  select: {t, p.intake_mode}
               ) || Repo.rollback(:not_found)
 
             Boss.Projects.Documentation.ensure_executable!(task)
+
+            if intake_mode == "documentation",
+              do: Boss.Projects.Intake.ensure_brief_selection!(project, [task], hash, reviewer)
 
             if pending?(task), do: Repo.rollback(:task_queued)
 

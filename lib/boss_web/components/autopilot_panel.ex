@@ -9,6 +9,7 @@ defmodule BossWeb.AutopilotPanel do
       |> assign_new(:implementer_pool_size, fn -> 1 end)
       |> assign_new(:loop_cfg, fn -> nil end)
       |> assign_new(:spec_loop, fn -> true end)
+      |> assign_new(:brief_selection, fn -> nil end)
       |> assign_new(:reviewer_tag, fn -> nil end)
       |> assign_new(:active_blocker, fn -> nil end)
       |> assign_new(:stopping_blocker, fn -> false end)
@@ -306,15 +307,18 @@ defmodule BossWeb.AutopilotPanel do
                 </summary>
                 <div class="mt-2 w-full max-w-md rounded-lg border border-line bg-paper p-2.5 text-xs">
                   <label for="autopilot-command" class="block font-medium text-body">
-                    {if @plans_from_docs,
-                      do: "Required executable check",
-                      else: "Optional CLI check command"}
+                    {cond do
+                      @brief_selection -> "Saved executable check"
+                      @plans_from_docs -> "Required executable check"
+                      true -> "Optional CLI check command"
+                    end}
                   </label>
                   <input
                     id="autopilot-command"
                     name="command"
                     type="text"
                     value={@text}
+                    readonly={!!@brief_selection}
                     placeholder={
                       if @plans_from_docs, do: "e.g. python3 acceptance.py", else: "e.g. mix test"
                     }
@@ -324,10 +328,13 @@ defmodule BossWeb.AutopilotPanel do
                     class="app-field mt-1 w-full min-w-0 px-2.5 py-1 font-mono text-xs"
                   />
                   <p id="autopilot-command-help" class="mt-1 text-[11px] text-muted">
-                    <%= if @plans_from_docs do %>
-                      Enter a trusted command that exercises the application. It runs on task candidates and at whole-brief acceptance.
-                    <% else %>
-                      Leave blank for Reviewer specification verification.
+                    <%= cond do %>
+                      <% @brief_selection -> %>
+                        This selection includes whole-brief acceptance. It uses the check and reviewer saved with the original documentation Start.
+                      <% @plans_from_docs -> %>
+                        Enter a trusted command that exercises the application. It runs on task candidates and at whole-brief acceptance.
+                      <% true -> %>
+                        Leave blank for Reviewer specification verification.
                     <% end %>
                   </p>
                 </div>
