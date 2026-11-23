@@ -436,7 +436,29 @@ defmodule Boss.AutopilotNativeTest do
     git(checkout, ["add", "docs/product.md"])
     git(checkout, ["commit", "-m", "Clarify default greeting"])
     revised_base = git(checkout, ["rev-parse", "HEAD"])
-    git(c.source, ["update-ref", "refs/heads/" <> c.project.base_branch, revised_base, target])
+    ref = "refs/heads/" <> c.project.base_branch
+    tree = git(checkout, ["rev-parse", "HEAD^{tree}"])
+    disconnected = git(checkout, ["commit-tree", tree, "-m", "Separate project history"])
+    git(c.source, ["update-ref", ref, disconnected, target])
+
+    assert {:ok, _} =
+             Intake.replan(
+               c.project.id,
+               Ecto.UUID.generate(),
+               check,
+               "codex",
+               false,
+               original.id,
+               manager
+             )
+
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{status: "failed", reason: reason} = Intake.latest(c.project.id)
+    assert reason =~ "no longer contains"
+    refute File.exists?(model_marker)
+    assert Projects.list_spec_entries(c.project.id) == [old_gate]
+
+    git(c.source, ["update-ref", ref, revised_base, disconnected])
 
     {:ok, replanned} =
       Intake.replan(

@@ -80,19 +80,43 @@ defmodule Boss.Projects.BriefAcceptance do
     end
   end
 
-  def previous_documents(project_id) do
+  def validate_replan(request_id, documents, workspace, opts) do
     if installed?() do
       case Repo.query!(
              """
-             SELECT b.documents FROM project_brief_tasks b JOIN project_intakes i ON i.id=b.intake_id
-             WHERE i.project_id=? AND i.status='finished'
-             ORDER BY i.inserted_at DESC,i.rowid DESC LIMIT 1
+             SELECT json_extract(r.start_policy,'$.previous_intake_id'), b.documents,
+                    json_extract(d.integration_intent,'$.candidate_commit')
+             FROM project_intakes r
+             LEFT JOIN project_brief_tasks b ON b.intake_id=json_extract(r.start_policy,'$.previous_intake_id')
+             LEFT JOIN deliveries d ON d.project_id=r.project_id AND d.task_id=b.task_id
+               AND d.spec_revision_id=b.source_revision_id AND d.status='done' AND d.cleanup='group_empty'
+             WHERE r.id=?
              """,
-             [project_id]
+             [request_id]
            ).rows do
-        [[docs]] -> JSON.decode!(docs)
-        [] -> nil
+        [[nil, nil, nil]] ->
+          :ok
+
+        [[_previous, docs, sha]] when is_binary(sha) ->
+          if JSON.decode!(docs) == documents do
+            {:error, :brief_unchanged}
+          else
+            case Workspace.git(
+                   workspace.repo_path,
+                   ["merge-base", "--is-ancestor", sha, workspace.base_commit],
+                   opts
+                 ) do
+              {:ok, _} -> :ok
+              {:error, {:git_exit, _}} -> {:error, :brief_target_rewritten}
+              error -> error
+            end
+          end
+
+        _ ->
+          {:error, :replan_unavailable}
       end
+    else
+      :ok
     end
   end
 

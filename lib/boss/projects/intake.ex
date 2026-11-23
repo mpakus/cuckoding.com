@@ -536,6 +536,9 @@ defmodule Boss.Projects.Intake do
     end)
   end
 
+  defp message(:brief_target_rewritten),
+    do: "The registered target no longer contains the last verified whole-brief publication."
+
   defp message(:brief_unchanged),
     do: "The committed documentation is unchanged from the last completed brief."
 
