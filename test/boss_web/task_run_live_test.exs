@@ -1,7 +1,7 @@
 defmodule BossWeb.TaskRunLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
-  alias Boss.{LocalAccess, Projects, Repo, Runs}
+  alias Boss.{Projects, Repo, Runs}
   alias Boss.Runs.Manager
   alias BossWeb.ManagerFixture
 
@@ -18,8 +18,7 @@ defmodule BossWeb.TaskRunLiveTest do
 
     project = project("run-ui")
     saved = spec(project, "one", "PINNED_SOURCE")
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, saved: saved}
   end
 

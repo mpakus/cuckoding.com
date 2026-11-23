@@ -15,20 +15,10 @@ defmodule BossWeb.Router do
     }
   end
 
-  pipeline :authenticated do
-    plug BossWeb.LocalSession, :require
-  end
-
   scope "/", BossWeb do
     pipe_through :browser
-    get "/unlock", AccessController, :show
-    post "/unlock", AccessController, :create
-  end
 
-  scope "/", BossWeb do
-    pipe_through [:browser, :authenticated]
-
-    live_session :local, on_mount: [{BossWeb.LocalSession, :default}] do
+    live_session :local do
       live "/", HomeLive
       live "/agents", AgentsLive
       live "/projects/:id", ProjectLive

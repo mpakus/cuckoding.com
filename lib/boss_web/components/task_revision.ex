@@ -15,42 +15,45 @@ defmodule BossWeb.TaskRevision do
       )
 
     ~H"""
-    <div id="task-revision-adoption" class="mt-3 space-y-3 text-sm">
+    <div id="task-revision-adoption" class="mt-2 space-y-2 text-xs">
       <%= if @request && (@newer || @request.locked) do %>
-        <p id="adopt-revision-help" class="text-muted">
-          Using revision {@request.number} updates the task's title and dependencies and returns it to New.
-          Previous runs and reviews stay in history; any previous approval is retired.
-        </p>
-        <p :if={@request.locked} id="adopt-revision-pending" role="status" class="text-warning">
-          Request for revision {@request.number} is awaiting confirmation. Retry checks the same saved request.
-        </p>
-        <p :if={!@request.locked && !@details.adoption.available?} class="text-warning">
-          {reason(@details.adoption.reason)}
-        </p>
-        <button
-          id="adopt-revision"
-          type="button"
-          phx-click="adopt_revision"
-          phx-value-command-id={@request.id}
-          disabled={!@available}
-          aria-describedby="adopt-revision-help"
-          class="app-button-secondary px-4 py-2 font-semibold disabled:opacity-50"
-        >
-          <%= cond do %>
-            <% @starting -> %>
-              Updating task…
-            <% @request.locked -> %>
-              Retry revision {@request.number}
-            <% true -> %>
-              Use revision {@request.number}
-          <% end %>
-        </button>
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-forest/35 bg-sage/50 px-3 py-2">
+          <div class="min-w-0 space-y-0.5">
+            <p id="adopt-revision-help" class="text-body">
+              Adopt revision {@request.number} to update title &amp; dependencies and reset task to New.
+            </p>
+            <p :if={@request.locked} id="adopt-revision-pending" role="status" class="text-warning">
+              Request for revision {@request.number} is awaiting confirmation.
+            </p>
+            <p :if={!@request.locked && !@details.adoption.available?} class="text-warning">
+              {reason(@details.adoption.reason)}
+            </p>
+          </div>
+          <button
+            id="adopt-revision"
+            type="button"
+            phx-click="adopt_revision"
+            phx-value-command-id={@request.id}
+            disabled={!@available}
+            aria-describedby="adopt-revision-help"
+            class="app-button-primary shrink-0 px-3 py-1.5 text-xs font-semibold"
+          >
+            <%= cond do %>
+              <% @starting -> %>
+                Updating task…
+              <% @request.locked -> %>
+                Retry revision {@request.number}
+              <% true -> %>
+                Use revision {@request.number}
+            <% end %>
+          </button>
+        </div>
       <% else %>
         <p
           :if={@details.latest_revision.number > @details.pinned_revision.number}
           class="text-muted"
         >
-          Select a newer source revision to review and use it for this task.
+          Select a newer source revision above to review and adopt it.
         </p>
       <% end %>
       <p

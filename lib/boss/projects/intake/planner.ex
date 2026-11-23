@@ -14,6 +14,12 @@ defmodule Boss.Projects.Intake.Planner do
   @task_fields ~w(acceptance depends_on id sources specification title)
 
   def run(project, request_id) do
+    Boss.Projects.RoleBindings.with_project_scope(project.id, fn ->
+      do_run(project, request_id)
+    end)
+  end
+
+  defp do_run(project, request_id) do
     request = Boss.Repo.get!(Intake.Request, request_id)
     deadline = if Map.get(request, :planning_version, 0) == 1, do: now() + @planning_ms
     timer = deadline_timer(deadline)
@@ -42,7 +48,10 @@ defmodule Boss.Projects.Intake.Planner do
   end
 
   defp prepare_models(%{routing_version: 2, model_catalog: catalog} = request) do
-    if Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer()) in [
+    if Boss.Agents.Roles.analytic(
+         Boss.Agents.Roles.implementer(request.project_id),
+         request.project_id
+       ) in [
          "claude",
          "cursor",
          "opencode"

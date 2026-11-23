@@ -125,24 +125,21 @@
   Ecto migrations require at least two connections. Tests must use fresh data.
 - For an independent local build/run, preserve an occupied port's server and data
   unless its restart/backup is explicitly authorized. Use a free port and fresh
-  private data; keep bootstrap tokens only in the owner's Terminal.
+  private data.
 - Tie local failure evidence to the serving port and data root. A legacy database's
   failed attempts are not fresh-instance runs; a passing current preflight never
   rewrites an earlier blocked batch or approves an old changed candidate.
-- Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
-  referrer policy: `no-referrer` made legitimate browser form POSTs send a null
-  Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.
-- Remembered browser access is opt-in during a CSRF-protected terminal token
-  exchange. Persist only one hashed verifier and absolute expiry per private data
-  root. Keep the cookie scoped to unlock and restore the existing per-run signed
-  session. Preserve loopback, Origin, CSRF and LiveView authentication gates.
-- Token recovery uses the owner-local IEx `Boss.LocalAccess.new_token()` or an
-  authorized idle-instance restart with consistent backup/original data. Local
-  console operations use public Manager APIs and saved UUIDs; browser observation
-  still requires authentication. Never capture Terminal I/O or enable RPC for it.
-  A console requester's terminal receipt is not worker completion. Check the
-  saved stage/review evidence; exhausted cycles and changes_requested keep the
-  task Blocked and its following Backlog gate closed even when checks passed.
+- Loopback desktop access opens directly on `127.0.0.1` / `localhost` without a
+  bootstrap token prompt. Preserve `same-origin` referrer policy, strict `Host`,
+  exact-port `Origin`, `SameSite=Strict`, CSRF and WebSocket `check_origin`
+  gates (`no-referrer` made legitimate browser form POSTs send a null Origin);
+  continue rejecting foreign/null origins and DNS-rebinding hosts.
+- Local console operations use public Manager APIs and saved UUIDs (`bin/boss
+  start_iex` or `iex -S mix phx.server` without distribution/RPC); never capture
+  Terminal I/O. A console requester's terminal receipt is not worker completion.
+  Check the saved stage/review evidence; exhausted cycles and changes_requested
+  keep the task Blocked and its following Backlog gate closed even when checks
+  passed.
 - Repository/specs paths come from the native folder chooser, never editable
   form paths or browser file-upload names. Keep the selection server-side and
   revalidate it on registration. Resolve relative specs against the selected
@@ -323,6 +320,16 @@
   cleanup and exact implementation workspace (including `model_profile: nil` on
   non-Codex implementers). Save capture intent before Git, then check, diagnose
   and implement before fresh review. Provider failure still stops dispatch.
+- Verify greenfield delivery with exactly one committed Markdown file in a source
+  subdirectory, a finite CLI, a trusted executable assertion and a fresh checkout
+  of the exact published SHA. Record per-task Done and whole-brief coverage
+  separately. A blank check selects `spec_only`; it supplies no runtime test.
+  The first documentation Start derives spec-loop behavior from pool size;
+  the UI selection currently applies only to task-based Starts. Treat honoring
+  the first Start's choice as an open authorization defect. In specs mode,
+  rework can write the pinned source over a newer working file before adoption.
+  Check file preservation when changing that path. See
+  [the implemented architecture](docs/ARCHITECTURE.md).
 - Documentation projects use one explicit persisted intake before Autopilot.
   New planning_version1 retains at most three immutable model attempts under one
   absolute deadline. Save model/source intent before effects and sanitized receipt
@@ -351,7 +358,8 @@
   legacy routing v1: `new` only), immutable request links and integration UUIDs.
   Replay precedes readiness; require every member before dispatch, and release
   autonomy v1 managed unknown-cleanup quarantines to `blocked`/`group_empty` on
-  admit. Only one task runs at a time, regardless of saved worker capacity. Bound
+  admit. Legacy sequential batches own one task at a time. Pool-enabled batches
+  may admit independent tasks up to capacity and serialize integration. Bound
   dependency sweeps without waiting writes; reset the sweep cursor after Resume.
   Pause prevents new tasks/integration but lets admitted work finish. Stop
   withdraws the batch (guarded via ETS `:boss_autopilot_cancelling`) and signals
@@ -366,7 +374,8 @@
   and preserve files/ref tips. A clean checkout can move to a new observer branch
   at the same commit; keep it off the target while Autopilot integrates.
   Check the serving data root and saved base branch before repairing a recurrence.
-  A fresh registration defaults to the branch checked out at registration time. A blocked
+  A blank specs-mode base uses the checked-out branch. A blank documentation target
+  creates a dedicated local branch at registration. A blocked
   batch needs a fresh explicit Start, never an automatic paid retry.
   Reconcile an uncertain Start only with its exact committed batch and pinned
   inputs. Drain a refresh received during the action; stale or unrelated reads
@@ -517,15 +526,81 @@
   before pushing. Never push the local BOSS main for a site-only request. Verify
   the exact Pages run and live HTTPS bytes; retain publication SHA/run evidence.
 
-- Keep the application aligned with the marketing visual system in
-  `docs/UI_DESIGN.md`: semantic paper/ink/sage/peach tokens, compact task evidence,
-  native drawer/focus behavior and document-level motion controls. Keep the
-  Autopilot Three.js pixel pipeline canvas (`assets/js/autopilot_flow.mjs`,
-  `Three-LICENSE` in release notices) synchronized with `Pause motion` and
-  `prefers-reduced-motion`, backed by accessible HTML stage/task links, and
-  guard `Autopilot.cancel/4` via ETS `:boss_autopilot_cancelling` so fast worker
-  exit cannot race `cancel` into `:request_finished`. Verify narrow layouts and
-  keyboard/reduced-motion behavior without triggering real work.
+- Keep the application aligned with the minimalist modern-futuristic dark mission-control
+  visual system in `docs/UI_DESIGN.md`: obsidian/carbon-slate dark surfaces
+  (`--color-paper: #090b10`, `--color-surface: #10141d`), electric cyan-emerald
+  accents (`--color-forest: #2dd4bf`), progressive `<details>` disclosure keeping
+  the 5-column Kanban board above the fold, native drawer/modal focus behavior,
+  320 px zero-overflow fit, and OS `prefers-reduced-motion` synchronization
+  (the `Pause motion` toggle belongs only to the standalone marketing site in
+  `site/`, not the desktop application). Keep the Autopilot Three.js
+  pixel pipeline canvas (`assets/js/autopilot_flow.mjs`, `Three-LICENSE` in
+  release notices) synchronized with `prefers-reduced-motion`, backed by
+  accessible HTML stage/task links, and guard `Autopilot.cancel/4` via ETS
+  `:boss_autopilot_cancelling` so fast worker exit cannot race `cancel` into
+  `:request_finished`. Verify narrow layouts and keyboard/reduced-motion
+  behavior without triggering real work.
+- Project workspace prompt task control (`Boss.Projects.TaskPrompt`,
+  `BossWeb.TaskPrompt`, `priv/task_prompt_schema.json`) runs the selected
+  execution agent (`codex`, `claude`, `cursor`, `opencode`) and optional
+  available model (`model_id`) in read-only `:task_prompt` mode with
+  process-group Stop support and one active prompt per project
+  (`:boss_task_prompts`). Validate duplicate/unknown JSON keys and byte
+  limits, apply task creation/spec updates (`prompts/<id>.md`, writing real
+  regular files on `specs` projects so `SpecImporter` stays synchronized),
+  collaborative task notes (`add_task_note`), and task/workflow controls
+  exclusively through `Projects.record_spec/2`, `Tasks.Entries`,
+  `Tasks.transition/2`, `Deliveries` and `Deliveries.Queue`. Never infer check
+  argv from model text or let a prompt bypass commit-bound `Ready`/`Done` gates.
+  On `/projects/:id`, both `BossWeb.TaskPrompt` (`#open-task-prompt` /
+  `#task-prompt-dialog`) and `BossWeb.ProjectRoles` (`#open-project-roles` /
+  `#project-roles-dialog`) render compact header/subheader triggers backed by
+  always-mounted containers and native `<dialog>` modals (`DialogModal` hook +
+  `.app-modal` styles with Escape, pointer backdrop dismissal, focus return, and
+  inline `#task-prompt-running`/`#task-prompt-toolbar-stop` status while closed).
+  `Autopilot` (`#autopilot-bound-reviewer`) and `TaskPrompt` resolve the
+  project's bound `Reviewer` role automatically via
+  `Boss.Projects.RoleBindings.reviewer_agent/1` without redundant reviewer
+  dropdowns (`DeliveryPanel`'s per-task `#delivery-reviewer` remains intact).
+- `/agents` (`BossWeb.AgentsLive`) focuses on compact connected & authorized
+  CLI agents, a right-hand `+ Connect agent` setup/authorization panel, per-model
+  enable/disable toggles with billing (`Subscription`, `API`,
+  `Subscription / API`, `Free (Included)`) and token pricing metadata, and
+  multi-model `Agent + Model + Role` bindings (`agent_role_members_binding_index`,
+  e.g. `Reviews:CursorGemini4Carbon`, `Reviews:CodexGPT6.2Astra`) across the
+  three standard workflow roles (`analytic`, `implementer`, `reviewer`).
+  Projects select their active role bindings in `project_role_bindings` and an
+  optional multi-binding `project_implementer_pool` (`Boss.Projects.RoleBindings`,
+  `BossWeb.ProjectRoles`), recording per-delivery Implementer assignments in
+  `delivery_implementer_bindings` while keeping `projects` and `tasks` table
+  schemas decoupled from new columns so historical partial migrations stay
+  intact.   Explicit owner recovery (`Deliveries.requeue_interrupted_tasks/1`)
+  transitions quarantined `interrupted` tasks whose autonomy-v1 delivery already
+  has `cleanup = 'group_empty'` cleanly to `blocked` so prerequisite gates do
+  not deadlock `Start Autopilot`, while preserving untouched cross-project
+  quarantines during ordinary admission. When an active workflow or unconfirmed
+  cleanup blocks a new Autopilot Start (`Deliveries.autopilot_blocker/1`),
+  `BossWeb.AutopilotPanel` disables `#start-autopilot`, tucks `#autopilot-authorization`
+  inside `#autopilot-rules-disclosure` (and completed/blocked prior batches
+  inside a `Previous Autopilot batch` `<details>`), and surfaces
+  `#autopilot-active-blocker` with `#autopilot-stop-active-delivery`
+  (`Deliveries.stop_for_autopilot/3` + `Manager` `:terminate_stalled_delivery`
+  fallback) so an active or wedged single-task workflow can be stopped and
+  re-included cleanly. UI Autopilot (`Autopilot.start_loop/7`,
+  `autopilot_loop_configs`, `Boss.Deliveries.SpecRework`) dispatches ready
+  independent tasks in parallel up to `min(implementer_pool_size, capacity)`
+  across enabled Implementer bindings (keeping `IntegrationWorker` serialized)
+  and, when `spec_loop_enabled = 1`, refines rejected/blocked specs with an
+  immutable `SpecRevision` + `task_entries` log + `adopt_revision` (`new` in
+  `Backlog`) for at most two bounded passes; direct `Autopilot.start/6` retains
+  sequential legacy behavior. Managed workflows, queues, intake and Autopilot
+  default to `spec_only` verification (`Boss.Checks.Command.parse_workflow/1`)
+  where the selected `Reviewer` verifies tasks directly against their
+  specification unless an explicit CLI check command override is supplied;
+  manual CLI checks (`Command.parse/1`) still require explicit argv.
+  Append-only `task_entries` (`Boss.Tasks.Entries`) record immutable agent
+  cycle logs, spec update notes and owner/agent comments alongside current task
+  state in the drawer.
 
 - Remaining gates to finish v0.1 public distribution and cross-platform support
   (keep each gate evidenced separately; never collapse or fake completion):

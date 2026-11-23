@@ -1,7 +1,7 @@
 defmodule BossWeb.WorkflowScopeLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
-  alias Boss.{Deliveries, LocalAccess, Projects, Repo}
+  alias Boss.{Deliveries, Projects, Repo}
 
   test "a peer claim updates the open drawer when released", %{
     conn: conn
@@ -18,8 +18,7 @@ defmodule BossWeb.WorkflowScopeLiveTest do
                "plan_step_id" => second.plan.id
              })
 
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     path = "/projects/#{project.id}/tasks/#{second.delivery.task_id}"
     {:ok, view, _} = live(conn, path)
     settle(view)

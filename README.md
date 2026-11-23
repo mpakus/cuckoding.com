@@ -6,7 +6,7 @@ Local coding-agent orchestration for macOS. The public introduction is
 
 B\*SS runs a Phoenix LiveView dashboard on your machine. You register a Git
 repository, provide Markdown specs or committed documentation, and choose a
-check command you trust. It plans, implements, checks and reviews in retained
+verification policy. You can supply a trusted executable check or use specification review. It plans, implements, checks and reviews in retained
 Git worktrees, then integrates an exact checked commit. A model's "done"
 message is not Done. Done requires that published SHA, passing postchecks and
 the retained checkout.
@@ -36,9 +36,11 @@ agent routing (`Reviewer`, `Implementer`, `Analytic` and custom roles), manual
 Codex attempts, and fresh read-only Codex review in retained Git worktrees.
 Managed workflows and Autopilot add a typed plan, bounded fixes, role-pinned
 planning/implementation/diagnosis/review across **Codex**, **Claude Code**,
-**Cursor Agent** and **OpenCode**, live pipeline telemetry, explicit integration
-and postchecks before Done. Task source adoption and Done-only dependency
-readiness keep execution pinned to reviewed inputs.
+**Cursor Agent** and **OpenCode**, natural-language **Prompt task control** on
+project pages (creating tasks, revising specifications, or controlling task
+states and workflows through BOSS's validated gates), live pipeline telemetry,
+explicit integration and postchecks before Done. Task source adoption and
+Done-only dependency readiness keep execution pinned to reviewed inputs.
 
 ## Run locally
 
@@ -59,36 +61,34 @@ rtk proxy mix phx.server
 Tailwind uses the official npm CLI; standalone macOS binaries failed code-signature
 validation on the development machine. No system security setting is changed.
 
-Open **http://127.0.0.1:4000** and enter the one-use token printed in the terminal.
-It expires after ten minutes. The token is submitted with CSRF protection and is
-never included in the URL. The browser receives a signed, HttpOnly, SameSite=Strict
-cookie. Closing a tab does not stop B\*SS. Without **Remember this browser**, a
-restart or expiration of the 12-hour browser session requires a new token.
-
-Select **Remember this browser for 30 days** at unlock to reconnect automatically
-on the same loopback address and port, including after a B\*SS restart. B\*SS
-remembers one browser per data directory. A new remembered unlock replaces the
-previous one. B\*SS keeps a hash and expiry in its private data directory and
-issues a fresh ordinary session on automatic unlock. Clearing the browser’s
-site data removes its saved access. To revoke automatic unlock on the server,
-run `Boss.LocalAccess.forget_browser()` from its local IEx console.
-The remembered cookie is scoped to the unlock path on the loopback host.
-Browsers share cookies across ports on the same host.
-
-For a replacement token without stopping an IEx server, run
-`Boss.LocalAccess.new_token()` in that server's local console. This invalidates
-any unused token and keeps existing browser sessions valid. Start an IEx server
-with `rtk proxy iex -S mix phx.server` when you need this capability.
+Open **http://127.0.0.1:4000** directly — no unlock token is required. The app
+binds strictly to loopback (`127.0.0.1`), enforces exact `Host` and `Origin`
+checks on HTTP and WebSocket connections, and uses a signed, HttpOnly,
+`SameSite=Strict` cookie with CSRF protection. Closing a tab does not stop B\*SS.
 
 ## Register a project
 
-After connecting the browser, click **Choose repository…** and select a folder in
-the operating system dialog. Paths are read-only in the browser. The specs folder
-defaults to `specs` inside that repository; use **Choose specs folder…** to change
-it. Both folders must already exist. B\*SS accepts a local Git working tree
-with at least one commit; the optional base branch defaults to its current branch.
-The base must be an existing local branch. A detached checkout needs an explicit
-base branch. The optional project name defaults to the folder name.
+### Start with one Markdown file
+
+On macOS, one committed product brief is enough to start a documentation project. For example, in an empty project directory with your source brief at `../SPEC.md`, prepare the first commit:
+
+```sh
+rtk proxy git init -b main
+rtk proxy mkdir docs
+rtk proxy cp ../SPEC.md docs/product.md
+rtk proxy git add docs/product.md
+rtk proxy git commit -m "Add initial product brief"
+```
+
+1. Choose the repository in the dashboard, select **Plan tasks from documentation**, and leave **Target branch** blank. BOSS creates a local `boss/autopilot/<UUID>` branch at this commit.
+2. On **Agents**, configure the CLI account and workflow roles. On the project, confirm **Roles & models**. Open **CLI check (optional)** and enter a trusted command if you need evidence the generated program runs. For a brief asking for a Python program that prints `hello`, the [greenfield acceptance example](docs/ARCHITECTURE.md#acceptance-evidence) exercises that output from a new checkout.
+3. Press **Start Autopilot**. BOSS plans tasks and runs the eligible ones through review and local publication. Inspect the target shown on the project when the batch finishes. Your original checkout stays at its own commit.
+
+Documentation intake runs once. Use a brief with observable acceptance criteria. A finished intake with zero tasks produces no deliverable. See the [architecture and current autonomy limits](docs/ARCHITECTURE.md), including how the first Start handles the loop selector.
+
+### Register existing task specs
+
+For one task per Markdown file, clear **Plan tasks from documentation** and select the specs directory (default `specs/`). Both the repository and source directory must exist. A blank base selects the current branch. For Autopilot choose an existing local branch that is free across worktrees. A detached checkout needs an explicit branch. The optional project name defaults to the folder name.
 
 The dialog opens on the computer running B\*SS: macOS uses its built-in folder
 chooser; Linux requires a graphical desktop session and `zenity` on PATH.
@@ -98,7 +98,7 @@ times out after two minutes. Closing its requesting browser session or stopping
 B\*SS terminates the owned picker helper. Selected paths stay in the LiveView
 process and are validated again before registration.
 
-B\*SS stores canonical paths in its own database without editing the repository.
+B\*SS stores canonical paths in its own database. Registration with an automatic documentation target also creates the local Git branch.
 The specs directory must be strictly inside the repository, with no symlink
 components. Registering the same repository through another path or linked
 worktree returns an error. Projects survive tab closure and backend restart.
@@ -112,9 +112,8 @@ Its fixture results do not certify other adapters or detached process trees.
 ## Sync specs
 
 B\*SS reads registered projects' `.md` files automatically, including subfolders.
-Open a project to see imported tasks, the latest source revision and pinned task
-snapshot; **Sync specs** checks immediately. Source Markdown is stored exactly
-and is never rewritten.
+Open a specs-mode project to see imported tasks, the latest source revision and pinned task
+snapshot. **Sync specs** imports the current file contents into revision history. An Autopilot spec-rework pass can write a revised task file. Use Single pass in specs mode when editing those files yourself.
 
 One background sweep starts with B\*SS and processes projects sequentially. The
 next sweep starts two seconds after the previous one finishes; new projects join
@@ -227,12 +226,11 @@ in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 ## Complete a task with a managed workflow
 
 To process the whole current Backlog, choose **Autopilot** beside **Sync specs** on
-the project page. Enter the check command and reviewer, then **Start Autopilot**.
-Tasks run one at a time through fixes, review, integration and verified Done.
+the project page. Confirm the bound Reviewer, optionally enter a trusted check command, then choose **Start Autopilot**.
+Eligible independent tasks can use multiple implementers. Integration runs one task at a time.
 Independent tasks can continue after a pre-integration failure with verified
 cleanup. Shared provider failures and unsafe integration outcomes stop the
-batch. Watch the saved task list and board, or use Pause/Resume/Stop. Later imports
-are excluded. For a specs project, select an existing target branch that is free
+batch. Watch the saved task list and board, or use Pause/Resume/Stop. Each batch has a saved selection. An automatic rework pass takes a new selection. For a specs project, select an existing target branch that is free
 in every worktree before starting. For example, run `git branch boss-delivery` from
 the desired base commit, then select `boss-delivery` at registration. See
 [Autopilot](docs/AUTOPILOT.md).
@@ -242,8 +240,8 @@ suggests for a repository with a `docs/` folder. Leaving the publication target
 blank creates a local branch at the current commit. **Start Autopilot** runs one
 read-only planning pass using your assigned **Analytic** agent (Codex, Claude
 Code, Cursor Agent or OpenCode): at most three attempts under one 20-minute
-deadline. It saves up to 32 tasks in dependency order, then dispatches the first
-eligible task. Original Markdown stays on disk. Later starts continue the
+deadline. It saves up to 32 tasks with their validated dependencies, then dispatches
+eligible work. Original Markdown stays on disk. Later starts continue the
 remaining eligible cards and do not call the planner again. The same check,
 independent review and exact-commit publication gates still decide Done.
 
@@ -402,9 +400,9 @@ file or run separate `mix ecto.*` commands against a running instance. Use a loc
 filesystem, since network filesystems may not honor SQLite locking correctly.
 
 The HTTP server always binds to `127.0.0.1`. Only `127.0.0.1` and `localhost` hosts
-and exact same-port origins are accepted. Both HTTP and LiveView mounts require
-the session; WebSocket origins are checked. This is a single-user local app, not
-a network service or a sandbox for future agent processes.
+and exact same-port origins are accepted on HTTP and WebSocket connections, with
+`SameSite=Strict` cookies and CSRF protection. This is a single-user local desktop
+app, not a network service or a sandbox for future agent processes.
 
 ## Verify
 

@@ -5,18 +5,71 @@ defmodule BossWeb.AutopilotPanel do
     assigns =
       assigns
       |> assign_new(:intake_attempts, fn -> [] end)
-      |> assign_new(:reviewers, fn ->
-        [%{id: "codex", name: "Codex"}, %{id: "claude", name: "Claude Code"}]
-      end)
+      |> assign_new(:interrupted_tasks, fn -> [] end)
+      |> assign_new(:implementer_pool_size, fn -> 1 end)
+      |> assign_new(:loop_cfg, fn -> nil end)
+      |> assign_new(:spec_loop, fn -> true end)
+      |> assign_new(:reviewer_tag, fn -> nil end)
+      |> assign_new(:active_blocker, fn -> nil end)
+      |> assign_new(:stopping_blocker, fn -> false end)
+
+    assigns =
+      assign(
+        assigns,
+        :form_visible,
+        assigns.loaded && !match?(%{status: "planning"}, assigns.intake) &&
+          (is_nil(assigns.batch) || assigns.batch.status in ["blocked", "completed", "cancelled"])
+      )
 
     ~H"""
     <section
       id={@id}
       aria-labelledby="autopilot-heading"
-      class="min-w-0"
+      class="min-w-0 rounded-lg border border-line bg-surface/85 px-3.5 py-2.5"
     >
-      <div class="flex flex-wrap items-center gap-3">
-        <h2 id="autopilot-heading" class="app-panel-heading mr-auto">Autopilot</h2>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="mr-auto flex flex-wrap items-center gap-2">
+          <span
+            class={[
+              "inline-block h-2 w-2 rounded-full",
+              if(@batch && @batch.status == "running",
+                do: "board-live-dot",
+                else: "bg-control-line"
+              )
+            ]}
+            aria-hidden="true"
+          ></span>
+          <h2 id="autopilot-heading" class="text-xs font-semibold tracking-wide text-ink">
+            Autopilot
+          </h2>
+          <span
+            :if={@batch}
+            id="autopilot-status"
+            role="status"
+            class={batch_status_badge_class(@batch.status)}
+          >
+            {label(@batch.status)}
+          </span>
+          <span
+            :if={!@open && !@plans_from_docs && @loaded}
+            class="font-mono text-[11px] text-muted"
+          >
+            {length(@choices)} ready
+          </span>
+          <span
+            :if={@implementer_pool_size > 1}
+            class="app-badge"
+          >
+            {@implementer_pool_size}× parallel
+          </span>
+          <span
+            :if={@loop_cfg && @loop_cfg.spec_loop_enabled == 1}
+            class="app-pill"
+          >
+            Loop {@loop_cfg.loop_pass}/{@loop_cfg.max_passes}
+          </span>
+        </div>
+
         <button
           id="open-autopilot"
           type="button"
@@ -24,64 +77,42 @@ defmodule BossWeb.AutopilotPanel do
           phx-click="toggle"
           aria-expanded={to_string(@open)}
           aria-controls="autopilot-content"
-          class="app-button-secondary px-3 py-2 text-sm"
-        >{if @open, do: "Hide controls", else: "Show controls"}</button>
-        <span :if={@batch} id="autopilot-status" role="status" class="app-badge">
-          {label(@batch.status)}
-        </span>
+          class="app-button-secondary min-h-7 px-2.5 py-1 text-xs"
+        >{if @open, do: "Collapse", else: "Controls"}</button>
       </div>
-      <p class="mt-3 max-w-3xl text-sm leading-6 text-muted">
-        <%= if @documentation do %>
-          Autopilot plans tasks from committed documentation and code, then implements them in dependency order.
-        <% else %>
-          A new Start runs eligible unfinished tasks one at a time through implementation, checks, fixes, review and integration.
-        <% end %>
-      </p>
+
       <div
         id="autopilot-content"
         hidden={!@open}
-        class="mt-5 min-w-0 space-y-4 border-t border-line pt-5"
+        class="mt-2.5 min-w-0 space-y-2.5 border-t border-line pt-2.5"
       >
-        <p :if={!@supported} role="status" class="text-sm text-warning">
+        <p :if={!@supported} role="status" class="text-xs text-warning">
           Agent execution currently requires macOS.
         </p>
-        <p :if={!@loaded && !@error} role="status" class="text-sm text-muted">
+        <p :if={!@loaded && !@error} role="status" class="text-xs text-muted">
           Loading Autopilot…
         </p>
+
         <div
-          :if={!@documentation}
-          id="documentation-conversion"
-          class="space-y-2 border-b border-line pb-4"
+          :if={@intake && @intake.status != "finished"}
+          id="autopilot-intake"
+          class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2"
         >
-          <p id="documentation-conversion-help" class="max-w-3xl text-sm text-body">
-            Imported instructions instead of implementation tasks? Use these documents as planning context.
-            Existing tasks and attempts remain in reference history. Then Start Autopilot to generate a new plan.
-          </p>
-          <button
-            id="plan-from-documentation"
-            type="button"
-            phx-target={@myself}
-            phx-click="plan_from_documentation"
-            phx-value-command-id={@command}
-            disabled={!@conversion_ready}
-            aria-describedby="documentation-conversion-help"
-            class="app-button-secondary px-3 py-2 text-sm disabled:opacity-50"
-          >Plan from documentation</button>
-        </div>
-        <div :if={@intake && @intake.status != "finished"} id="autopilot-intake" class="space-y-2">
-          <p id="autopilot-intake-status" role="status" class="text-sm text-body">
-            {if @intake.status == "planning",
-              do: "Planning tasks from documentation…",
-              else: label(@intake.status)}
-          </p>
-          <p
-            :if={@intake.reason}
-            id="autopilot-intake-reason"
-            role="status"
-            class="break-words text-sm text-warning"
-          >
-            {@intake.reason}
-          </p>
+          <div class="min-w-0 space-y-0.5">
+            <p id="autopilot-intake-status" role="status" class="text-xs font-medium text-ink">
+              {if @intake.status == "planning",
+                do: "Planning tasks from documentation…",
+                else: label(@intake.status)}
+            </p>
+            <p
+              :if={@intake.reason}
+              id="autopilot-intake-reason"
+              role="status"
+              class="break-words text-xs text-warning"
+            >
+              {@intake.reason}
+            </p>
+          </div>
           <button
             :if={@intake.status == "planning"}
             id="stop-autopilot-intake"
@@ -89,289 +120,355 @@ defmodule BossWeb.AutopilotPanel do
             phx-target={@myself}
             phx-click="stop_intake"
             disabled={@pending != nil}
-            class="app-button-danger px-3 py-2 text-sm disabled:opacity-50"
+            class="app-button-danger px-2.5 py-1 text-xs"
           >Stop planning</button>
         </div>
-        <div :if={@intake_attempts != []} id="intake-attempt-history" class="space-y-2">
-          <h3 class="text-sm font-medium text-body">Planning attempts</h3>
-          <ol class="space-y-2 text-sm">
+
+        <div
+          :if={@intake_attempts != [] && !match?(%{status: "finished"}, @intake)}
+          id="intake-attempt-history"
+          class="rounded-md border border-line bg-paper px-3 py-2"
+        >
+          <h3 class="font-mono text-[11px] uppercase tracking-wider text-muted">Planning attempts</h3>
+          <ol class="mt-1.5 space-y-1.5 text-xs">
             <li
               :for={attempt <- @intake_attempts}
               id={"intake-attempt-#{attempt.number}"}
-              class="space-y-1"
+              class="flex flex-wrap items-baseline justify-between gap-2"
             >
-              <p class="break-words text-body">
-                Attempt {attempt.number} · {attempt.model_profile["model"]} · {label(attempt.status)}
-              </p>
-              <p class="text-muted">{attempt_reason(attempt)}</p>
+              <span class="font-mono text-ink">
+                #{attempt.number} · {attempt.model_profile["model"]} · {label(attempt.status)}
+              </span>
+              <span class="text-muted">{attempt_reason(attempt)}</span>
             </li>
           </ol>
         </div>
+
         <p
           :if={match?(%{status: "finished", batch_id: nil}, @intake)}
           id="autopilot-intake-empty"
           role="status"
-          class="text-sm text-body"
+          class="text-xs text-muted"
         >
           Planning found no outstanding tasks.
         </p>
-        <div :if={@batch} id="autopilot-batch" class="min-w-0 space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-line bg-paper px-3.5 py-2.5 text-xs">
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <span class="font-medium text-ink">
-                Saved reviewer: {agent_name(@batch.reviewer)}
-              </span>
-              <span class="text-muted">
-                Check
-                <code class="font-mono text-ink">{JSON.encode!(@batch.check_config["argv"])}</code>
-              </span>
-            </div>
-            <div class="flex flex-wrap items-center gap-3 font-mono text-[11px] text-muted">
-              <span>active {batch_counts(@batch).active}</span>
-              <span>done {batch_counts(@batch).done}</span>
-              <span>failed {batch_counts(@batch).failed}</span>
-              <span>queued {batch_counts(@batch).waiting}</span>
-            </div>
-          </div>
-          <div
-            id="autopilot-flow"
-            phx-hook="AutopilotFlowCanvas"
-            data-flow={flow_payload(@batch, @project.id)}
-            class="autopilot-dashboard space-y-3 rounded-sm border border-line bg-surface p-3.5"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <p class="app-eyebrow">Pipeline &amp; pixel telemetry</p>
-              <div class="flex flex-wrap items-center gap-3 text-[11px] text-muted">
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-ink bg-forest"></span>Active
-                </span>
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-forest bg-sage"></span>Done
-                </span>
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-warning-line bg-peach"></span>Attention
-                </span>
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="inline-block h-2.5 w-2.5 rounded-[1px] border border-line bg-paper"></span>Queued
-                </span>
-              </div>
-            </div>
-            <div
-              id="autopilot-flow-canvas"
-              data-flow-canvas
-              phx-update="ignore"
-              class="autopilot-canvas-host"
-            >
-            </div>
-            <p
-              id="autopilot-flow-readout"
-              data-flow-readout
-              class="min-h-4 truncate font-mono text-xs text-body"
-            >
-              {flow_summary(@batch)}
-            </p>
-            <ol aria-label="Workflow stages" class="grid grid-cols-2 gap-2 sm:grid-cols-6">
-              <li
-                :for={stage <- flow_stages(@batch)}
-                data-state={stage.state}
-                class="autopilot-node"
-              >
-                <span class="autopilot-node-mark" aria-hidden="true"></span>
-                <span>{stage.label}</span>
-              </li>
-            </ol>
-            <div aria-label="Tasks in this run" class="flex flex-wrap gap-1.5">
-              <.link
-                :for={item <- @batch.items}
-                id={"autopilot-pixel-#{item.task_id}"}
-                patch={~p"/projects/#{@project.id}/tasks/#{item.task_id}"}
-                data-state={pixel_state(item.delivery_status || item.request_status)}
-                title={pixel_title(item)}
-                aria-label={"#{item.position + 1}. #{item.title}. #{pixel_title(item)}"}
-                class="autopilot-pixel"
-              >
-                {item.position + 1}
-              </.link>
-            </div>
-          </div>
-          <p
-            :if={@batch.reason}
-            id="autopilot-reason"
-            role="status"
-            class="break-words text-sm text-warning"
-          >
-            {@batch.reason}
-          </p>
-          <ol id="autopilot-items" class="max-h-64 space-y-2 overflow-y-auto text-sm">
-            <li
-              :for={item <- @batch.items}
-              id={"autopilot-item-#{item.task_id}"}
-              class="flex flex-wrap items-baseline gap-x-3 gap-y-1"
-            >
-              <.link
-                patch={~p"/projects/#{@project.id}/tasks/#{item.task_id}"}
-                class="min-w-0 break-words text-forest underline underline-offset-4"
-              >
-                {item.position + 1}. {item.title}
-              </.link>
-              <span class="text-muted">{label(item.delivery_status || item.request_status)}</span>
-            </li>
-          </ol>
-          <div :if={@batch.status in ["running", "paused"]} class="flex flex-wrap gap-2">
-            <button
-              :if={@batch.status == "running"}
-              id="pause-autopilot"
-              type="button"
-              phx-target={@myself}
-              phx-click="pause"
-              disabled={@pending != nil}
-              class="app-button-secondary px-3 py-2 text-sm disabled:opacity-50"
-            >Pause Autopilot</button>
-            <button
-              :if={@batch.status == "paused"}
-              id="resume-autopilot"
-              type="button"
-              phx-target={@myself}
-              phx-click="resume"
-              disabled={@pending != nil}
-              class="app-button-secondary px-3 py-2 text-sm disabled:opacity-50"
-            >Resume Autopilot</button>
-            <button
-              id="stop-autopilot"
-              type="button"
-              phx-target={@myself}
-              phx-click="cancel"
-              disabled={@pending != nil}
-              class="app-button-danger px-3 py-2 text-sm disabled:opacity-50"
-            >Stop Autopilot</button>
-          </div>
-          <p :if={@batch.status in ["running", "paused"]} class="text-xs text-muted">
-            Pause lets the current workflow reach review approval, then prevents integration and the next task. Stop cancels active work and the remaining saved selection.
-            Restart pauses automatic work until you resume it.
-          </p>
-        </div>
+
         <form
-          :if={
-            @loaded && !match?(%{status: "planning"}, @intake) &&
-              (is_nil(@batch) || @batch.status in ["blocked", "completed", "cancelled"])
-          }
+          :if={@form_visible}
           id="autopilot-form"
           phx-target={@myself}
           phx-change="edit"
           phx-submit="start"
-          class="min-w-0 space-y-4"
+          class="min-w-0 space-y-2.5"
         >
-          <fieldset disabled={@pending != nil || !@supported} class="min-w-0">
-            <legend class="text-sm font-medium">
+          <fieldset disabled={@pending != nil || !@supported} class="min-w-0 space-y-2.5">
+            <legend class="sr-only">
               {if @plans_from_docs, do: "Project documentation", else: "Eligible unfinished tasks"}
             </legend>
-            <p id="autopilot-selection-help" class="mt-1 text-xs text-muted">
+            <p id="autopilot-selection-help" class="sr-only">
               <%= if @plans_from_docs do %>
                 The Analytic role will inspect the committed documentation and code. Autopilot saves the resulting tasks with their dependencies and begins the first ready task.
               <% else %>
                 A new Start saves all eligible New, Failed, Blocked and Needs input tasks (up to 256).
                 Each receives a fresh workflow request; earlier batches and evidence stay unchanged.
-                Active work, unconfirmed cleanup and unresolved integration are excluded.
-                Dependencies must reach Done before their dependent task starts. Later imports stay outside this run.
               <% end %>
             </p>
-            <p
-              :if={!@plans_from_docs}
-              id="autopilot-selection-count"
-              class="mt-2 text-sm text-body"
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                id="start-autopilot"
+                type="submit"
+                disabled={
+                  !@ready || @active_blocker != nil || @stopping_blocker ||
+                    (!@plans_from_docs && length(@choices) not in 1..256 && @interrupted_tasks == [])
+                }
+                aria-describedby="autopilot-authorization"
+                class="app-button-primary px-4 py-1.5 text-xs font-semibold"
+              >Start Autopilot</button>
+
+              <span
+                :if={!@plans_from_docs}
+                id="autopilot-selection-count"
+                class="app-pill"
+              >
+                {length(@choices)} eligible unfinished tasks
+              </span>
+
+              <span
+                id="autopilot-bound-reviewer"
+                class="app-pill"
+                title={"Verified by #{agent_name(@reviewer)} → #{@project.base_branch}"}
+              >
+                <span class="text-muted">Reviewer</span>
+                <span class="font-semibold text-forest">{@reviewer_tag || agent_name(@reviewer)}</span>
+                <span class="sr-only">{agent_name(@reviewer)}</span>
+              </span>
+
+              <div class="flex items-center gap-1.5">
+                <label for="autopilot-spec-loop" class="sr-only">Reviewer spec-rework loop</label>
+                <select
+                  id="autopilot-spec-loop"
+                  name="spec_loop"
+                  class="app-field min-h-8 px-2.5 py-1 text-xs"
+                >
+                  <option value="true" selected={@spec_loop}>
+                    Auto-loop (up to 2 passes)
+                  </option>
+                  <option value="false" selected={!@spec_loop}>
+                    Single pass
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div
+              :if={!@plans_from_docs && @interrupted_tasks != []}
+              id="autopilot-interrupted-banner"
+              class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-xs text-warning"
             >
-              {length(@choices)} eligible unfinished tasks
-            </p>
+              <span>
+                <strong>{length(@interrupted_tasks)} interrupted task(s)</strong>
+                ({Enum.map_join(Enum.take(@interrupted_tasks, 2), ", ", & &1.title)}) can be recovered for Backlog dependencies.
+              </span>
+              <button
+                id="recover-interrupted-autopilot"
+                type="button"
+                phx-target={@myself}
+                phx-click="recover_interrupted"
+                class="app-button-secondary px-2.5 py-1 text-xs"
+              >
+                Recover &amp; include ({length(@interrupted_tasks)})
+              </button>
+            </div>
+
             <p
               :if={!@plans_from_docs && @choices == [] && !@documentation}
-              class="mt-2 text-sm text-muted"
+              class="text-xs text-muted"
             >
               No eligible unfinished tasks. Import a spec or inspect tasks with unresolved work.
             </p>
-            <ul
-              :if={!@plans_from_docs && @choices != []}
-              class="mt-2 max-h-64 space-y-2 overflow-y-auto rounded border border-line p-3"
-            >
-              <li
-                :for={entry <- @choices}
-                id={"autopilot-task-#{entry.task_id}"}
-                class="min-w-0 break-words text-sm"
+
+            <div class="flex flex-wrap items-start gap-2">
+              <details
+                :if={!@plans_from_docs && @choices != []}
+                class="app-disclosure-pill"
               >
-                {entry.title}
-                <span class="ml-2 text-xs text-muted">{if entry.state == "new",
-                  do: "New",
-                  else: "Retry · " <> label(entry.state)}</span>
-                <span class="block break-all text-xs text-muted">{entry.relative_path} · revision {entry.task_revision}</span>
-              </li>
-            </ul>
-            <label for="autopilot-command" class="mt-4 block text-sm font-medium">Check command for every task</label>
-            <input
-              id="autopilot-command"
-              name="command"
-              type="text"
-              value={@text}
-              placeholder="mix test"
-              maxlength="4096"
-              required
-              autocomplete="off"
-              aria-describedby="autopilot-command-help"
-              class="app-field mt-1 w-full min-w-0 px-3 py-2 text-sm"
-            />
-            <p id="autopilot-command-help" class="mt-1 text-xs text-muted">
-              Verify the command before starting. It runs without a shell before review and after integration.
-            </p>
-            <label for="autopilot-reviewer" class="mt-4 block text-sm font-medium">Independent reviewer</label>
-            <select
-              id="autopilot-reviewer"
-              name="reviewer"
-              class="app-field mt-1 max-w-full px-3 py-2 text-sm"
-            >
-              <option
-                :for={agent <- @reviewers}
-                value={agent.id}
-                selected={@reviewer == agent.id}
+                <summary>
+                  <span>Selected tasks ({length(@choices)})</span>
+                </summary>
+                <ul class="mt-2 max-h-52 w-full max-w-xl space-y-1.5 overflow-y-auto rounded-lg border border-line bg-paper p-2.5 text-xs">
+                  <li
+                    :for={entry <- @choices}
+                    id={"autopilot-task-#{entry.task_id}"}
+                    class="flex flex-wrap items-baseline justify-between gap-2 border-b border-line/50 pb-1.5 last:border-b-0 last:pb-0"
+                  >
+                    <span class="font-medium text-ink">{entry.title}</span>
+                    <span class="font-mono text-[11px] text-muted">
+                      {if entry.state == "new", do: "New", else: "Retry · " <> label(entry.state)} · v{entry.task_revision}
+                    </span>
+                    <span class="sr-only">{entry.relative_path}</span>
+                  </li>
+                </ul>
+              </details>
+
+              <details
+                id="autopilot-check-disclosure"
+                open={@text != ""}
+                class="app-disclosure-pill"
               >
-                {agent.name}
-              </option>
-            </select>
-            <p id="autopilot-reviewer-help" class="mt-1 text-xs text-muted">
-              The list is the agents assigned to Reviewer. Codex, Claude, Cursor, and OpenCode can run the review.
-            </p>
+                <summary>
+                  <span>CLI check {if @text != "", do: "• set", else: "(optional)"}</span>
+                </summary>
+                <div class="mt-2 w-full max-w-md rounded-lg border border-line bg-paper p-2.5 text-xs">
+                  <label for="autopilot-command" class="block font-medium text-body">
+                    Optional CLI check command
+                  </label>
+                  <input
+                    id="autopilot-command"
+                    name="command"
+                    type="text"
+                    value={@text}
+                    placeholder="e.g. mix test (blank = Reviewer spec check)"
+                    maxlength="4096"
+                    autocomplete="off"
+                    aria-describedby="autopilot-command-help"
+                    class="app-field mt-1 w-full min-w-0 px-2.5 py-1 font-mono text-xs"
+                  />
+                  <p id="autopilot-command-help" class="mt-1 text-[11px] text-muted">
+                    Leave blank for Reviewer specification verification.
+                  </p>
+                </div>
+              </details>
+
+              <details
+                id="autopilot-rules-disclosure"
+                class="app-disclosure-pill"
+              >
+                <summary>
+                  <span>Safety &amp; billing</span>
+                </summary>
+                <div class="mt-2 max-w-2xl space-y-1.5 rounded-lg border border-line bg-paper p-3 text-xs leading-5">
+                  <p id="autopilot-authorization" class="text-body">
+                    <%= if @plans_from_docs do %>
+                      Start authorizes project planning and execution of the generated tasks.
+                      Invalid plans can pass to another model for up to three planning attempts.
+                    <% else %>
+                      Start authorizes a new execution of the entire eligible unfinished selection, including retries of failed tasks.
+                      It does not resume an earlier batch.
+                    <% end %>
+                    Start also authorizes automatic integration into <strong class="break-all text-forest">{@project.base_branch}</strong>.
+                    A task reaches Done only after verified review, publication and postchecks.
+                    Stop, unknown cleanup and integration failures halt the batch.
+                  </p>
+                  <p id="autopilot-provider-help" class="text-muted">
+                    Runs use your configured CLI accounts and may incur charges. Keep the target branch unchecked in your working tree.
+                  </p>
+                </div>
+              </details>
+
+              <details
+                :if={@intake_attempts != [] && match?(%{status: "finished"}, @intake)}
+                id="intake-attempt-history"
+                class="app-disclosure-pill"
+              >
+                <summary>
+                  <span>Intake ({length(@intake_attempts)})</span>
+                </summary>
+                <ol class="mt-2 max-w-md space-y-1.5 rounded-lg border border-line bg-paper p-2.5 text-xs">
+                  <li
+                    :for={attempt <- @intake_attempts}
+                    id={"intake-attempt-#{attempt.number}"}
+                    class="flex flex-wrap items-baseline justify-between gap-2"
+                  >
+                    <span class="font-mono text-ink">
+                      #{attempt.number} · {attempt.model_profile["model"]} · {label(attempt.status)}
+                    </span>
+                    <span class="text-muted">{attempt_reason(attempt)}</span>
+                  </li>
+                </ol>
+              </details>
+            </div>
           </fieldset>
-          <p
-            id="autopilot-authorization"
-            class="rounded-sm border border-line bg-sage/50 p-4 text-sm leading-6 text-body"
+
+          <div
+            :if={@active_blocker != nil}
+            id="autopilot-active-blocker"
+            role="status"
+            class="flex flex-wrap items-center justify-between gap-2.5 rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-xs text-ink"
           >
-            <%= if @plans_from_docs do %>
-              Start authorizes project planning and execution of the generated tasks.
-              Invalid plans can pass to another model for up to three planning attempts.
-            <% else %>
-              Start authorizes a new execution of the entire eligible unfinished selection, including retries of failed tasks.
-              It does not resume an earlier batch.
+            <%= case @active_blocker.kind do %>
+              <% :project_delivery -> %>
+                <span class="min-w-0">
+                  Paused: <strong>{@active_blocker.task_title}</strong>
+                  is {String.downcase(label(@active_blocker.status))}.
+                </span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <button
+                    id="autopilot-stop-active-delivery"
+                    type="button"
+                    phx-target={@myself}
+                    phx-click="stop_blocking_delivery"
+                    phx-value-delivery-id={@active_blocker.delivery_id}
+                    disabled={@acting || @stopping_blocker}
+                    class="app-button-danger px-2.5 py-1 text-xs"
+                  >
+                    {if @stopping_blocker,
+                      do: "Stopping…",
+                      else: "Stop & include in Autopilot"}
+                  </button>
+                  <.link
+                    patch={~p"/projects/#{@project.id}/tasks/#{@active_blocker.task_id}"}
+                    class="app-button-secondary px-2.5 py-1 text-xs"
+                  >
+                    Inspect
+                  </.link>
+                </div>
+              <% :other_project_delivery -> %>
+                <span>
+                  Unavailable while “{@active_blocker.task_title}” is active in “{@active_blocker.project_name}”.
+                </span>
+              <% :other_autopilot -> %>
+                <span>
+                  Unavailable while project “{@active_blocker.project_name}” has a {@active_blocker.status} Autopilot batch.
+                </span>
+              <% :manual_run -> %>
+                <span>
+                  Unavailable while manual run on “{@active_blocker.task_title}” is {@active_blocker.status}{if @active_blocker.cleanup ==
+                                                                                                                  "unknown",
+                                                                                                                do:
+                                                                                                                  " (cleanup unconfirmed)",
+                                                                                                                else:
+                                                                                                                  ""}.
+                </span>
+              <% _ -> %>
+                <span>
+                  Unavailable until unconfirmed process cleanup from an interrupted run is inspected.
+                </span>
             <% end %>
-            Start also authorizes automatic integration into <strong class="break-all">{@project.base_branch}</strong>.
-            New workflows resolve questions with another model and can use up to five implementation cycles.
-            A task reaches Done only after verified review, publication and postchecks.
-            Independent tasks can continue after a task-specific failure with confirmed cleanup.
-            Shared model, catalog or provider failures stop the batch before another task starts.
-            Stop, unknown cleanup and integration failures halt the batch.
+          </div>
+
+          <p
+            :if={@error}
+            id="autopilot-error"
+            role="alert"
+            class="break-words rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-xs text-warning"
+          >
+            {@error}
           </p>
-          <p id="autopilot-provider-help" class="text-xs text-muted">
-            The Implementer role plans and writes the code. The Analytic role answers questions when work is stuck. The selected reviewer checks the result. Runs use your configured CLI accounts and may incur charges.
-          </p>
-          <p class="text-xs text-muted">
-            The target branch must not be checked out in your workspace. BOSS retains your checkout and failed work for inspection.
-          </p>
-          <button
-            id="start-autopilot"
-            type="submit"
-            disabled={!@ready || (!@plans_from_docs && length(@choices) not in 1..256)}
-            aria-describedby="autopilot-authorization"
-            class="app-button-primary px-4 py-2 text-sm font-semibold disabled:opacity-50"
-          >Start Autopilot</button>
         </form>
-        <p :if={@acting} role="status" class="text-sm text-muted">Saving Autopilot request…</p>
-        <p :if={@error} id="autopilot-error" role="alert" class="break-words text-sm text-warning">
+
+        <div
+          :if={!@documentation}
+          id="documentation-conversion"
+          class="pt-0.5"
+        >
+          <details class="app-disclosure-pill">
+            <summary>
+              <span>Convert specs to docs mode</span>
+            </summary>
+            <div class="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-paper p-2.5 text-xs">
+              <p id="documentation-conversion-help" class="max-w-xl text-muted">
+                Seal imported files as planning reference history, then generate new tasks from documentation.
+              </p>
+              <button
+                id="plan-from-documentation"
+                type="button"
+                phx-target={@myself}
+                phx-click="plan_from_documentation"
+                phx-value-command-id={@command}
+                disabled={!@conversion_ready}
+                aria-describedby="documentation-conversion-help"
+                class="app-button-secondary px-3 py-1.5 text-xs"
+              >Plan from documentation</button>
+            </div>
+          </details>
+        </div>
+
+        <%= if @batch && @batch.status in ["blocked", "completed", "cancelled"] && @form_visible do %>
+          <details
+            id="autopilot-batch"
+            class="min-w-0 rounded-md border border-line bg-paper px-3 py-2"
+          >
+            <summary class="cursor-pointer font-mono text-xs text-muted hover:text-ink">
+              Previous batch · {label(@batch.status)} ({length(@batch.items)} tasks)
+            </summary>
+            <div class="mt-2.5 min-w-0 space-y-3 border-t border-line pt-2.5">
+              <.batch_body batch={@batch} project={@project} myself={@myself} pending={@pending} />
+            </div>
+          </details>
+        <% else %>
+          <div :if={@batch} id="autopilot-batch" class="min-w-0 space-y-3">
+            <.batch_body batch={@batch} project={@project} myself={@myself} pending={@pending} />
+          </div>
+        <% end %>
+
+        <p :if={@acting} role="status" class="text-xs text-muted">Saving Autopilot request…</p>
+        <p
+          :if={@error && !@form_visible}
+          id="autopilot-error"
+          role="alert"
+          class="break-words rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-xs text-warning"
+        >
           {@error}
         </p>
         <button
@@ -380,61 +477,215 @@ defmodule BossWeb.AutopilotPanel do
           type="button"
           phx-target={@myself}
           phx-click="retry"
-          class="app-button-secondary px-3 py-2 text-sm"
+          class="app-button-secondary px-3 py-1.5 text-xs"
         >Retry saved request</button>
         <button
           :if={@error && !@pending}
           type="button"
           phx-target={@myself}
           phx-click="reload"
-          class="app-button-secondary px-3 py-2 text-sm"
+          class="app-button-secondary px-3 py-1.5 text-xs"
         >Reload Autopilot</button>
       </div>
     </section>
     """
   end
 
-  defp attempt_reason(%{status: "running"}), do: "Planning from the saved documentation."
+  defp batch_body(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2 text-xs">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="font-medium text-ink">
+          Reviewer: <span class="text-forest">{agent_name(@batch.reviewer)}</span>
+        </span>
+        <span class="text-muted">
+          <%= if Boss.Checks.Command.spec_only?(@batch.check_config) do %>
+            Spec check
+          <% else %>
+            <code class="font-mono text-body">{JSON.encode!(@batch.check_config["argv"])}</code>
+          <% end %>
+        </span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5 font-mono text-[11px] text-muted">
+        <span class="text-forest">active {batch_counts(@batch).active}</span>
+        <span>done {batch_counts(@batch).done}</span>
+        <span :if={batch_counts(@batch).failed > 0} class="text-warning">
+          attn {batch_counts(@batch).failed}
+        </span>
+        <span>queued {batch_counts(@batch).waiting}</span>
+      </div>
+    </div>
+
+    <div
+      id="autopilot-flow"
+      phx-hook="AutopilotFlowCanvas"
+      data-flow={flow_payload(@batch, @project.id)}
+      class="autopilot-dashboard space-y-2.5 rounded-lg border border-line bg-surface p-3"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="app-eyebrow">Live pipeline telemetry</p>
+        <div class="flex flex-wrap items-center gap-2.5 font-mono text-[10px] text-muted">
+          <span class="inline-flex items-center gap-1">
+            <span class="inline-block h-2 w-2 rounded-full bg-forest"></span>Active
+          </span>
+          <span class="inline-flex items-center gap-1">
+            <span class="inline-block h-2 w-2 rounded-full border border-forest bg-sage"></span>Done
+          </span>
+          <span class="inline-flex items-center gap-1">
+            <span class="inline-block h-2 w-2 rounded-full bg-warning"></span>Attention
+          </span>
+          <span class="inline-flex items-center gap-1">
+            <span class="inline-block h-2 w-2 rounded-full bg-line"></span>Queued
+          </span>
+        </div>
+      </div>
+
+      <div
+        id="autopilot-flow-canvas"
+        data-flow-canvas
+        phx-update="ignore"
+        class="autopilot-canvas-host"
+      >
+      </div>
+
+      <p
+        id="autopilot-flow-readout"
+        data-flow-readout
+        class="min-h-4 truncate font-mono text-xs text-body"
+      >
+        {flow_summary(@batch)}
+      </p>
+
+      <ol aria-label="Workflow stages" class="grid grid-cols-2 gap-1.5 sm:grid-cols-6">
+        <li
+          :for={stage <- flow_stages(@batch)}
+          data-state={stage.state}
+          class="autopilot-node"
+        >
+          <span class="autopilot-node-mark" aria-hidden="true"></span>
+          <span>{stage.label}</span>
+        </li>
+      </ol>
+
+      <div aria-label="Tasks in this run" class="flex flex-wrap gap-1.5">
+        <.link
+          :for={item <- @batch.items}
+          id={"autopilot-pixel-#{item.task_id}"}
+          patch={~p"/projects/#{@project.id}/tasks/#{item.task_id}"}
+          data-state={pixel_state(item.delivery_status || item.request_status)}
+          title={pixel_title(item)}
+          aria-label={"#{item.position + 1}. #{item.title}. #{pixel_title(item)}"}
+          class="autopilot-pixel"
+        >
+          {item.position + 1}
+        </.link>
+      </div>
+    </div>
+
+    <p
+      :if={@batch.reason}
+      id="autopilot-reason"
+      role="status"
+      class="break-words rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-xs text-warning"
+    >
+      {@batch.reason}
+    </p>
+
+    <details class="rounded-md border border-line bg-paper px-3 py-2 text-xs">
+      <summary class="cursor-pointer font-mono text-muted hover:text-ink">
+        Batch task manifest ({length(@batch.items)})
+      </summary>
+      <ol id="autopilot-items" class="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
+        <li
+          :for={item <- @batch.items}
+          id={"autopilot-item-#{item.task_id}"}
+          class="flex flex-wrap items-baseline justify-between gap-2"
+        >
+          <.link
+            patch={~p"/projects/#{@project.id}/tasks/#{item.task_id}"}
+            class="min-w-0 break-words text-forest hover:underline"
+          >
+            {item.position + 1}. {item.title}
+          </.link>
+          <span class="font-mono text-[11px] text-muted">
+            {label(item.delivery_status || item.request_status)}
+          </span>
+        </li>
+      </ol>
+    </details>
+
+    <div :if={@batch.status in ["running", "paused"]} class="flex flex-wrap items-center gap-2">
+      <button
+        :if={@batch.status == "running"}
+        id="pause-autopilot"
+        type="button"
+        phx-target={@myself}
+        phx-click="pause"
+        disabled={@pending != nil}
+        class="app-button-secondary px-3 py-1.5 text-xs"
+      >Pause Autopilot</button>
+      <button
+        :if={@batch.status == "paused"}
+        id="resume-autopilot"
+        type="button"
+        phx-target={@myself}
+        phx-click="resume"
+        disabled={@pending != nil}
+        class="app-button-primary px-3 py-1.5 text-xs"
+      >Resume Autopilot</button>
+      <button
+        id="stop-autopilot"
+        type="button"
+        phx-target={@myself}
+        phx-click="cancel"
+        disabled={@pending != nil}
+        class="app-button-danger px-3 py-1.5 text-xs"
+      >Stop Autopilot</button>
+    </div>
+    """
+  end
+
+  defp attempt_reason(%{status: "running"}), do: "Planning from documentation…"
   defp attempt_reason(%{receipt: %{"validation_code" => "valid"}}), do: "Plan validated."
 
   defp attempt_reason(%{receipt: %{"error_class" => "rate_limit"}}),
-    do: "Provider reported a rate, quota, or credit balance limit."
+    do: "Provider rate or quota limit."
 
   defp attempt_reason(%{receipt: %{"error_class" => "auth"}}),
-    do: "Provider rejected authentication or session credentials."
+    do: "Authentication rejected."
 
   defp attempt_reason(%{receipt: %{"error_class" => "model_unavailable"}}),
-    do: "Selected model was unavailable on this account."
+    do: "Selected model unavailable."
 
   defp attempt_reason(%{receipt: %{"error_class" => "schema"}}),
-    do: "Provider rejected the structured request schema."
+    do: "Structured schema rejected."
 
   defp attempt_reason(%{receipt: %{"error_class" => "transport"}}),
-    do: "CLI transport or protocol failed."
+    do: "CLI transport failed."
 
   defp attempt_reason(%{receipt: %{"validation_code" => "report_too_large"} = r}) do
     case r["report_bytes"] do
-      bytes when is_integer(bytes) -> "Plan exceeded the 32 KiB response limit (#{bytes} bytes)."
-      _ -> "Plan exceeded the 32 KiB response limit."
+      bytes when is_integer(bytes) -> "Plan exceeded the 32 KiB limit (#{bytes} bytes)."
+      _ -> "Plan exceeded the 32 KiB limit."
     end
   end
 
   defp attempt_reason(%{receipt: %{"validation_code" => "task_limit"}}),
-    do: "Plan exceeded the 32-task limit."
+    do: "Plan exceeded 32-task limit."
 
   defp attempt_reason(%{receipt: %{"validation_code" => "dependency_cycle"}}),
-    do: "The planned tasks contained a dependency cycle."
+    do: "Plan contained dependency cycle."
 
   defp attempt_reason(%{receipt: %{"validation_code" => code}}) when is_binary(code),
-    do: "Plan did not meet the required output contract (#{String.replace(code, "_", " ")})."
+    do: "Invalid output (#{String.replace(code, "_", " ")})."
 
   defp attempt_reason(%{status: "cancelled"}), do: "Planning stopped."
-  defp attempt_reason(%{status: "interrupted"}), do: "Process cleanup needs verification."
+  defp attempt_reason(%{status: "interrupted"}), do: "Cleanup needs verification."
 
   defp attempt_reason(%{receipt: %{"exit_code" => code}}) when is_integer(code) and code != 0,
-    do: "The CLI exited #{code} before producing a valid plan."
+    do: "CLI exited #{code}."
 
-  defp attempt_reason(_), do: "The model attempt could not complete."
+  defp attempt_reason(_), do: "Attempt incomplete."
 
   @flow [
     {"plan", "Plan"},
@@ -510,9 +761,9 @@ defmodule BossWeb.AutopilotPanel do
       )
 
     cond do
-      running > 0 -> "One task is moving. The filled square is the active task."
-      failed > 0 -> "#{failed} tasks stopped. Open a square to read the agent note."
-      true -> "Each square is one saved task. Open it for the stage notes."
+      running > 0 -> "#{running} active workflow(s) in flight."
+      failed > 0 -> "#{failed} task(s) halted — select a node to inspect."
+      true -> "Select any task node to inspect stage telemetry."
     end
   end
 
@@ -606,6 +857,13 @@ defmodule BossWeb.AutopilotPanel do
       Atom.to_string(agent.id) == id && agent.name
     end)
   end
+
+  defp batch_status_badge_class(status) when status in ["blocked", "needs_input"],
+    do:
+      "inline-flex items-center rounded-full border border-warning-line bg-warning-soft px-2 py-0.5 font-mono text-[11px] font-medium text-warning"
+
+  defp batch_status_badge_class("cancelled"), do: "app-pill"
+  defp batch_status_badge_class(_), do: "app-badge"
 
   defp label("ready_to_merge"), do: "Awaiting integration"
   defp label("needs_input"), do: "Needs input"

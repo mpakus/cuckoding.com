@@ -25,13 +25,15 @@ defmodule Boss.Agents.OpenCode do
     ["run", "--pure", "--auto", "--format", "json"] ++ selection_flags(selection)
   end
 
-  def args(kind, selection) when kind in [:plan, :resolve, :intake, :review, :merge_review] do
+  def args(kind, selection)
+      when kind in [:plan, :resolve, :intake, :task_prompt, :review, :merge_review] do
     ["run", "--pure", "--format", "json"] ++ selection_flags(selection)
   end
 
   def env(:implement), do: [{"OPENCODE_DISABLE_AUTOUPDATE", "1"}]
 
-  def env(kind) when kind in [:plan, :resolve, :intake, :review, :merge_review] do
+  def env(kind)
+      when kind in [:plan, :resolve, :intake, :task_prompt, :review, :merge_review] do
     [
       {"OPENCODE_PERMISSION", @read_only_permission},
       {"OPENCODE_DISABLE_AUTOUPDATE", "1"}

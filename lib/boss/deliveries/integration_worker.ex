@@ -10,14 +10,16 @@ defmodule Boss.Deliveries.IntegrationWorker do
     Repo.put_dynamic_repo(repo)
 
     result =
-      try do
-        perform(delivery)
-      rescue
-        _ -> Deliveries.interrupt(delivery.id)
-      catch
-        :throw, {:halt, reason} -> halt(delivery, reason)
-        _, _ -> Deliveries.interrupt(delivery.id)
-      end
+      Boss.Projects.RoleBindings.with_project_scope(delivery.project_id, fn ->
+        try do
+          perform(delivery)
+        rescue
+          _ -> Deliveries.interrupt(delivery.id)
+        catch
+          :throw, {:halt, reason} -> halt(delivery, reason)
+          _, _ -> Deliveries.interrupt(delivery.id)
+        end
+      end)
 
     send(manager, {:delivery_finished, delivery.id, self(), result})
   end

@@ -196,7 +196,7 @@ defmodule Boss.Deliveries do
          true <- autonomy_version in [0, 1],
          true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),
-         {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
+         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text) do
       transaction(fn ->
         case Repo.get_by(Delivery, task_id: task, command_id: command) do
           %Delivery{
@@ -578,35 +578,52 @@ defmodule Boss.Deliveries do
         Repo.rollback(:task_unavailable)
     end
 
-    implementer = Map.get(recovery, :implementer) || Boss.Agents.Roles.implementer()
-    analytic = Map.get(recovery, :analytic) || Boss.Agents.Roles.analytic(implementer)
+    chosen_impl =
+      if is_nil(Map.get(recovery, :implementer)) and is_nil(retry_review_id) and
+           is_nil(retry_implementation_id) do
+        Boss.Projects.RoleBindings.pick_implementer_for_task(project, task.id)
+      end
 
-    Repo.insert!(%Delivery{
-      id: Ecto.UUID.generate(),
-      project_id: project,
-      task_id: task.id,
-      spec_revision_id: task.spec_revision_id,
-      admitted_version: task.state_version,
-      task_version: task.state_version,
-      command_id: command,
-      retry_review_id: retry_review_id,
-      retry_implementation_id: retry_implementation_id,
-      checkpoint_recovery_version: Map.get(recovery, :checkpoint_recovery_version, 0),
-      provider_recovery_version: Map.get(recovery, :provider_recovery_version, 0),
-      retry_source_check_id: Map.get(recovery, :retry_source_check_id),
-      implementation_network_version: Map.get(recovery, :implementation_network_version, 0),
-      execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
-      retry_candidate_commit: retry_candidate_commit,
-      reviewer: reviewer,
-      implementer: implementer,
-      analytic: analytic,
-      autonomy_version: autonomy_version,
-      routing_version: routing_version,
-      model_catalog: model_catalog,
-      check_config: config,
-      config_hash: hash
-    })
-    |> sync_task!("admit")
+    implementer =
+      Map.get(recovery, :implementer) ||
+        (chosen_impl && chosen_impl.agent_id) ||
+        Boss.Agents.Roles.implementer(project)
+
+    analytic = Map.get(recovery, :analytic) || Boss.Agents.Roles.analytic(implementer, project)
+
+    delivery =
+      Repo.insert!(%Delivery{
+        id: Ecto.UUID.generate(),
+        project_id: project,
+        task_id: task.id,
+        spec_revision_id: task.spec_revision_id,
+        admitted_version: task.state_version,
+        task_version: task.state_version,
+        command_id: command,
+        retry_review_id: retry_review_id,
+        retry_implementation_id: retry_implementation_id,
+        checkpoint_recovery_version: Map.get(recovery, :checkpoint_recovery_version, 0),
+        provider_recovery_version: Map.get(recovery, :provider_recovery_version, 0),
+        retry_source_check_id: Map.get(recovery, :retry_source_check_id),
+        implementation_network_version: Map.get(recovery, :implementation_network_version, 0),
+        execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
+        retry_candidate_commit: retry_candidate_commit,
+        reviewer: reviewer,
+        implementer: implementer,
+        analytic: analytic,
+        autonomy_version: autonomy_version,
+        routing_version: routing_version,
+        model_catalog: model_catalog,
+        check_config: config,
+        config_hash: hash
+      })
+      |> sync_task!("admit")
+
+    if chosen_impl do
+      Boss.Projects.RoleBindings.record_delivery_implementer!(delivery, chosen_impl)
+    end
+
+    delivery
   end
 
   @doc false
@@ -801,8 +818,9 @@ defmodule Boss.Deliveries do
 
         if receipt["cleanup"] == "unknown", do: save!(delivery, cleanup: "unknown")
 
-        save!(step, receipt: receipt, status: receipt["status"])
-        |> Map.put(:project_id, delivery.project_id)
+        saved_step = save!(step, receipt: receipt, status: receipt["status"])
+        Boss.Tasks.Entries.record_delivery_step(delivery, saved_step, receipt)
+        Map.put(saved_step, :project_id, delivery.project_id)
       end)
 
     broadcast_result(result)
@@ -925,6 +943,309 @@ defmodule Boss.Deliveries do
     end
   end
 
+  @doc """
+  Explicitly releases recoverable `interrupted` tasks in `project_id` whose worker has
+  exited (or already has `cleanup == "group_empty"`) to `blocked` so a fresh Autopilot
+  Start on `project_id` can include and retry them.
+  """
+  def requeue_interrupted_tasks(project_id) when is_integer(project_id) and project_id > 0 do
+    result =
+      transaction(fn ->
+        interrupted_ids =
+          Repo.all(
+            from d in Delivery,
+              where:
+                d.project_id == ^project_id and d.status == "interrupted" and
+                  d.cleanup == "unknown" and d.autonomy_version == 1,
+              select: d.id,
+              order_by: d.inserted_at
+          )
+
+        Enum.each(interrupted_ids, &release_cleanup_record/1)
+
+        recoverable_deliveries =
+          Repo.all(
+            from d in Delivery,
+              join: t in Tasks.Task,
+              on: t.id == d.task_id,
+              where:
+                d.project_id == ^project_id and d.status == "blocked" and
+                  d.cleanup == "group_empty" and d.autonomy_version == 1 and
+                  t.state == "interrupted" and t.spec_revision_id == d.spec_revision_id and
+                  t.state_version == d.task_version + 1,
+              order_by: d.inserted_at
+          )
+
+        Enum.map(recoverable_deliveries, &sync_released_task!/1)
+      end)
+
+    case result do
+      {:ok, deliveries} ->
+        Enum.each(deliveries, &broadcast/1)
+        if deliveries != [], do: Tasks.broadcast(project_id)
+        Scheduling.claims_changed()
+        {:ok, deliveries}
+
+      other ->
+        other
+    end
+  end
+
+  def requeue_interrupted_tasks(_), do: {:error, :invalid_command}
+
+  @doc """
+  Returns the current execution or quarantine blocker preventing `Autopilot.admit/8`
+  for `project_id`, or `nil` when `Autopilot` can start immediately.
+  """
+  def autopilot_blocker(project_id) when is_integer(project_id) and project_id > 0 do
+    case transaction(fn -> find_autopilot_blocker(project_id) end) do
+      {:ok, blocker} -> blocker
+      _ -> nil
+    end
+  end
+
+  def autopilot_blocker(_), do: nil
+
+  defp find_autopilot_blocker(project_id) do
+    same_project_active =
+      Repo.one(
+        from d in Delivery,
+          join: t in Tasks.Task,
+          on: t.id == d.task_id,
+          where: d.project_id == ^project_id and d.status in ^@active,
+          order_by: [desc: d.inserted_at, desc: d.id],
+          limit: 1,
+          select: %{
+            kind: :project_delivery,
+            delivery_id: d.id,
+            task_id: d.task_id,
+            task_title: t.title,
+            status: d.status,
+            implementer: d.implementer,
+            reviewer: d.reviewer
+          }
+      )
+
+    cond do
+      same_project_active != nil ->
+        same_project_active
+
+      other_delivery =
+          Repo.one(
+            from d in Delivery,
+              join: t in Tasks.Task,
+              on: t.id == d.task_id,
+              join: p in Boss.Projects.Project,
+              on: p.id == d.project_id,
+              where: d.project_id != ^project_id and d.status in ^@active,
+              order_by: [desc: d.inserted_at, desc: d.id],
+              limit: 1,
+              select: %{
+                kind: :other_project_delivery,
+                project_id: d.project_id,
+                project_name: p.name,
+                delivery_id: d.id,
+                task_id: d.task_id,
+                task_title: t.title,
+                status: d.status
+              }
+          ) ->
+        other_delivery
+
+      unknown_delivery =
+          Repo.one(
+            from d in Delivery,
+              join: t in Tasks.Task,
+              on: t.id == d.task_id,
+              where:
+                d.cleanup == "unknown" and
+                    not (d.status == "interrupted" and d.autonomy_version == 1),
+              order_by: [desc: d.inserted_at, desc: d.id],
+              limit: 1,
+              select: %{
+                kind: :unknown_cleanup,
+                project_id: d.project_id,
+                delivery_id: d.id,
+                task_id: d.task_id,
+                task_title: t.title
+              }
+          ) ->
+        unknown_delivery
+
+      manual_run =
+          Repo.one(
+            from r in Runs.Run,
+              join: t in Tasks.Task,
+              on: t.id == r.task_id,
+              where:
+                r.status in ~w(preparing launching running stopping) or r.cleanup == "unknown",
+              order_by: [desc: r.inserted_at, desc: r.id],
+              limit: 1,
+              select: %{
+                kind: :manual_run,
+                project_id: r.project_id,
+                run_id: r.id,
+                task_id: r.task_id,
+                task_title: t.title,
+                status: r.status,
+                cleanup: r.cleanup
+              }
+          ) ->
+        manual_run
+
+      other_autopilot =
+          Repo.one(
+            from b in Boss.Deliveries.AutopilotBatch,
+              join: p in Boss.Projects.Project,
+              on: p.id == b.project_id,
+              where: b.project_id != ^project_id and b.status in ~w(running paused),
+              order_by: [desc: b.inserted_at, desc: b.id],
+              limit: 1,
+              select: %{
+                kind: :other_autopilot,
+                project_id: b.project_id,
+                project_name: p.name,
+                batch_id: b.id,
+                status: b.status
+              }
+          ) ->
+        other_autopilot
+
+      Boss.Projects.Intake.quarantined?() ->
+        %{kind: :intake_quarantined}
+
+      true ->
+        nil
+    end
+  end
+
+  @doc """
+  Stops an active single-task delivery in `project_id` and transitions its task back into
+  an Autopilot-eligible state (`new` or `blocked`) once process-group cleanup is confirmed.
+  Escalates to terminating a stalled/orphaned worker after `grace_ms` (default 3,500ms).
+  """
+  def stop_for_autopilot(project_id, delivery_id, opts \\ []) do
+    registry = Keyword.get(opts, :registry, Boss.Runs.Active)
+    server = Keyword.get(opts, :server, Boss.Runs.Manager)
+    grace_ms = Keyword.get(opts, :grace_ms, 3_500)
+
+    with true <- valid_id?(project_id),
+         {:ok, _} <- Ecto.UUID.cast(delivery_id),
+         %Delivery{} = initial <- get(project_id, delivery_id) do
+      if active?(initial) do
+        _ = Runs.stop(project_id, delivery_id, registry)
+
+        if Runs.owner_alive?(project_id, delivery_id, registry) do
+          await_delivery_settled(
+            project_id,
+            delivery_id,
+            System.monotonic_time(:millisecond) + grace_ms
+          )
+        end
+
+        case get(project_id, delivery_id) do
+          %Delivery{} = still_active ->
+            if active?(still_active) do
+              _ =
+                GenServer.call(
+                  server,
+                  {:terminate_stalled_delivery, project_id, delivery_id},
+                  10_000
+                )
+
+              await_delivery_settled(
+                project_id,
+                delivery_id,
+                System.monotonic_time(:millisecond) + 1_500
+              )
+            end
+
+          _ ->
+            :ok
+        end
+      end
+
+      _ = requeue_interrupted_tasks(project_id)
+
+      await_registry_cleared(
+        project_id,
+        delivery_id,
+        registry,
+        System.monotonic_time(:millisecond) + 1_000
+      )
+
+      case get(project_id, delivery_id) do
+        %Delivery{} = settled ->
+          cond do
+            active?(settled) ->
+              {:error, :still_active}
+
+            settled.cleanup == "group_empty" ->
+              reinclude_cancelled_task(project_id, settled)
+              Tasks.broadcast(project_id)
+              {:ok, settled}
+
+            true ->
+              {:ok, settled}
+          end
+
+        nil ->
+          {:error, :not_found}
+      end
+    else
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_command}
+    end
+  end
+
+  defp await_delivery_settled(project_id, delivery_id, deadline) do
+    case get(project_id, delivery_id) do
+      %Delivery{} = d ->
+        if active?(d) and System.monotonic_time(:millisecond) < deadline do
+          Process.sleep(15)
+          await_delivery_settled(project_id, delivery_id, deadline)
+        else
+          :ok
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp await_registry_cleared(project_id, delivery_id, registry, deadline) do
+    if Runs.owner_alive?(project_id, delivery_id, registry) and
+         System.monotonic_time(:millisecond) < deadline do
+      Process.sleep(10)
+      await_registry_cleared(project_id, delivery_id, registry, deadline)
+    else
+      :ok
+    end
+  end
+
+  defp reinclude_cancelled_task(_project_id, %Delivery{id: delivery_id, task_id: task_id} = d) do
+    case Repo.get(Tasks.Task, task_id) do
+      %Tasks.Task{
+        state: "cancelled",
+        spec_revision_id: rev,
+        state_version: version
+      }
+      when rev == d.spec_revision_id and version == d.task_version + 1 ->
+        _ =
+          Tasks.transition(task_id, %{
+            action: "delivery_progress",
+            delivery_id: delivery_id,
+            expected_version: version,
+            command_id: "#{delivery_id}:autopilot_reinclude"
+          })
+
+      _ ->
+        :ok
+    end
+
+    :ok
+  end
+
   defp interrupt_record(id) do
     delivery = Repo.get(Delivery, id) || Repo.rollback(:not_found)
 
@@ -988,6 +1309,56 @@ defmodule Boss.Deliveries do
     end
   end
 
+  defp sync_released_task!(%Delivery{} = d) do
+    task = Repo.get!(Tasks.Task, d.task_id)
+
+    cond do
+      task.spec_revision_id != d.spec_revision_id ->
+        d
+
+      task.state_version == d.task_version ->
+        transition_task!(d, "complete:blocked")
+
+      task.state == "interrupted" and task.state_version == d.task_version + 1 and
+          owns_interrupted_event?(d, task.state_version) ->
+        case Tasks.transition(d.task_id, %{
+               command_id: "#{d.id}:release_cleanup",
+               expected_version: task.state_version,
+               action: "delivery_progress",
+               delivery_id: d.id
+             }) do
+          {:ok, _event} -> d
+          {:error, reason} -> Repo.rollback(reason)
+        end
+
+      true ->
+        d
+    end
+  end
+
+  defp owns_interrupted_event?(%Delivery{id: delivery_id, task_id: task_id}, version) do
+    interrupt_cmd = "#{delivery_id}:interrupt"
+    complete_cmd = "#{delivery_id}:complete:interrupted"
+
+    Repo.exists?(
+      from e in Tasks.Event,
+        where:
+          e.task_id == ^task_id and e.version == ^version and e.to_state == "interrupted" and
+            e.command_id in [^interrupt_cmd, ^complete_cmd]
+    )
+  end
+
+  defp owns_cancelled_event?(%Delivery{id: delivery_id, task_id: task_id}, version) do
+    cancel_cmd = "#{delivery_id}:complete:cancelled"
+
+    Repo.exists?(
+      from e in Tasks.Event,
+        where:
+          e.task_id == ^task_id and e.version == ^version and e.to_state == "cancelled" and
+            e.command_id == ^cancel_cmd
+    )
+  end
+
   @doc false
   def reconcile do
     result =
@@ -1019,6 +1390,39 @@ defmodule Boss.Deliveries do
           {:ok, %{state: delivery.status, recovery_state: nil, attention_reason: delivery.reason}}
         else
           {:error, :invalid_transition}
+        end
+
+      %Delivery{
+        task_id: task_id,
+        spec_revision_id: revision,
+        task_version: version,
+        status: "blocked",
+        cleanup: "group_empty",
+        autonomy_version: 1
+      } = delivery
+      when task_id == task.id and revision == task.spec_revision_id and
+             task.state == "interrupted" and task.state_version == version + 1 ->
+        if owns_interrupted_event?(delivery, task.state_version) do
+          {:ok, %{state: "blocked", recovery_state: nil, attention_reason: delivery.reason}}
+        else
+          {:error, :stale_state}
+        end
+
+      %Delivery{
+        id: delivery_id,
+        task_id: task_id,
+        spec_revision_id: revision,
+        task_version: version,
+        status: "cancelled",
+        cleanup: "group_empty"
+      } = delivery
+      when task_id == task.id and revision == task.spec_revision_id and
+             task.state == "cancelled" and task.state_version == version + 1 ->
+        if command[:command_id] == "#{delivery_id}:autopilot_reinclude" and
+             owns_cancelled_event?(delivery, task.state_version) do
+          {:ok, %{state: "new", recovery_state: nil, attention_reason: nil}}
+        else
+          {:error, :stale_state}
         end
 
       _ ->

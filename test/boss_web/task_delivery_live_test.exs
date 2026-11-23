@@ -1,7 +1,7 @@
 defmodule BossWeb.TaskDeliveryLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
-  alias Boss.{Deliveries, LocalAccess, Projects, Repo, Runs, Tasks}
+  alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Runs.Manager
   alias BossWeb.ManagerFixture
   alias Boss.Deliveries.Queue
@@ -45,8 +45,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
       })
 
     saved = spec(project, "one")
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, saved: saved}
   end
 
@@ -385,13 +384,13 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     {:ok, view, _} = live(c.conn, task_path(c))
     settle(view)
     id = command(view)
-    start(view, id, "")
+    start(view, id, "mix 'unterminated")
     settle(view)
     assert has_element?(view, "#delivery-error", "Enter one command")
     refute has_element?(view, "#delivery-command[readonly]")
     refute has_element?(view, "#delivery-request-pending")
     assert command(view) == id
-    start(view, id, "mix test")
+    start(view, id, "")
     assert_receive {:workflow, worker, _}, 1_000
     finish(worker, :cancelled)
   end

@@ -7,8 +7,7 @@ defmodule BossWeb.TaskBoardLiveTest do
 
   setup %{conn: conn} do
     project = project("board")
-    {:ok, session} = Boss.LocalAccess.exchange(Boss.LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project}
   end
 
@@ -170,10 +169,13 @@ defmodule BossWeb.TaskBoardLiveTest do
   } do
     own = spec(project, "own")
     foreign = spec(project("foreign"), "secret", "PRIVATE_FOREIGN_SOURCE")
-    anonymous = %{build_conn() | host: "127.0.0.1", port: 4002}
 
-    assert redirected_to(get(anonymous, "/projects/#{project.id}/tasks/#{own.task.id}")) ==
-             "/unlock"
+    foreign_origin =
+      %{build_conn() | host: "127.0.0.1", port: 4002}
+      |> put_req_header("origin", "https://evil.example")
+
+    assert response(get(foreign_origin, "/projects/#{project.id}/tasks/#{own.task.id}"), 403) ==
+             "Forbidden"
 
     paths = [
       "/projects/#{project.id}/tasks/#{foreign.task.id}",

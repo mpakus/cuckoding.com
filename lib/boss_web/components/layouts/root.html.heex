@@ -15,10 +15,10 @@
       <div class="app-shell-bar">
         <div class="app-brand-group">
           <a class="app-brand" href={~p"/"} aria-label="BOSS projects">
-            <span class="app-brand-eye" aria-hidden="true"></span>
-            <span>BOSS<span class="text-forest">.</span></span>
+            <span class="app-brand-mark" aria-hidden="true"></span>
+            <span>BOSS</span>
           </a>
-          <span class="app-eyebrow">Local workspace</span>
+          <span class="app-brand-tag">LOCAL ORCHESTRATOR</span>
         </div>
         <nav class="app-nav" aria-label="Main navigation">
           <a href={~p"/"} aria-current={navigation_current(assigns[:conn], :projects)}>Projects</a>
@@ -27,18 +27,5 @@
       </div>
     </header>
     <main id="main-content" class="app-main" tabindex="-1">{@inner_content}</main>
-    <footer class="app-shell-footer">
-      <a class="app-footer-brand" href="https://cuckoding.com/" target="_blank" rel="noopener">
-        cuckoding.
-      </a>
-      <div class="app-footer-tools">
-        <span>Your brief. Their problem.</span>
-        <label id="app-motion-control" class="app-motion-label" hidden>
-          <input id="app-motion-toggle" type="checkbox" disabled />
-          <span>Pause motion</span>
-        </label>
-        <span id="app-motion-system" hidden>Reduced by system preference</span>
-      </div>
-    </footer>
   </body>
 </html>

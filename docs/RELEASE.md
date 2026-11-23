@@ -309,8 +309,7 @@ bin/boss start
 ```
 
 The launcher works from another current directory when invoked by its full path.
-Open `http://127.0.0.1:4000` and enter the one-use terminal token. Never put the token
-in a URL or persistent log. Keep the terminal open; use Ctrl-C or send TERM to the
+Open `http://127.0.0.1:4000` directly. Keep the terminal open; use Ctrl-C or send TERM to the
 foreground process to stop. Distribution is disabled, so `rpc`, `remote` and the
 distribution-based `bin/boss stop` command are not the shutdown interface.
 The release disables BEAM crash-dump files because they can include private

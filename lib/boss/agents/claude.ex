@@ -28,12 +28,13 @@ defmodule Boss.Agents.Claude do
     ] ++ selection_flags(selection)
   end
 
-  def stage_args(kind, selection) when kind in [:plan, :resolve, :intake] do
+  def stage_args(kind, selection) when kind in [:plan, :resolve, :intake, :task_prompt] do
     schema_file =
       case kind do
         :plan -> "priv/plan_schema.json"
         :resolve -> "priv/resolution_schema.json"
         :intake -> "priv/intake_schema.json"
+        :task_prompt -> "priv/task_prompt_schema.json"
       end
 
     [

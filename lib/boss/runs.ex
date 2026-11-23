@@ -27,7 +27,30 @@ defmodule Boss.Runs do
     do: GenServer.call(server, {:review, project_id, check_id, command_id}, 10_000)
 
   # Stop bypasses the manager's DB work: only the live, project-scoped owner is signalled.
-  def stop(project_id, run_id, registry \\ Boss.Runs.Active) do
+  def stop(project_id, {:autopilot, batch_id} = key, registry) do
+    single =
+      case :ets.lookup(registry, key) do
+        [{^key, ^project_id, pid}] ->
+          send(pid, :stop)
+          true
+
+        _ ->
+          false
+      end
+
+    parallel =
+      :ets.match(registry, {{:autopilot_worker, batch_id, :_}, project_id, :"$1"})
+      |> Enum.map(fn [pid] ->
+        send(pid, :stop)
+        true
+      end)
+
+    if single or parallel != [], do: :ok, else: {:error, :not_running}
+  rescue
+    ArgumentError -> {:error, :not_running}
+  end
+
+  def stop(project_id, run_id, registry) do
     case :ets.lookup(registry, run_id) do
       [{^run_id, ^project_id, pid}] ->
         send(pid, :stop)
@@ -38,6 +61,17 @@ defmodule Boss.Runs do
     end
   rescue
     ArgumentError -> {:error, :not_running}
+  end
+
+  def stop(project_id, run_id), do: stop(project_id, run_id, Boss.Runs.Active)
+
+  def owner_alive?(project_id, run_id, registry \\ Boss.Runs.Active) do
+    case :ets.lookup(registry, run_id) do
+      [{^run_id, ^project_id, pid}] when is_pid(pid) -> Process.alive?(pid)
+      _ -> false
+    end
+  rescue
+    ArgumentError -> false
   end
 
   def list(project_id, task_id) do

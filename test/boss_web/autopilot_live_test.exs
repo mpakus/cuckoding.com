@@ -1,7 +1,7 @@
 defmodule BossWeb.AutopilotLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
-  alias Boss.{Deliveries, LocalAccess, Projects, Repo, Runs, Tasks}
+  alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Deliveries.Autopilot, as: Engine
   alias Boss.Runs.Manager
   alias BossWeb.{Autopilot, ManagerFixture}
@@ -20,8 +20,7 @@ defmodule BossWeb.AutopilotLiveTest do
     project = project("Autopilot UI")
     first = task(project, "First")
     second = task(project, "Second")
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, first: first, second: second}
   end
 
@@ -163,7 +162,8 @@ defmodule BossWeb.AutopilotLiveTest do
     assert Repo.aggregate(Deliveries.Delivery, :count) == 3
   end
 
-  test "Independent reviewer offers the agents assigned to Reviewer", c do
+  test "Autopilot automatically pins the project's bound Reviewer role without a redundant dropdown",
+       c do
     Boss.Agents.Detections.save_scan([
       %{
         id: :cursor,
@@ -192,12 +192,11 @@ defmodule BossWeb.AutopilotLiveTest do
     {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
     settle(view)
     view |> element("#project-autopilot") |> render_click()
-    assert has_element?(view, "#autopilot-reviewer option[value='cursor']", "Cursor Agent")
-    assert has_element?(view, "#autopilot-reviewer option[value='claude']", "Claude Code")
-    refute has_element?(view, "#autopilot-reviewer option[value='codex']")
+    refute has_element?(view, "#autopilot-reviewer")
+    assert has_element?(view, "#autopilot-bound-reviewer", "Cursor Agent")
 
     view
-    |> form("#autopilot-form", %{"command" => "mix test", "reviewer" => "cursor"})
+    |> form("#autopilot-form", %{"command" => "mix test"})
     |> render_submit()
 
     assert_receive {:started, _, _}, 1_500
@@ -217,7 +216,11 @@ defmodule BossWeb.AutopilotLiveTest do
     {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
     settle(view)
     view |> element("#project-autopilot") |> render_click()
-    view |> form("#autopilot-form", Map.put(params(), "command", "")) |> render_submit()
+
+    view
+    |> form("#autopilot-form", Map.put(params(), "command", "mix 'unterminated"))
+    |> render_submit()
+
     settle(view)
     assert has_element?(view, "#autopilot-error", "valid check command")
     assert has_element?(view, "#autopilot-task-#{c.first.task.id}", "First")
@@ -505,6 +508,36 @@ defmodule BossWeb.AutopilotLiveTest do
     end
   end
 
+  test "active single-task delivery shows inline Autopilot blocker and Stop & include unblocks Start",
+       c do
+    {:ok, _} = Deliveries.start(c.project.id, c.first.task.id, Ecto.UUID.generate(), "true")
+    assert_receive {:started, _, active_id}, 1_500
+
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+    settle(view)
+    view |> element("#project-autopilot") |> render_click()
+
+    assert has_element?(view, "#autopilot-rules-disclosure")
+    assert has_element?(view, "#autopilot-active-blocker", "First")
+    assert has_element?(view, "#autopilot-stop-active-delivery")
+    assert has_element?(view, "#start-autopilot[disabled]")
+
+    view |> element("#autopilot-stop-active-delivery") |> render_click()
+    assert_receive {:finished, ^active_id}, 1_500
+    settle(view)
+    settle(view)
+
+    refute has_element?(view, "#autopilot-active-blocker")
+    assert has_element?(view, "#autopilot-selection-count", "2 eligible unfinished tasks")
+    refute has_element?(view, "#start-autopilot[disabled]")
+
+    view |> form("#autopilot-form", params()) |> render_submit()
+    assert_receive {:started, _, batch_delivery_id}, 1_500
+    refute batch_delivery_id == active_id
+    settle(view)
+    assert has_element?(view, "#autopilot-status", "Running")
+  end
+
   defp project(name) do
     root = Path.join(System.tmp_dir!(), "boss-autopilot-ui-#{Ecto.UUID.generate()}")
     File.mkdir!(root)
@@ -544,7 +577,7 @@ defmodule BossWeb.AutopilotLiveTest do
     saved
   end
 
-  defp params, do: %{"command" => "mix test", "reviewer" => "codex"}
+  defp params, do: %{"command" => "mix test"}
 
   defp uncertain_start(c) do
     request = %{

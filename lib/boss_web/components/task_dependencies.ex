@@ -7,17 +7,29 @@ defmodule BossWeb.TaskDependencies do
 
   def panel(assigns) do
     ~H"""
-    <section id="task-dependencies" aria-labelledby="task-dependencies-heading" class="min-w-0">
-      <h3 id="task-dependencies-heading" class="app-panel-heading">Dependencies</h3>
-      <p class="mt-1 text-xs text-muted">
-        From task snapshot revision {@revision}. Viewing or importing another revision does not change them.
-      </p>
+    <section
+      id="task-dependencies"
+      aria-labelledby="task-dependencies-heading"
+      class={[
+        "min-w-0",
+        @snapshot.dependencies == [] && @snapshot.issues == [] && @snapshot.ready? && "sr-only",
+        (@snapshot.dependencies != [] || @snapshot.issues != [] || !@snapshot.ready?) &&
+          "rounded-lg border border-line bg-surface p-3 text-xs"
+      ]}
+    >
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="task-dependencies-heading" class="font-semibold text-ink">Dependencies</h3>
+        <span class="font-mono text-[11px] text-muted">
+          task snapshot revision {@revision}
+        </span>
+      </div>
+
       <p
         id="task-dependencies-status"
         role="status"
         class={[
-          "mt-3 text-sm",
-          if(@snapshot.ready?, do: "text-body", else: "text-warning")
+          "mt-1",
+          if(@snapshot.ready?, do: "text-muted", else: "text-warning")
         ]}
       >
         <%= cond do %>
@@ -29,26 +41,33 @@ defmodule BossWeb.TaskDependencies do
             All dependencies are Done.
         <% end %>
       </p>
-      <ul :if={@snapshot.dependencies != []} class="mt-3 space-y-2 text-sm">
+
+      <ul :if={@snapshot.dependencies != []} class="mt-2 space-y-1.5">
         <li
           :for={dependency <- @snapshot.dependencies}
-          class="flex flex-wrap items-baseline gap-x-2 gap-y-1"
+          class="flex flex-wrap items-baseline justify-between gap-2 rounded border border-line bg-paper px-2.5 py-1.5"
         >
-          <.link
-            :if={dependency.task_id}
-            patch={~p"/projects/#{@project_id}/tasks/#{dependency.task_id}"}
-            class="break-words text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-forest"
-          >{dependency.title || dependency.reference}</.link>
-          <code class="break-all text-xs text-muted">{dependency.reference}</code>
-          <span class={if dependency.satisfied?, do: "text-body", else: "text-warning"}>
+          <div class="flex min-w-0 flex-wrap items-baseline gap-2">
+            <.link
+              :if={dependency.task_id}
+              patch={~p"/projects/#{@project_id}/tasks/#{dependency.task_id}"}
+              class="break-words font-medium text-forest hover:underline"
+            >{dependency.title || dependency.reference}</.link>
+            <code class="break-all font-mono text-[11px] text-muted">{dependency.reference}</code>
+          </div>
+          <span class={[
+            "font-mono text-[11px]",
+            if(dependency.satisfied?, do: "text-forest", else: "text-warning")
+          ]}>
             {dependency_status(dependency)}
           </span>
         </li>
       </ul>
+
       <ul
         :if={@snapshot.issues != []}
         id="task-dependency-issues"
-        class="mt-3 list-inside list-disc space-y-1 break-words text-sm text-warning"
+        class="mt-2 list-inside list-disc space-y-1 break-words text-warning"
       >
         <li :for={issue <- @snapshot.issues}>{issue.message}</li>
       </ul>

@@ -22,14 +22,16 @@ defmodule Boss.Deliveries.Worker do
     Repo.put_dynamic_repo(repo)
 
     result =
-      try do
-        perform(delivery)
-      rescue
-        _ -> halt(delivery, :storage_error)
-      catch
-        :throw, {:halt, reason} -> halt(delivery, reason)
-        _, _ -> halt(delivery, :storage_error)
-      end
+      Boss.Projects.RoleBindings.with_delivery_scope(delivery.project_id, delivery.id, fn ->
+        try do
+          perform(delivery)
+        rescue
+          _ -> halt(delivery, :storage_error)
+        catch
+          :throw, {:halt, reason} -> halt(delivery, reason)
+          _, _ -> halt(delivery, :storage_error)
+        end
+      end)
 
     send(manager, {:delivery_finished, delivery.id, self(), result})
   end
@@ -1686,7 +1688,38 @@ defmodule Boss.Deliveries.Worker do
     do: ok!(Deliveries.model_profile(delivery, kind, cycle, if(plan_step, do: plan_step.id)))
 
   @doc false
-  def run_check(path, config, verify, opts \\ []) do
+  def run_check(path, config, verify, opts \\ [])
+
+  def run_check(_path, %{"mode" => "spec_only"}, verify, _opts) do
+    with :ok <- continue(),
+         :ok <- verify.() do
+      output = %{
+        "stdout" =>
+          "Specification-only verification: no external shell check command configured. Reviewer evaluates the candidate directly against the task specification and acceptance criteria.\n",
+        "stderr" => ""
+      }
+
+      receipt = %{
+        "status" => "finished",
+        "outcome" => nil,
+        "exit_kind" => "exit",
+        "exit_code" => 0,
+        "signal" => nil,
+        "eof" => %{"stdout" => true, "stderr" => true},
+        "cleanup" => "group_empty",
+        "output_complete" => true,
+        "output_hash" => Protocol.digest(output),
+        "stdout_bytes" => byte_size(output["stdout"]),
+        "stderr_bytes" => 0
+      }
+
+      {receipt, output}
+    else
+      {:error, reason} -> {failure(reason), %{}}
+    end
+  end
+
+  def run_check(path, config, verify, opts) do
     with :ok <- continue(),
          :ok <- verify.(),
          {:ok, executable, args} <- executable(config["argv"], path),
@@ -2050,13 +2083,13 @@ defmodule Boss.Deliveries.Worker do
     runner = Keyword.get(opts, :implementer)
 
     cond do
-      runner == "cursor" and kind in [:plan, :implement, :resolve, :intake] ->
+      runner == "cursor" and kind in [:plan, :implement, :resolve, :intake, :task_prompt] ->
         run_cursor_stage(kind, path, prompt, decode, opts)
 
-      runner == "claude" and kind in [:plan, :implement, :resolve, :intake] ->
+      runner == "claude" and kind in [:plan, :implement, :resolve, :intake, :task_prompt] ->
         run_claude_stage(kind, path, prompt, decode, opts)
 
-      runner == "opencode" and kind in [:plan, :implement, :resolve, :intake] ->
+      runner == "opencode" and kind in [:plan, :implement, :resolve, :intake, :task_prompt] ->
         run_opencode_stage(kind, path, prompt, decode, opts)
 
       true ->
@@ -2067,8 +2100,12 @@ defmodule Boss.Deliveries.Worker do
   defp run_cursor_stage(kind, path, prompt, decode, opts) do
     continue!()
     executable = Metadata.find_executable(:cursor) || throw({:halt, :cursor_unavailable})
-    role_kind = if kind in [:resolve, :intake], do: "analytic", else: "implementer"
-    selection = Boss.Agents.Roles.selection_for(role_kind, "cursor")
+
+    role_kind =
+      if kind in [:resolve, :intake, :task_prompt], do: "analytic", else: "implementer"
+
+    selection =
+      Keyword.get(opts, :selection) || Boss.Agents.Roles.selection_for(role_kind, "cursor")
 
     args =
       if kind == :implement,
@@ -2116,8 +2153,12 @@ defmodule Boss.Deliveries.Worker do
   defp run_claude_stage(kind, path, prompt, decode, opts) do
     continue!()
     executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
-    role_kind = if kind in [:resolve, :intake], do: "analytic", else: "implementer"
-    args = Claude.stage_args(kind, Boss.Agents.Roles.selection_for(role_kind, "claude"))
+    role_kind = if kind in [:resolve, :intake, :task_prompt], do: "analytic", else: "implementer"
+
+    selection =
+      Keyword.get(opts, :selection) || Boss.Agents.Roles.selection_for(role_kind, "claude")
+
+    args = Claude.stage_args(kind, selection)
 
     run_envelope_stage(
       executable,
@@ -2134,8 +2175,10 @@ defmodule Boss.Deliveries.Worker do
   defp run_opencode_stage(kind, path, prompt, decode, opts) do
     continue!()
     executable = Metadata.find_executable(:opencode) || throw({:halt, :opencode_unavailable})
-    role_kind = if kind in [:resolve, :intake], do: "analytic", else: "implementer"
-    selection = Boss.Agents.Roles.selection_for(role_kind, "opencode")
+    role_kind = if kind in [:resolve, :intake, :task_prompt], do: "analytic", else: "implementer"
+
+    selection =
+      Keyword.get(opts, :selection) || Boss.Agents.Roles.selection_for(role_kind, "opencode")
 
     opencode_process(
       executable,
@@ -2502,10 +2545,21 @@ defmodule Boss.Deliveries.Worker do
       )
     else
       case ReportFile.with_file(fn output, file ->
+             codex_args =
+               if kind == :task_prompt and is_nil(profile) do
+                 selection =
+                   Keyword.get(opts, :selection) ||
+                     Boss.Agents.Roles.selection_for("analytic", "codex")
+
+                 Codex.selection_args(:task_prompt, output, selection)
+               else
+                 Codex.args(kind, output, profile, Keyword.get(opts, :network_policy))
+               end
+
              receipt =
                agent_process(
                  executable,
-                 Codex.args(kind, output, profile, Keyword.get(opts, :network_policy)),
+                 codex_args,
                  path,
                  prompt,
                  not is_nil(profile),

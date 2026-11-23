@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "description": "Complete compact JSON, at most 32768 UTF-8 bytes. Propose safe BOSS task actions matching the owner's prompt, or an empty actions array when answering a question or when no task mutation should occur.",
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string",
+      "pattern": "^[^\\u0000]{1,1200}$",
+      "description": "Concise human-readable summary or answer (1-1200 UTF-8 bytes, no NUL)."
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "create_task",
+              "update_task_spec",
+              "add_task_note",
+              "block_task",
+              "needs_input_task",
+              "cancel_task",
+              "resume_task",
+              "retry_task",
+              "start_workflow",
+              "queue_workflow",
+              "cancel_queued_workflow",
+              "stop_workflow"
+            ]
+          },
+          "task_ref": {
+            "type": ["string", "null"],
+            "description": "For create_task: new unique lowercase slug ID (^[a-z][a-z0-9_-]{0,63}$). For all other ops: target existing task numeric ID as string (e.g. \"2\") or explicit ID (e.g. \"m1-auth\"), or an id created earlier in this actions list."
+          },
+          "title": {
+            "type": ["string", "null"],
+            "description": "Single-line task title (1-200 chars, no newlines) for create_task and update_task_spec; null for other ops."
+          },
+          "specification": {
+            "type": ["string", "null"],
+            "description": "Concise Markdown specification body (1-8000 UTF-8 bytes) for create_task and update_task_spec; null for other ops."
+          },
+          "acceptance": {
+            "type": ["array", "null"],
+            "maxItems": 12,
+            "items": {
+              "type": "string",
+              "pattern": "^[^\\u0000]{1,500}$"
+            },
+            "description": "1-12 measurable acceptance criteria (1-500 UTF-8 bytes each) for create_task and update_task_spec; null for other ops."
+          },
+          "depends_on": {
+            "type": ["array", "null"],
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "pattern": "^[^\\r\\n\\u0000]{1,200}$"
+            },
+            "description": "0-32 explicit task IDs or numeric task IDs that this task depends on for create_task and update_task_spec; null for other ops."
+          },
+          "reason": {
+            "type": ["string", "null"],
+            "description": "Nonblank reason or comment (1-1000 UTF-8 bytes) for add_task_note, block_task, needs_input_task, and cancel_task; null for other ops."
+          }
+        },
+        "required": [
+          "op",
+          "task_ref",
+          "title",
+          "specification",
+          "acceptance",
+          "depends_on",
+          "reason"
+        ]
+      }
+    }
+  },
+  "required": ["summary", "actions"]
+}

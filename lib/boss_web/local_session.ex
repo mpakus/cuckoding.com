@@ -16,20 +16,4 @@ defmodule BossWeb.LocalSession do
       conn |> send_resp(403, "Forbidden") |> halt()
     end
   end
-
-  def call(conn, :require) do
-    if Boss.LocalAccess.valid_session?(get_session(conn, :local_session)) do
-      conn
-    else
-      conn |> Phoenix.Controller.redirect(to: "/unlock") |> halt()
-    end
-  end
-
-  def on_mount(:default, _params, session, socket) do
-    if Boss.LocalAccess.valid_session?(session["local_session"]) do
-      {:cont, socket}
-    else
-      {:halt, Phoenix.LiveView.redirect(socket, to: "/unlock")}
-    end
-  end
 end

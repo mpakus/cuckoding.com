@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
-"""Bounded unpacked-release acceptance. Tokens stay in memory; no provider calls."""
+"""Bounded unpacked-release acceptance. No provider calls."""
 import argparse
 import http.cookiejar
 from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
-import queue
-import re
 import shutil
-import signal
 import socket
 import sqlite3
 import subprocess
 import tarfile
 import tempfile
-import threading
 import time
-import urllib.parse
+import urllib.error
 import urllib.request
 
 
@@ -30,8 +26,8 @@ class Page(HTMLParser):
 
     def handle_starttag(self, tag, attributes):
         attributes = dict(attributes)
-        if tag == "input" and attributes.get("name") == "_csrf_token":
-            self.csrf = attributes.get("value")
+        if tag == "meta" and attributes.get("name") == "csrf-token":
+            self.csrf = attributes.get("content")
         asset = attributes.get("src") if tag == "script" else attributes.get("href")
         if asset and asset.startswith("/assets/"):
             self.assets.append(asset)
@@ -128,46 +124,29 @@ def main(archive):
 
         def start():
             nonlocal process
-            tokens = queue.Queue(maxsize=1)
             process = subprocess.Popen([executable, "start"], cwd=cwd, env=environment,
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, start_new_session=True)
-
-            def read_terminal():
-                pending = False
-                for line in process.stdout:
-                    if pending and re.fullmatch(r"[A-Za-z0-9_-]{43}", line.strip()):
-                        tokens.put_nowait(line.strip())
-                        pending = False
-                    elif "one-use token (10 minutes):" in line:
-                        pending = True
-
-            threading.Thread(target=read_terminal, daemon=True).start()
-            try:
-                token = tokens.get(timeout=30)
-            except queue.Empty:
-                raise AssertionError("Release did not announce its local token") from None
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + 20
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             while True:
                 try:
-                    text = opener.open(base + "/unlock", timeout=2).read().decode()
+                    response = opener.open(base + "/", timeout=2)
+                    text = response.read().decode()
                     break
                 except OSError:
                     assert process.poll() is None, "Release stopped before HTTP readiness"
                     if time.monotonic() > deadline:
                         raise AssertionError("Release HTTP readiness timed out") from None
                     time.sleep(0.05)
+            foreign = urllib.request.Request(base + "/", headers={"Origin": "https://evil.example"})
+            try:
+                opener.open(foreign, timeout=5)
+                raise AssertionError("Foreign Origin was not rejected")
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 403, f"Expected 403 for foreign Origin, got {exc.code}"
             page = Page(text)
-            assert page.csrf, "Unlock form CSRF missing"
-            request = urllib.request.Request(base + "/unlock", method="POST",
-                data=urllib.parse.urlencode({"_csrf_token": page.csrf, "token": token}).encode(),
-                headers={"Origin": base, "Referer": base + "/unlock"})
-            token = None
-            response = opener.open(request, timeout=10)
-            assert response.geturl() == base + "/", "Token exchange did not authenticate"
-            text = response.read().decode()
-            page = Page(text)
+            assert page.csrf, "CSRF meta tag missing"
             assert page.assets, "Digested assets missing from HTML"
             for asset in page.assets:
                 assert opener.open(base + asset, timeout=10).status == 200
@@ -207,7 +186,7 @@ def main(archive):
                 assert database.execute("PRAGMA integrity_check").fetchone() == ("ok",)
                 assert database.execute("PRAGMA foreign_key_check").fetchall() == []
                 assert database.execute("SELECT count(*) FROM tasks").fetchone() == (1,)
-            print("Release smoke passed: unpack, bundled runtime/guardian, host CLI PATH, login/assets, persisted state, restart, graceful stop")
+            print("Release smoke passed: unpack, bundled runtime/guardian, host CLI PATH, loopback/assets, persisted state, restart, graceful stop")
         finally:
             if process is not None:
                 try:

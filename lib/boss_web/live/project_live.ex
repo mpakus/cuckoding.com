@@ -7,9 +7,11 @@ defmodule BossWeb.ProjectLive do
   alias BossWeb.{
     Autopilot,
     DeliveryPanel,
+    ProjectRoles,
     RunPanel,
     TaskBoard,
     TaskDependencies,
+    TaskPrompt,
     TaskRevision,
     WorkflowCapacity
   }
@@ -21,6 +23,7 @@ defmodule BossWeb.ProjectLive do
     if project && connected?(socket) do
       Phoenix.PubSub.subscribe(Boss.PubSub, Documentation.topic(project.id))
       Phoenix.PubSub.subscribe(Boss.PubSub, Intake.topic(project.id))
+      Boss.Projects.RoleBindings.subscribe(project.id)
       SpecWatcher.subscribe(project.id)
       Runs.subscribe(project.id)
       Tasks.subscribe(project.id)
@@ -36,6 +39,7 @@ defmodule BossWeb.ProjectLive do
        project_route: id,
        page_title: if(project, do: "#{project.name} · BOSS", else: "Project not found · BOSS"),
        entries: if(project, do: Projects.list_spec_entries(project.id), else: []),
+       board_live_meta: if(project, do: Projects.board_live_meta(project.id), else: %{}),
        task_notices: [],
        auto_sync: Application.get_env(:boss, :spec_auto_sync, true),
        syncing: false,
@@ -69,6 +73,8 @@ defmodule BossWeb.ProjectLive do
        run_supported: :os.type() == {:unix, :darwin},
        check_requests: %{},
        review_requests: %{},
+       comment_draft: "",
+       comment_error: nil,
        status: nil,
        errors: []
      )
@@ -119,6 +125,32 @@ defmodule BossWeb.ProjectLive do
   def handle_event("open_autopilot", _, socket) do
     send_update(Autopilot, id: "autopilot", open: true)
     {:noreply, socket}
+  end
+
+  def handle_event("add_task_comment", %{"body" => body}, socket) do
+    with %{id: project_id} <- socket.assigns.project,
+         {task_id, _} <- socket.assigns.selection,
+         false <- reference_only?(socket.assigns) do
+      case Boss.Tasks.Entries.add_comment(project_id, task_id, %{
+             author_role: "owner",
+             kind: "comment",
+             body: body
+           }) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign(comment_draft: "", comment_error: nil)
+           |> refresh_details()}
+
+        {:error, :empty_comment} ->
+          {:noreply, assign(socket, comment_draft: body, comment_error: "Enter a note first.")}
+
+        {:error, _} ->
+          {:noreply, assign(socket, comment_draft: body, comment_error: "Could not save note.")}
+      end
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("select_revision", %{"revision" => value}, socket) do
@@ -610,7 +642,11 @@ defmodule BossWeb.ProjectLive do
     {:noreply,
      socket
      |> refresh_task_notices(entries)
-     |> assign(project: project, entries: entries)
+     |> assign(
+       project: project,
+       entries: entries,
+       board_live_meta: Projects.board_live_meta(project.id)
+     )
      |> show_result(result)
      |> refresh_details()
      |> finish_refresh()}
@@ -685,10 +721,36 @@ defmodule BossWeb.ProjectLive do
 
   def handle_info({:scope_claims_changed}, socket), do: {:noreply, refresh_details(socket)}
 
-  def handle_info({:task_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
-    do: {:noreply, refresh(socket, :delivery_update)}
+  def handle_info({:task_changed, id}, %{assigns: %{project: %{id: id}}} = socket) do
+    send_update(Autopilot, id: "autopilot", refresh: true)
+    {:noreply, refresh(socket, :delivery_update)}
+  end
 
   def handle_info({:task_changed, _}, socket), do: {:noreply, socket}
+
+  def handle_info({:prompt_tasks_updated, id}, %{assigns: %{project: %{id: id}}} = socket) do
+    send_update(Autopilot, id: "autopilot", refresh: true)
+    {:noreply, socket |> refresh(:delivery_update) |> refresh_details()}
+  end
+
+  def handle_info({:prompt_tasks_updated, _}, socket), do: {:noreply, socket}
+
+  def handle_info({:project_roles_changed, id}, %{assigns: %{project: %{id: id}}} = socket) do
+    send_update(TaskPrompt, id: "task-prompt", refresh_roles: true)
+    send_update(Autopilot, id: "autopilot", refresh: true)
+    {:noreply, socket}
+  end
+
+  def handle_info({:project_roles_changed, _}, socket), do: {:noreply, socket}
+
+  def handle_info({:project_roles_updated, id}, %{assigns: %{project: %{id: id}}} = socket) do
+    send_update(ProjectRoles, id: "project-roles", refresh: true)
+    send_update(TaskPrompt, id: "task-prompt", refresh_roles: true)
+    send_update(Autopilot, id: "autopilot", refresh: true)
+    {:noreply, socket}
+  end
+
+  def handle_info({:project_roles_updated, _}, socket), do: {:noreply, socket}
 
   def handle_info({:run_changed, id}, %{assigns: %{project: %{id: id}}} = socket) do
     send_update(Autopilot, id: "autopilot", refresh: true)
@@ -717,6 +779,11 @@ defmodule BossWeb.ProjectLive do
   defp select_task(%{assigns: %{selection: selection}} = socket, selection), do: socket
 
   defp select_task(socket, selection) do
+    if connected?(socket) and socket.assigns.project do
+      send_update(ProjectRoles, id: "project-roles", open: false)
+      send_update(TaskPrompt, id: "task-prompt", open: false)
+    end
+
     same_task =
       case {socket.assigns.selection, selection} do
         {{id, _}, {id, _}} -> true
@@ -897,14 +964,22 @@ defmodule BossWeb.ProjectLive do
     }
 
   defp pinned_reviewer(socket) do
-    case Boss.Deliveries.Autopilot.current(socket.assigns.project.id) do
-      {:ok, %{reviewer: reviewer}} when reviewer in ~w(codex claude cursor opencode) ->
+    project_id = socket.assigns.project.id
+
+    case Boss.Projects.RoleBindings.reviewer_agent_maybe(project_id) do
+      reviewer when reviewer in ~w(codex claude cursor opencode) ->
         reviewer
 
       _ ->
-        case Boss.Agents.Roles.reviewer_choices() do
-          [%{id: id} | _] -> id
-          _ -> "codex"
+        case Boss.Deliveries.Autopilot.current(project_id) do
+          {:ok, %{reviewer: reviewer}} when reviewer in ~w(codex claude cursor opencode) ->
+            reviewer
+
+          _ ->
+            case Boss.Agents.Roles.reviewer_choices(project_id) do
+              [%{id: id} | _] -> id
+              _ -> "codex"
+            end
         end
     end
   end
@@ -1530,6 +1605,7 @@ defmodule BossWeb.ProjectLive do
   def render(assigns) do
     assigns =
       assigns
+      |> assign_new(:board_live_meta, fn -> %{} end)
       |> assign(:adoption_available, adoption_available?(assigns))
       |> assign(:run_available, run_available?(assigns))
       |> assign(:run_start_available, run_start_available?(assigns))
@@ -1546,31 +1622,49 @@ defmodule BossWeb.ProjectLive do
       )
 
     ~H"""
-    <.link
-      navigate={~p"/"}
-      class="mb-6 inline-block text-sm text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-forest"
-    >
-      ← Projects
-    </.link>
-    <div :if={is_nil(@project)} class="app-page-header">
-      <p class="app-eyebrow">Workspace</p>
+    <div :if={is_nil(@project)} class="app-empty-state space-y-3 py-12">
       <h1 class="app-page-title">Project not found</h1>
-      <p class="app-page-description">Choose a project from the project list.</p>
+      <p class="text-sm text-muted">Choose a registered repository from the launchpad.</p>
+      <.link navigate={~p"/"} class="app-button-secondary">← Projects</.link>
     </div>
-    <div :if={@project}>
-      <header class="app-page-header flex flex-col items-start gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div class="min-w-0">
-          <p class="app-eyebrow">Project workspace</p>
-          <h1 class="app-page-title break-words">{@project.name}</h1>
+    <div :if={@project} class="flex min-w-0 flex-col gap-2.5">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-2.5">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 class="app-page-title truncate">{@project.name}</h1>
+          <span class="app-pill" title={"Target branch: #{@project.base_branch}"}>
+            <span class="text-forest">⎇</span>
+            <span class="max-w-36 truncate">{@project.base_branch}</span>
+          </span>
+          <span class="app-pill text-muted" title={@project.specs_path}>
+            {if Path.basename(@project.specs_path) in ["docs", "specs"],
+              do: "#{Path.basename(@project.specs_path)}/",
+              else:
+                "#{if(@project.intake_mode == "documentation", do: "docs", else: "specs")} · #{Path.basename(@project.specs_path)}"}
+          </span>
+          <p id="sync-help" class="sr-only">
+            <%= cond do %>
+              <% @project.intake_mode == "documentation" -> %>
+                Start Autopilot to create tasks from committed documentation and code.
+              <% @auto_sync -> %>
+                Changes in this specs folder refresh automatically. Use Sync specs to check now.
+              <% true -> %>
+                Sync reads Markdown files from this project's specs folder. Run it again after editing files.
+            <% end %>
+          </p>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-3">
-          <button
-            id="project-autopilot"
-            type="button"
-            phx-click="open_autopilot"
-            aria-controls="autopilot-content"
-            class="app-button-primary shrink-0 px-5 py-3 font-semibold"
-          >Autopilot</button>
+        <div class="flex max-w-full shrink-0 flex-wrap items-center gap-2">
+          <.live_component
+            module={ProjectRoles}
+            id="project-roles"
+            project={@project}
+          />
+          <.live_component module={WorkflowCapacity} id="workflow-capacity" />
+          <.live_component
+            module={TaskPrompt}
+            id="task-prompt"
+            project={@project}
+            supported={@run_supported}
+          />
           <button
             :if={@project.intake_mode == "specs"}
             id="sync-specs"
@@ -1578,55 +1672,60 @@ defmodule BossWeb.ProjectLive do
             phx-click="sync"
             disabled={@syncing}
             aria-describedby="sync-help"
-            class="app-button-secondary shrink-0 px-5 py-3 font-semibold disabled:opacity-50"
+            class="app-button-secondary shrink-0 px-3 py-1.5 text-xs"
           >
             {if @syncing, do: "Syncing…", else: "Sync specs"}
           </button>
+          <button
+            id="project-autopilot"
+            type="button"
+            phx-click="open_autopilot"
+            aria-controls="autopilot-content"
+            class="app-button-primary shrink-0 px-3.5 py-1.5 text-xs"
+          >Autopilot</button>
         </div>
       </header>
-      <div class="min-w-0 border-t border-line pt-5">
-        <p id="sync-help" class="max-w-3xl text-sm text-body">
-          <%= cond do %>
-            <% @project.intake_mode == "documentation" -> %>
-              Start Autopilot to create tasks from committed documentation and code.
-            <% @auto_sync -> %>
-              Changes in this specs folder refresh automatically. Use Sync specs to check now.
-            <% true -> %>
-              Sync reads Markdown files from this project's specs folder. Run it again after editing files.
-          <% end %>
+
+      <.live_component
+        module={Autopilot}
+        id="autopilot"
+        project={@project}
+        entries={@entries}
+        supported={@run_supported}
+      />
+
+      <div :if={@task_notices != [] or @status != nil} class="space-y-2">
+        <TaskBoard.notices entries={@task_notices} project_id={@project.id} />
+        <p
+          :if={@status}
+          id="sync-status"
+          role="status"
+          class="rounded-lg border border-line bg-surface px-3 py-1.5 font-mono text-xs text-body"
+        >
+          {@status}
         </p>
-        <p class="mt-2 break-all font-mono text-sm text-muted">{@project.specs_path}</p>
       </div>
-      <div class="mt-6 grid min-w-0 gap-6 border-y border-line py-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
-        <.live_component
-          module={Autopilot}
-          id="autopilot"
-          project={@project}
-          entries={@entries}
-          supported={@run_supported}
-        />
-        <.live_component module={WorkflowCapacity} id="workflow-capacity" />
+      <div :if={@task_notices == [] and is_nil(@status)} class="sr-only">
+        <TaskBoard.notices entries={@task_notices} project_id={@project.id} />
+        <p id="sync-status" role="status">{@status}</p>
       </div>
-      <TaskBoard.notices entries={@task_notices} project_id={@project.id} />
-      <p id="sync-status" role="status" class="mt-4 min-h-5 text-sm text-body">{@status}</p>
+
       <div
         :if={@errors != []}
         id="sync-errors"
         role="alert"
-        class="mt-4 rounded-sm border border-danger-line px-4 py-3 text-sm text-danger bg-danger-soft"
+        class="rounded-lg border border-danger-line bg-danger-soft px-3.5 py-2.5 text-xs text-danger"
       >
         <p class="font-semibold">Sync could not finish. Review the details and try again.</p>
-        <ul class="mt-2 space-y-2">
+        <ul class="mt-1.5 space-y-1">
           <li :for={error <- @errors}>
             <span class="break-all font-mono">{error.path}</span>: {error.message}
           </li>
         </ul>
       </div>
-      <section aria-labelledby="task-board-heading" aria-busy={@syncing} class="mt-6 min-w-0">
-        <p
-          :if={@task_entries == []}
-          class="app-empty-state mt-4"
-        >
+
+      <section aria-labelledby="task-board-heading" aria-busy={@syncing} class="min-w-0">
+        <p :if={@task_entries == []} class="app-empty-state mb-3">
           <%= if @project.intake_mode == "documentation" do %>
             No implementation tasks yet. Start Autopilot to plan from the project documentation.
           <% else %>
@@ -1638,9 +1737,15 @@ defmodule BossWeb.ProjectLive do
             <% end %>
           <% end %>
         </p>
-        <TaskBoard.board entries={@task_entries} project_id={@project.id} />
+        <TaskBoard.board
+          entries={@task_entries}
+          live_meta={@board_live_meta}
+          project_id={@project.id}
+        />
       </section>
+
       <TaskBoard.references entries={@reference_entries} project_id={@project.id} />
+
       <TaskBoard.drawer
         :if={@drawer_open}
         project_id={@project.id}
@@ -1649,7 +1754,21 @@ defmodule BossWeb.ProjectLive do
         loading={@detail_loading}
         error={@detail_error}
         reference_only={@reference_only}
+        comment_draft={@comment_draft}
+        comment_error={@comment_error}
+        advanced_open={
+          Map.get(assigns, :run_error) != nil ||
+            Enum.any?(Map.get(assigns, :runs, []), &(Runs.active?(&1) || &1.cleanup == "unknown"))
+        }
       >
+        <:dependencies>
+          <TaskDependencies.panel
+            :if={@details}
+            snapshot={@details.dependencies}
+            project_id={@project.id}
+            revision={@details.pinned_revision.number}
+          />
+        </:dependencies>
         <:source_actions>
           <TaskRevision.panel
             :if={@details}
@@ -1662,13 +1781,7 @@ defmodule BossWeb.ProjectLive do
             }
           />
         </:source_actions>
-        <:run_panel>
-          <TaskDependencies.panel
-            :if={@details}
-            snapshot={@details.dependencies}
-            project_id={@project.id}
-            revision={@details.pinned_revision.number}
-          />
+        <:delivery_panel>
           <DeliveryPanel.panel
             :if={@details}
             details={@details}
@@ -1690,6 +1803,8 @@ defmodule BossWeb.ProjectLive do
             error={@delivery_error}
             supported={@run_supported}
           />
+        </:delivery_panel>
+        <:manual_panel>
           <RunPanel.panel
             :if={@details}
             details={@details}
@@ -1704,7 +1819,7 @@ defmodule BossWeb.ProjectLive do
             check_requests={Map.get(assigns, :check_requests, %{})}
             review_requests={Map.get(assigns, :review_requests, %{})}
           />
-        </:run_panel>
+        </:manual_panel>
       </TaskBoard.drawer>
     </div>
     """

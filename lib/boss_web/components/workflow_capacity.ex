@@ -109,62 +109,80 @@ defmodule BossWeb.WorkflowCapacity do
     <section
       id={@id}
       aria-labelledby="workflow-capacity-heading"
-      class="min-w-0 border-t border-line pt-5 lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0"
+      class="relative shrink-0"
     >
-      <h2 id="workflow-capacity-heading" class="app-panel-heading">Workflow capacity</h2>
-      <p id="workflow-capacity-help" class="mt-3 text-sm leading-6 text-muted">
-        Maximum active workflows across all projects. Waiting for a predicted file overlap also uses a slot.
-        Manual runs and integration run exclusively.
-      </p>
-      <form
-        :if={@settings}
-        id="workflow-capacity-form"
-        phx-target={@myself}
-        phx-change="edit"
-        phx-submit="save"
-        class="mt-3 flex flex-wrap items-end gap-3"
-      >
-        <div>
-          <label for="workflow-capacity-value" class="block text-sm">Workers</label>
-          <select
-            id="workflow-capacity-value"
-            name="capacity"
-            aria-describedby="workflow-capacity-help"
-            disabled={@pending != nil}
-            class="app-field mt-1 px-3 py-2 text-sm disabled:opacity-50"
+      <details open={@error != nil || @pending != nil} class="group">
+        <summary class="app-button-secondary gap-1.5 px-2.5 py-1.5 text-xs">
+          <span id="workflow-capacity-heading" class="font-medium text-muted group-open:text-ink">
+            Capacity
+          </span>
+          <span class="rounded bg-sage px-1.5 py-0.5 font-mono text-[11px] font-semibold text-forest">
+            {if @settings, do: "#{@settings.max_parallel_tasks}×", else: "…"}
+          </span>
+        </summary>
+
+        <div class="mt-1.5 w-64 rounded-lg border border-control-line bg-surface p-3 shadow-2xl sm:absolute sm:right-0 sm:z-20">
+          <p id="workflow-capacity-help" class="text-[11px] leading-4 text-muted">
+            Maximum active workflows across all projects. Manual runs and integration run exclusively.
+          </p>
+          <form
+            :if={@settings}
+            id="workflow-capacity-form"
+            phx-target={@myself}
+            phx-change="edit"
+            phx-submit="save"
+            class="mt-2.5 flex items-end gap-2"
           >
-            <option :for={count <- 1..3} value={count} selected={@value == to_string(count)}>
-              {count}
-            </option>
-          </select>
+            <div class="flex-1">
+              <label for="workflow-capacity-value" class="block text-[11px] font-medium text-muted">
+                Workers
+              </label>
+              <select
+                id="workflow-capacity-value"
+                name="capacity"
+                aria-describedby="workflow-capacity-help"
+                disabled={@pending != nil}
+                class="app-field mt-1 w-full px-2.5 py-1 text-xs"
+              >
+                <option :for={count <- 1..3} value={count} selected={@value == to_string(count)}>
+                  {count}
+                </option>
+              </select>
+            </div>
+            <button
+              id="save-workflow-capacity"
+              type="submit"
+              disabled={@saving}
+              class="app-button-secondary px-3 py-1.5 text-xs"
+            >{cond do
+              @saving -> "Saving…"
+              @pending -> "Retry capacity save"
+              true -> "Save"
+            end}</button>
+          </form>
+          <p
+            :if={@settings}
+            id="workflow-capacity-current"
+            role="status"
+            class="mt-2 font-mono text-[11px] text-muted"
+          >
+            Current limit: {@settings.max_parallel_tasks}
+          </p>
+          <p :if={!@settings && !@error} role="status" class="mt-2 text-xs text-muted">
+            Loading capacity…
+          </p>
+          <p :if={@error} id="workflow-capacity-error" role="alert" class="mt-2 text-xs text-warning">
+            {@error}
+          </p>
+          <button
+            :if={@error && !@pending}
+            type="button"
+            phx-target={@myself}
+            phx-click="reload"
+            class="app-button-secondary mt-2 w-full py-1 text-xs"
+          >Reload capacity</button>
         </div>
-        <button
-          id="save-workflow-capacity"
-          type="submit"
-          disabled={@saving}
-          class="app-button-secondary px-3 py-2 text-sm disabled:opacity-50"
-        >{cond do
-          @saving -> "Saving…"
-          @pending -> "Retry capacity save"
-          true -> "Save capacity"
-        end}</button>
-        <p id="workflow-capacity-current" role="status" class="py-2 text-xs text-muted">
-          Current limit: {@settings.max_parallel_tasks}
-        </p>
-      </form>
-      <p :if={!@settings && !@error} role="status" class="mt-2 text-sm text-muted">
-        Loading capacity…
-      </p>
-      <p :if={@error} id="workflow-capacity-error" role="alert" class="mt-2 text-sm text-warning">
-        {@error}
-      </p>
-      <button
-        :if={@error && !@pending}
-        type="button"
-        phx-target={@myself}
-        phx-click="reload"
-        class="app-button-secondary mt-2 px-3 py-2 text-sm"
-      >Reload capacity</button>
+      </details>
     </section>
     """
   end

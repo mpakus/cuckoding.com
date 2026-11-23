@@ -1,16 +1,16 @@
 import * as THREE from "three"
 
 const PALETTE = {
-  paper: 0xf6f3ea,
-  surface: 0xfffdf7,
-  ink: 0x252a24,
-  muted: 0x62675c,
-  forest: 0x35593c,
-  sage: 0xdce7d8,
-  peach: 0xf1d4c2,
-  line: 0xc8ccc0,
-  warning: 0x78501c,
-  danger: 0x9b3d2c
+  paper: 0x07090e,
+  surface: 0x131926,
+  ink: 0xf1f5f9,
+  muted: 0x64748b,
+  forest: 0x2dd4bf,
+  sage: 0x10332e,
+  peach: 0x2b1d14,
+  line: 0x1f293d,
+  warning: 0xfbbf24,
+  danger: 0xfb7185
 }
 
 const STATE_FILL = {

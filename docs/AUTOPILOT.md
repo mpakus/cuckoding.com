@@ -6,8 +6,16 @@ Add a repository with **Plan tasks from documentation** selected. BOSS suggests
 this mode for a repository with a `docs/` folder. Choose another committed
 documentation directory with the folder picker if needed. Leaving the target
 blank creates a local BOSS publication branch at the current commit. The project
-page opens the Autopilot panel with that target. Select a trusted check command
-and press **Start Autopilot**. BOSS suggests `mix test` for Mix repositories.
+page opens the Autopilot panel with that target. Confirm the project's Reviewer,
+enter an optional trusted CLI check and press **Start Autopilot**. Blank selects
+specification review. A command that exercises the program supplies runtime
+evidence on the candidate and after publication. A new repository can contain
+just [one committed product brief](../README.md#start-with-one-markdown-file).
+
+On the first documentation Start, the implementer pool determines the batch
+settings. More than one implementer enables parallel work and up to two total
+passes, even with **Single pass** selected. With zero or one binding, this
+first batch runs a single pass. Later task-based Starts honor the selector.
 
 A read-only planner using your assigned **Analytic** agent (`Codex`, `Claude
 Code`, `Cursor Agent` or `OpenCode`) compares committed Markdown with the code
@@ -65,28 +73,26 @@ still determine Done.
 
 ## Start from existing task specifications
 
-On a project page, choose **Autopilot** beside **Sync specs**, enter a trusted
-check command and choose the independent reviewer. The menu lists the agents
-assigned to Reviewer. Codex, Claude, Cursor, and OpenCode can run that review.
-When the Reviewer role has no agents yet, Codex and Claude remain available. Planning
-and implementation use the Implementer role. Questions and stuck diagnosis use
-the Analytic role. **Start Autopilot**
-authorizes
+On a project page, open **Autopilot**. The panel shows the project's bound
+Reviewer. Configure it in **Roles & models**. The Implementer plans and writes
+code, and the Analytic handles questions and diagnosis. Supply an executable
+check if required. **Start Autopilot** authorizes
 a fresh snapshot of all eligible present unfinished tasks: New, Failed, Blocked
 and Needs Input, up to 256. Previously failed tasks receive new workflow UUIDs;
 old receipts remain immutable and Done tasks are excluded. Tasks with active work,
 unknown cleanup or unfinished integration are ineligible. The list must still
 match when saved; larger or changed selections are refused, never truncated.
 Historical routing-version-1 batches retain their original New-only snapshot.
-Later imports and source revisions are not silently added or adopted.
+A saved batch retains its selection. A follow-on spec-rework pass selects the eligible Backlog again, which can include later imports.
 
 The saved batch pins each task's revision/version, check configuration, reviewer,
 workflow UUID and integration UUID before effects. A retry of an uncertain Start
 uses the same inputs and UUID. It returns the saved batch even if tasks or sources
 have changed since admission.
 
-Autopilot runs one task at a time through planning, implementation, checks,
-independent review and integration. Only Done satisfies a prerequisite. New starts
+The sequential scheduler runs one task at a time. With parallel work enabled,
+ready independent tasks can share the pool up to the saved worker capacity.
+Integration remains exclusive. Only Done satisfies a prerequisite. New starts
 pin the [autonomy policy](AUTONOMY.md): questions and recoverable failures receive
 another model's diagnosis, followed by fresh implementation, checks and review.
 The policy permits five implementation cycles; historical batches retain their
@@ -107,7 +113,7 @@ The existing [delivery gates](MANAGED_DELIVERIES.md) remain mandatory. Ready is
 not Done: publication and postchecks must succeed for the exact reviewed commit.
 An advanced target requires a new merge candidate, checks and independent review.
 No scheduler action can declare a task Done directly. Completed tasks stay Done;
-there is no automatic branch reset or endless fresh retry after a terminal failure.
+eligible blocked or needs-input tasks can receive a bounded spec-rework pass. Specs-mode rework can rewrite the task Markdown from its pinned revision, overwriting newer edits. A failed prerequisite can leave dependent requests queued and stop the batch before rework. See [delivery architecture](ARCHITECTURE.md).
 
 The target branch must be free of user checkouts. An early read-only preflight
 refuses a checked-out or unavailable target before any model call. Publication
@@ -117,7 +123,7 @@ checks that condition again. BOSS does not switch your checkout automatically.
 
 The Autopilot panel renders a live Three.js pixel pipeline (`Backlog`, `Plan`,
 `Implement`, `Check`, `Review`, `Diagnose`, `Integrate`, `Done`, `Needs input`
-and `Stopped`) that honors **Pause motion** and `prefers-reduced-motion`, paired
+and `Stopped`) that honors `prefers-reduced-motion`, paired
 with accessible stage counts and links to each task's details, plan, reviewer
 findings and saved stages. The board refreshes as tasks move. Active and paused
 batches reopen their controls after a browser reload. Closing the browser does
@@ -139,7 +145,7 @@ request uncertain; retry uses its saved inputs and UUID.
   Interrupted workers are quarantined, never respawned from saved PIDs or status.
   Connected pages receive the persisted pause even when only the coordinator restarts.
 
-Running Autopilot reserves global dispatch for its sequential work. The ordinary
+Running Autopilot reserves global dispatch for its batch. The ordinary
 workflow capacity setting stays unchanged. Existing manual Start/Queue requests
 do not gain automatic integration. Paused requests still reserve their tasks;
 unknown process cleanup remains a global admission barrier.
@@ -195,13 +201,8 @@ Verify exact publication, postchecks and **Done**, then start a new Autopilot fo
 the current Backlog. The task just completed is excluded from that snapshot.
 A terminal refusal stops this sequence; it does not authorize another fresh retry.
 
-For a lost or expired browser token, an existing local IEx console can issue
-`Boss.LocalAccess.new_token()`; enter its result directly in the unlock form.
-The token is one-use and expires after ten minutes. If no console is available,
-restart only an explicitly authorized idle instance with a consistent private
-database backup and its original data directory. `bin/boss start_iex` keeps a
-local console attached without enabling distribution/RPC. Never capture its
-Terminal I/O, put tokens in URLs, or weaken browser authentication.
+`bin/boss start_iex` keeps a local console attached without enabling
+distribution/RPC; never capture its Terminal I/O.
 
 The 2026-10-31 owner-authorized Task1 run reached a passing check on candidate
 `03e93ae0c0715d0d875b17d9a0057fd351376e0a`, then stopped Blocked at the
@@ -214,7 +215,7 @@ establish production-adapter coverage. No result was integrated and the remainin
 45 New tasks were not admitted to Autopilot. This is failure-path evidence,
 not full Task1-to-Done or full-Backlog acceptance.
 
-A fresh project registration defaults its base branch to the current checkout.
+In specs mode a blank base branch uses the current checkout. In documentation mode a blank target creates a dedicated local publication branch.
 Choose the intended integration target explicitly when registering from an
 observer branch. Keep the registered target free across all worktrees before
 starting Autopilot. A direct workflow that is already active holds admission

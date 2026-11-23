@@ -87,7 +87,7 @@ defmodule Boss.Projects.Intake do
     with true <-
            is_integer(project) and project > 0 and Boss.Agents.Metadata.review_runner?(reviewer),
          {:ok, ^command} <- Ecto.UUID.cast(command),
-         {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
+         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text) do
       transaction(fn ->
         case Repo.get_by(Request, project_id: project, command_id: command) do
           %Request{check_config: ^config, config_hash: ^hash, reviewer: ^reviewer} = request ->
@@ -152,7 +152,10 @@ defmodule Boss.Projects.Intake do
 
              %Request{status: "planning", workspace: empty} = request when empty == %{} ->
                unless request.routing_version == 1 or
-                        Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer()) != "codex" or
+                        Boss.Agents.Roles.analytic(
+                          Boss.Agents.Roles.implementer(request.project_id),
+                          request.project_id
+                        ) != "codex" or
                         Boss.Agents.ModelCatalog.validate(request.model_catalog) == :ok,
                       do: Repo.rollback(:catalog_invalid)
 
@@ -304,6 +307,11 @@ defmodule Boss.Projects.Intake do
           )
 
         _ ->
+          loop_opts =
+            if Boss.Projects.RoleBindings.implementer_pool_size(request.project_id) > 1,
+              do: [parallel: true, spec_loop: true],
+              else: []
+
           with {:ok, batch} <-
                  Autopilot.admit(
                    request.project_id,
@@ -312,7 +320,8 @@ defmodule Boss.Projects.Intake do
                    request.check_text,
                    request.reviewer,
                    false,
-                   request.id
+                   request.id,
+                   loop_opts
                  ) do
             save!(request,
               status: "finished",

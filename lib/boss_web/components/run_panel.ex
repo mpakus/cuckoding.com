@@ -31,10 +31,17 @@ defmodule BossWeb.RunPanel do
     <section
       id="task-runs"
       aria-labelledby="task-runs-heading"
-      class="min-w-0 border-t border-line pt-5"
+      class="min-w-0 space-y-2.5 border-t border-line pt-3 text-xs"
     >
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h3 id="task-runs-heading" class="app-panel-heading">Runs, checks and reviews</h3>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 id="task-runs-heading" class="font-semibold text-body">
+            Manual Codex runs &amp; checks
+          </h3>
+          <p id="run-snapshot" class="text-[11px] text-muted">
+            Runs snapshot revision {@details.pinned_revision.number}.
+          </p>
+        </div>
         <button
           id="start-codex"
           type="button"
@@ -42,44 +49,47 @@ defmodule BossWeb.RunPanel do
           phx-value-command-id={@command_id}
           disabled={!@available || !@start_available || @check_uncertain || @review_uncertain}
           aria-describedby="run-snapshot run-account"
-          class="app-button-secondary px-4 py-2 font-semibold disabled:opacity-50"
+          class="app-button-secondary px-3 py-1.5 text-xs"
         >{if @starting, do: "Starting…", else: "Start Codex"}</button>
       </div>
-      <p id="run-snapshot" class="mt-3 text-sm text-body">
-        Runs task snapshot revision {@details.pinned_revision.number}, even when viewing another revision.
-      </p>
-      <p id="run-account" class="mt-1 text-xs text-muted">
+
+      <p id="run-account" class="sr-only">
         Uses your local Codex account and may incur usage charges. Closing this drawer keeps the run active.
       </p>
-      <p :if={!@supported} class="mt-3 text-sm text-warning">Task runs currently require macOS.</p>
-      <p :if={@blocked} id="run-cleanup-warning" role="alert" class="mt-3 text-sm text-warning">
+      <p :if={!@supported} class="text-warning">Task runs currently require macOS.</p>
+      <p :if={@blocked} id="run-cleanup-warning" role="alert" class="text-warning">
         Process cleanup could not be confirmed. Workspace retained; new runs are blocked.
       </p>
       <p
         :if={@check_uncertain && !@starting}
         id="check-start-pending"
         role="status"
-        class="mt-3 text-sm text-warning"
+        class="text-warning"
       >
         A checks start is unresolved. Retry its saved command on the original task before starting other work.
       </p>
-      <p :if={@error} id="run-error" role="alert" class="mt-3 text-sm text-danger">{@error}</p>
+      <p :if={@error} id="run-error" role="alert" class="text-danger">{@error}</p>
       <p
         :if={@review_uncertain && !@starting}
         id="review-start-pending"
         role="status"
-        class="mt-3 text-sm text-warning"
+        class="text-warning"
       >
         A review start is unresolved. Retry its saved request on the original task before starting other work.
       </p>
-      <p :if={@runs == []} class="mt-4 text-sm text-muted">No runs yet.</p>
-      <p :if={@runs != []} class="mt-4 text-xs text-muted">
-        Latest 10 attempts and source runs · results require review and checks
+      <p :if={@runs == []} class="text-muted">No manual runs.</p>
+      <p :if={@runs != []} class="font-mono text-[11px] text-muted">
+        Latest 10 attempts and source runs
       </p>
-      <ol id="run-attempts" class="mt-2 divide-y divide-line">
-        <li :for={run <- @runs} id={"run-#{run.id}"} class="space-y-2 py-4 text-sm">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <p role="status" class="font-medium">{status(run.adapter, run.status)}</p>
+
+      <ol :if={@runs != []} id="run-attempts" class="space-y-2">
+        <li
+          :for={run <- @runs}
+          id={"run-#{run.id}"}
+          class="space-y-2 rounded border border-line bg-paper p-2.5"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p role="status" class="font-medium text-ink">{status(run.adapter, run.status)}</p>
             <button
               :if={Runs.active?(run)}
               id={"stop-run-#{run.id}"}
@@ -87,23 +97,26 @@ defmodule BossWeb.RunPanel do
               phx-click="stop_run"
               phx-value-run-id={run.id}
               disabled={@stopping == run.id || run.status == "stopping"}
-              class="app-button-danger px-3 py-2 disabled:opacity-50"
+              class="app-button-danger px-2.5 py-1 text-xs"
             >{if @stopping == run.id || run.status == "stopping", do: "Stopping…", else: "Stop"}</button>
           </div>
-          <p class="text-xs text-muted">
+          <p class="font-mono text-[11px] text-muted">
             Source revision {BossWeb.TaskRevision.number(@details, run.spec_revision_id)}
             <span :if={run.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
+            ·
+            <time datetime={DateTime.to_iso8601(run.inserted_at)}>{Calendar.strftime(
+              run.inserted_at,
+              "%Y-%m-%d %H:%M:%S UTC"
+            )}</time>
           </p>
-          <time datetime={DateTime.to_iso8601(run.inserted_at)} class="block text-xs text-muted">
-            {Calendar.strftime(run.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}
-          </time>
-          <div :if={run.adapter in ["check", "review"]} class="space-y-2 text-xs text-muted">
+          <div :if={run.adapter in ["check", "review"]} class="space-y-1 text-[11px] text-muted">
             <p :if={run.candidate_commit}>
-              Snapshot commit <code class="block break-all text-body">{run.candidate_commit}</code>
+              Snapshot commit
+              <code class="break-all font-mono text-body">{run.candidate_commit}</code>
             </p>
             <p :if={run.check_config["argv"]}>
-              Command arguments
-              <code class="block break-all text-body">{JSON.encode!(run.check_config["argv"])}</code>
+              Command
+              <code class="break-all font-mono text-body">{JSON.encode!(run.check_config["argv"])}</code>
             </p>
             <p :if={run.exit_kind == "exit"}>Exit code: {run.exit_code}</p>
             <p :if={run.exit_kind == "signal"}>Terminated by signal: {run.signal}</p>
@@ -114,26 +127,25 @@ defmodule BossWeb.RunPanel do
             report={run.review_report}
           />
           <p :if={run.reason} class="break-words text-warning">{run.reason}</p>
-          <p :if={run.workspace["path"]} class="text-muted">
-            Retained workspace
-            <code class="mt-1 block break-all text-xs text-body">{run.workspace["path"]}</code>
+          <p :if={run.workspace["path"]} class="font-mono text-[11px] text-muted">
+            Workspace: <code class="break-all text-body">{run.workspace["path"]}</code>
           </p>
-          <p class="text-xs text-muted">
+          <p class="font-mono text-[11px] text-muted">
             {run.summary["event_count"] || 0} events · {run.summary["stdout_bytes"] || 0} stdout bytes · {run.summary[
               "stderr_bytes"
             ] || 0} stderr bytes
           </p>
-          <p :if={run.summary["usage"] not in [nil, %{}]} class="text-xs text-muted">
+          <p :if={run.summary["usage"] not in [nil, %{}]} class="font-mono text-[11px] text-muted">
             Tokens: {tokens(run.summary["usage"], "input_tokens")} input · {tokens(
               run.summary["usage"],
               "output_tokens"
             )} output
           </p>
           <details :if={run.summary["events"] not in [nil, []]}>
-            <summary class="cursor-pointer text-body focus-visible:outline-2 focus-visible:outline-forest">
+            <summary class="cursor-pointer font-mono text-[11px] text-muted hover:text-ink">
               Recent event types
             </summary>
-            <ol class="mt-2 space-y-1 font-mono text-xs text-muted">
+            <ol class="mt-1.5 space-y-0.5 font-mono text-[11px] text-muted">
               <li :for={event <- run.summary["events"]}>
                 {event["sequence"]}. {event_type(event["type"])}
               </li>
@@ -172,11 +184,10 @@ defmodule BossWeb.RunPanel do
     <div
       :if={@request}
       id={"review-action-#{@parent}"}
-      class="mt-4 space-y-3 rounded-sm border border-line bg-surface p-4"
+      class="mt-2 space-y-2 rounded border border-line bg-surface p-2.5"
     >
-      <p id={"review-help-#{@parent}"} class="text-xs text-muted">
+      <p id={"review-help-#{@parent}"} class="text-[11px] text-muted">
         Starts a separate read-only Codex session for this snapshot. Uses your Codex account and may incur charges.
-        The report does not approve the task or merge changes.
       </p>
       <button
         id={"start-review-#{@parent}"}
@@ -186,7 +197,7 @@ defmodule BossWeb.RunPanel do
         phx-value-command-id={@request.id}
         disabled={!@available}
         aria-describedby={"review-help-#{@parent}"}
-        class="app-button-secondary px-3 py-2 font-medium disabled:opacity-50"
+        class="app-button-secondary px-2.5 py-1 text-xs"
       >{if @request.locked, do: "Retry review", else: "Review with Codex"}</button>
     </div>
     """
@@ -198,28 +209,28 @@ defmodule BossWeb.RunPanel do
     ~H"""
     <section
       aria-label="Model assessment"
-      class="space-y-3 rounded-sm border border-line bg-surface p-4"
+      class="space-y-2 rounded border border-line bg-surface p-2.5"
     >
-      <p class="font-medium">Model assessment: {verdict(@report["verdict"])}</p>
-      <p class="whitespace-pre-wrap break-words">{@report["summary"]}</p>
-      <p class="text-xs text-muted">
+      <p class="font-medium text-ink">Model assessment: {verdict(@report["verdict"])}</p>
+      <p class="whitespace-pre-wrap break-words text-body">{@report["summary"]}</p>
+      <p class="text-[11px] text-muted">
         Based on the saved spec, diff and check receipt. A refined plan and raw test output were not provided.
         Task approval and integration remain separate.
       </p>
       <details>
-        <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-forest">
+        <summary class="cursor-pointer font-mono text-[11px] text-muted hover:text-ink">
           Acceptance and issues
         </summary>
-        <ul aria-label="Acceptance criteria" class="mt-3 space-y-3">
-          <li :for={item <- @report["acceptance"]} class="space-y-1 break-words">
-            <p class="font-medium">{acceptance(item["status"])}: {item["criterion"]}</p>
-            <p class="whitespace-pre-wrap text-body">{item["evidence"]}</p>
+        <ul aria-label="Acceptance criteria" class="mt-2 space-y-1.5">
+          <li :for={item <- @report["acceptance"]} class="break-words">
+            <p class="font-medium text-ink">{acceptance(item["status"])}: {item["criterion"]}</p>
+            <p class="whitespace-pre-wrap text-muted">{item["evidence"]}</p>
           </li>
         </ul>
-        <p :if={@report["issues"] == []} class="mt-3 text-muted">No issues reported.</p>
-        <ul :if={@report["issues"] != []} aria-label="Review issues" class="mt-3 space-y-3">
-          <li :for={issue <- @report["issues"]} class="space-y-1 break-words">
-            <p class="font-medium">{issue["criterion"]}</p>
+        <p :if={@report["issues"] == []} class="mt-2 text-muted">No issues reported.</p>
+        <ul :if={@report["issues"] != []} aria-label="Review issues" class="mt-2 space-y-1.5">
+          <li :for={issue <- @report["issues"]} class="break-words">
+            <p class="font-medium text-warning">{issue["criterion"]}</p>
             <p class="whitespace-pre-wrap text-body">{issue["message"]}</p>
           </li>
         </ul>
@@ -248,11 +259,11 @@ defmodule BossWeb.RunPanel do
       id={"check-form-#{@parent}"}
       phx-change="edit_check"
       phx-submit="start_check"
-      class="mt-4 space-y-3 rounded-sm border border-line bg-surface p-4"
+      class="mt-2 space-y-2 rounded border border-line bg-surface p-2.5"
     >
       <input type="hidden" name="parent_id" value={@parent} />
       <input type="hidden" name="command_id" value={@request.id} />
-      <label for={"check-command-#{@parent}"} class="block font-medium">Check command</label>
+      <label for={"check-command-#{@parent}"} class="block font-medium text-body">Check command</label>
       <input
         id={"check-command-#{@parent}"}
         name="command"
@@ -265,19 +276,18 @@ defmodule BossWeb.RunPanel do
         autocomplete="off"
         spellcheck="false"
         aria-describedby={"check-help-#{@parent}"}
-        class="app-field w-full min-w-0 px-3 py-2 font-mono text-sm"
+        class="app-field w-full min-w-0 px-2.5 py-1 font-mono text-xs"
       />
-      <p id={"check-help-#{@parent}"} class="text-xs text-muted">
-        Runs this command locally on a captured copy using your account's access. Use trusted commands;
-        do not put secrets in arguments. Arguments support quoting, without shell expansion.
+      <p id={"check-help-#{@parent}"} class="text-[11px] text-muted">
+        Runs locally on a captured copy using your account's access, without shell expansion.
       </p>
-      <p :if={@request.locked} class="text-xs text-warning">
+      <p :if={@request.locked} class="text-[11px] text-warning">
         Retry keeps the same command while its start outcome is unresolved.
       </p>
       <button
         type="submit"
         disabled={!@available}
-        class="app-button-secondary px-3 py-2 font-medium disabled:opacity-50"
+        class="app-button-secondary px-2.5 py-1 text-xs"
       >{if @request.locked, do: "Retry checks", else: "Snapshot and run checks"}</button>
     </form>
     """
