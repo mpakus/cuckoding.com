@@ -550,6 +550,12 @@ defmodule Boss.Deliveries do
        ) do
     Boss.Projects.Documentation.ensure_executable!(task.id)
 
+    if brief = Boss.Projects.BriefAcceptance.get(task.id) do
+      unless brief.source_revision_id == task.spec_revision_id and brief.config_hash == hash and
+               brief.reviewer == reviewer,
+             do: Repo.rollback(:brief_policy_mismatch)
+    end
+
     if replay_only or managed_busy?() or run_busy?() or
          not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
        do: Repo.rollback(:busy)
@@ -2043,6 +2049,7 @@ defmodule Boss.Deliveries do
 
     report = decoded_review!(review.receipt["report"])
     criteria = Enum.map(report["acceptance"], & &1["criterion"])
+    Boss.Projects.BriefAcceptance.ensure_approval!(d, review, criteria)
 
     unless review.status == "finished" and check.kind == "check" and check.status == "finished" and
              plan.kind == "plan" and plan.status == "finished" and
@@ -2233,13 +2240,18 @@ defmodule Boss.Deliveries do
   defp publication_approved!(d) do
     all = steps(d.id)
 
-    cond do
-      merge = conflict_merge(all) -> conflict_publication!(d, merge)
-      review = rejected_merge_publication(d, all) -> review
-      review = drifted_merge_publication(d, all) -> review
-      review = postcheck_publication(d, all) -> review
-      true -> approved_publication!(d)
-    end
+    selected =
+      cond do
+        merge = conflict_merge(all) -> conflict_publication!(d, merge)
+        review = rejected_merge_publication(d, all) -> review
+        review = drifted_merge_publication(d, all) -> review
+        review = postcheck_publication(d, all) -> review
+        true -> approved_publication!(d)
+      end
+
+    criteria = Enum.map(selected.receipt["report"]["acceptance"], & &1["criterion"])
+    Boss.Projects.BriefAcceptance.ensure_approval!(d, selected, criteria)
+    selected
   end
 
   defp rejected_merge_publication(d, all) do

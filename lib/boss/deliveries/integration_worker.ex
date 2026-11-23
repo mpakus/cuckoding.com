@@ -4,6 +4,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
   alias Boss.Deliveries.{Delivery, Integration, Protocol, Worker}
   alias Boss.Deliveries.ModelPolicy
   alias Boss.Agents.Workspace
+  alias Boss.Projects.BriefAcceptance
   alias Boss.Checks.Candidate
 
   def execute(delivery, repo, manager) do
@@ -163,6 +164,15 @@ defmodule Boss.Deliveries.IntegrationWorker do
       "reviewer" => delivery.reviewer
     }
 
+    input =
+      ok!(
+        BriefAcceptance.review_input(
+          input,
+          BriefAcceptance.get(delivery.task_id),
+          candidate["path"]
+        )
+      )
+
     kind = if delivery.reviewer == "claude", do: :claude_merge_review, else: :merge_review
     prompt = ok!(Protocol.prompt(kind, input))
 
@@ -185,7 +195,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
           "output_hash" => check.receipt["output_hash"],
           "input_hash" => Protocol.digest(input),
           "model_profile" => profile
-        },
+        }
+        |> Map.merge(BriefAcceptance.evidence(input)),
         fn ->
           ok!(verify.())
 

@@ -15,6 +15,7 @@ defmodule Boss.Deliveries.Worker do
   }
 
   alias Boss.Agents.Process, as: Runner
+  alias Boss.Projects.BriefAcceptance
   alias Boss.Checks.Candidate
   alias Boss.Deliveries.{Diagnostics, ExecutionRetry, ModelPolicy, Protocol, Retry}
 
@@ -371,6 +372,7 @@ defmodule Boss.Deliveries.Worker do
 
     profile = profile(delivery, :plan, 0, prior)
 
+    input = BriefAcceptance.plan_input(input, BriefAcceptance.get(delivery.task_id))
     prompt = ok!(Protocol.prompt(:plan, input))
     previous_plan = previous_plan || if(source, do: source.plan.receipt["report"])
 
@@ -408,9 +410,12 @@ defmodule Boss.Deliveries.Worker do
         ok!(verify.())
 
         receipt =
-          run_agent(:plan, intent["path"], prompt, &Protocol.plan(&1, previous_plan), profile,
-            implementer: delivery.implementer
-          )
+          run_agent(
+            :plan,
+            intent["path"],
+            prompt,
+            &BriefAcceptance.decode_plan(&1, previous_plan, input),
+            profile, implementer: delivery.implementer)
 
         receipt = verify_agent(receipt, verify)
         {Map.put(receipt, "workspace", intent), receipt["report"]}
@@ -1318,6 +1323,7 @@ defmodule Boss.Deliveries.Worker do
       "reviewer" => delivery.reviewer
     }
 
+    input = ok!(BriefAcceptance.review_input(input, BriefAcceptance.get(delivery.task_id), path))
     kind = if delivery.reviewer == "claude", do: :claude_review, else: :review
     prompt = ok!(Protocol.prompt(kind, input))
     profile = if delivery.reviewer == "codex", do: profile(delivery, :review, cycle, plan_step)
@@ -1334,6 +1340,8 @@ defmodule Boss.Deliveries.Worker do
       "input_hash" => Protocol.digest(input),
       "model_profile" => profile
     }
+
+    review_input = Map.merge(review_input, BriefAcceptance.evidence(input))
 
     review_input =
       case Process.get(:conflict_target) do

@@ -31,13 +31,14 @@ defmodule Boss.Projects.Intake.Planner do
            {:ok, workspace} <- Workspace.plan(project, request_id, opts),
            :ok <- Integration.preflight(project, request_id, workspace.base_commit, opts),
            {:ok, docs} <- documents(project, workspace, opts),
+           :ok <- changed_brief(project, docs),
            intent = Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end),
            :ok <- Intake.pin(request_id, intent),
            {:ok, _} <- Workspace.prepare(workspace, opts),
            :ok <- verify_current(project, workspace, intent, deadline),
            {:ok, tasks} <- plan(project, workspace, intent, docs, request, deadline),
            :ok <- verify_current(project, workspace, intent, deadline) do
-        {:ok, %{workspace: intent, tasks: tasks, deadline_ms: deadline}}
+        {:ok, %{workspace: intent, tasks: tasks, documents: docs, deadline_ms: deadline}}
       end
       |> deadline_result(deadline)
     catch
@@ -45,6 +46,12 @@ defmodule Boss.Projects.Intake.Planner do
     after
       if timer, do: Process.cancel_timer(timer)
     end
+  end
+
+  defp changed_brief(project, docs) do
+    if Boss.Projects.BriefAcceptance.previous_documents(project.id) == docs,
+      do: {:error, :brief_unchanged},
+      else: :ok
   end
 
   defp prepare_models(%{routing_version: 2, model_catalog: catalog} = request) do
