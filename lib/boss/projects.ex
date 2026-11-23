@@ -143,6 +143,142 @@ defmodule Boss.Projects do
     )
   end
 
+  @doc """
+  Returns live per-task execution, role-binding, dependency readiness, and
+  spec-rework metadata for the animated Kanban board without altering
+  `list_spec_entries/1`'s schema.
+  """
+  def board_live_meta(project_id) when is_integer(project_id) and project_id > 0 do
+    tasks =
+      Repo.all(
+        from s in Spec,
+          join: t in Task,
+          on: t.spec_id == s.id,
+          join: pin in SpecRevision,
+          on: pin.id == t.spec_revision_id,
+          where: s.project_id == ^project_id,
+          select: %{
+            task_id: t.id,
+            state: t.state,
+            identity_key: s.identity_key,
+            relative_path: s.relative_path,
+            original_text: pin.original_text
+          }
+      )
+
+    done_ids =
+      tasks
+      |> Enum.filter(&(&1.state == "done"))
+      |> Enum.flat_map(fn row ->
+        case row.identity_key do
+          "id:" <> id -> [id]
+          _ -> []
+        end
+      end)
+      |> MapSet.new()
+
+    known_ids =
+      tasks
+      |> Enum.flat_map(fn row ->
+        case row.identity_key do
+          "id:" <> id -> [id]
+          _ -> []
+        end
+      end)
+      |> MapSet.new()
+
+    latest_deliveries =
+      Repo.all(
+        from d in Boss.Deliveries.Delivery,
+          where: d.project_id == ^project_id,
+          order_by: [desc: d.inserted_at, desc: d.id],
+          select: %{
+            id: d.id,
+            task_id: d.task_id,
+            status: d.status,
+            cycle: d.cycle,
+            implementer: d.implementer,
+            reviewer: d.reviewer,
+            analytic: d.analytic
+          }
+      )
+      |> Enum.uniq_by(& &1.task_id)
+      |> Map.new(&{&1.task_id, &1})
+
+    impl_bindings =
+      if Boss.Projects.RoleBindings.delivery_binding_table_ready?() do
+        delivery_ids = Map.values(latest_deliveries) |> Enum.map(& &1.id)
+
+        if delivery_ids == [] do
+          %{}
+        else
+          Repo.all(
+            from b in Boss.Deliveries.ImplementerBinding,
+              where: b.delivery_id in ^delivery_ids,
+              select: {b.delivery_id, b.binding_tag}
+          )
+          |> Map.new()
+        end
+      else
+        %{}
+      end
+
+    rework_counts =
+      if Boss.Tasks.Entries.table_ready?() do
+        Repo.all(
+          from e in Boss.Tasks.Entry,
+            where: e.project_id == ^project_id and e.stage == "spec_rework",
+            group_by: e.task_id,
+            select: {e.task_id, count(e.id)}
+        )
+        |> Map.new()
+      else
+        %{}
+      end
+
+    Map.new(tasks, fn row ->
+      deps =
+        case Boss.Projects.SpecDocument.parse(row.relative_path, row.original_text) do
+          {:ok, parsed} -> Map.get(parsed, :depends_on) || []
+          _ -> []
+        end
+
+      unmet = Enum.reject(deps, &MapSet.member?(done_ids, &1))
+      missing_deps = Enum.reject(unmet, &MapSet.member?(known_ids, &1))
+
+      del = latest_deliveries[row.task_id]
+
+      impl_tag =
+        if del, do: impl_bindings[del.id] || short_runner_tag("Implementer", del.implementer)
+
+      rev_tag = if del, do: short_runner_tag("Reviewer", del.reviewer)
+      ana_tag = if del, do: short_runner_tag("Analytic", del.analytic)
+
+      {row.task_id,
+       %{
+         delivery_status: del && del.status,
+         cycle: (del && del.cycle) || 0,
+         implementer_tag: impl_tag,
+         reviewer_tag: rev_tag,
+         analytic_tag: ana_tag,
+         rework_count: Map.get(rework_counts, row.task_id, 0),
+         deps: deps,
+         dep_ready?: unmet == [] and missing_deps == [],
+         waiting_on: Enum.take(unmet, 2)
+       }}
+    end)
+  rescue
+    _ -> %{}
+  end
+
+  def board_live_meta(_), do: %{}
+
+  defp short_runner_tag(prefix, nil), do: prefix
+
+  defp short_runner_tag(prefix, runner) do
+    "#{prefix}:#{Boss.Agents.Roles.agent_label(runner)}"
+  end
+
   defp insert_record(changeset) do
     case Repo.insert(changeset) do
       {:ok, record} -> record

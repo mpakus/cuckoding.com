@@ -1,7 +1,7 @@
 defmodule BossWeb.WorkflowCapacityLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
-  alias Boss.{Deliveries, LocalAccess, Projects, Repo, Runs}
+  alias Boss.{Deliveries, Projects, Repo, Runs}
   alias Boss.Deliveries.Scheduling
   alias Boss.Runs.Manager
   alias BossWeb.{ManagerFixture, WorkflowCapacity}
@@ -26,8 +26,7 @@ defmodule BossWeb.WorkflowCapacityLiveTest do
         base_branch: "main"
       })
 
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project}
   end
 

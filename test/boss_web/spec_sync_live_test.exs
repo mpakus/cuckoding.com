@@ -17,18 +17,21 @@ defmodule BossWeb.SpecSyncLiveTest do
     git!(root, ["init", "-b", "main"])
     git!(root, ["commit", "--allow-empty", "-m", "base"])
     {:ok, project} = Projects.create_project(%{root_path: root, name: "Sync project"})
-    {:ok, session} = Boss.LocalAccess.exchange(Boss.LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, specs: specs}
   end
 
-  test "project links open protected pages and invalid IDs are explained", %{
+  test "project links open loopback pages and invalid IDs are explained", %{
     conn: conn,
     project: project
   } do
     path = "/projects/#{project.id}"
-    anonymous = %{build_conn() | host: "127.0.0.1", port: 4002}
-    assert redirected_to(get(anonymous, path)) == "/unlock"
+
+    foreign =
+      %{build_conn() | host: "127.0.0.1", port: 4002}
+      |> put_req_header("origin", "https://evil.example")
+
+    assert response(get(foreign, path), 403) == "Forbidden"
     {:ok, home, _} = live(conn, "/")
     assert has_element?(home, "#project-#{project.id} a[href='#{path}']", project.name)
 

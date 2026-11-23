@@ -43,6 +43,35 @@ defmodule Boss.Agents.Codex do
         output_path
       ])
 
+  def args(:task_prompt, output_path),
+    do:
+      command_args("read-only", [
+        "--output-schema",
+        Application.app_dir(:boss, "priv/task_prompt_schema.json"),
+        "--output-last-message",
+        output_path
+      ])
+
+  def selection_args(:task_prompt, output_path, selection) when is_map(selection) do
+    argv = args(:task_prompt, output_path)
+    model = selection[:model_id] || selection["model_id"]
+    effort = selection[:reasoning_effort] || selection["reasoning_effort"]
+
+    model_args =
+      if is_binary(model) and Regex.match?(~r/\A[A-Za-z0-9._\/:-]{1,120}\z/, model),
+        do: ["--model", model],
+        else: []
+
+    effort_args =
+      if model_args != [] and effort in ~w(none low medium high xhigh max ultra),
+        do: ["--config", "model_reasoning_effort=\"#{effort}\""],
+        else: []
+
+    Enum.drop(argv, -1) ++ model_args ++ effort_args ++ ["-"]
+  end
+
+  def selection_args(:task_prompt, output_path, _), do: args(:task_prompt, output_path)
+
   def args(kind, output_path, nil), do: args(kind, output_path)
 
   def args(kind, output_path, %{"model" => model, "reasoning_effort" => effort} = profile)

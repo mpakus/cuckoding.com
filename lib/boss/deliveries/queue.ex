@@ -67,7 +67,7 @@ defmodule Boss.Deliveries.Queue do
          true <- autonomy_version in [0, 1],
          true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),
-         {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
+         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text) do
       transaction(fn ->
         case Repo.get_by(Request, task_id: task, command_id: command) do
           %Request{

@@ -1,7 +1,7 @@
 defmodule BossWeb.DocumentationConversionLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
-  alias Boss.{Deliveries, LocalAccess, Projects, Repo, Tasks}
+  alias Boss.{Deliveries, Projects, Repo, Tasks}
   alias Boss.Deliveries.Autopilot, as: Engine
   alias Boss.Projects.{Documentation, Intake}
   alias BossWeb.Autopilot
@@ -31,8 +31,7 @@ defmodule BossWeb.DocumentationConversionLiveTest do
       Deliveries.admit(project.id, saved.task.id, Ecto.UUID.generate(), "true")
 
     {:ok, failed} = Deliveries.complete(delivery.id, "failed", "Earlier instruction attempt")
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, task: Tasks.get_task!(saved.task.id), failed: failed}
   end
 

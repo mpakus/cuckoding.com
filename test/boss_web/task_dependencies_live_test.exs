@@ -2,7 +2,7 @@ defmodule BossWeb.TaskDependenciesLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
   import Ecto.Query
-  alias Boss.{LocalAccess, Projects, Repo, Runs, Deliveries}
+  alias Boss.{Projects, Repo, Runs, Deliveries}
   alias Boss.Runs.Manager
   alias BossWeb.ManagerFixture
 
@@ -32,8 +32,7 @@ defmodule BossWeb.TaskDependenciesLiveTest do
 
     dependency = spec(project, "first", [])
     saved = spec(project, "second", ["first"])
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, dependency: dependency, saved: saved}
   end
 

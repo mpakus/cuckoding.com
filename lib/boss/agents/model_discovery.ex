@@ -50,13 +50,93 @@ defmodule Boss.Agents.ModelDiscovery do
     "claude-sonnet-4-thinking" => {3.0, 15.0, 0.30},
     "claude-haiku-4-5-20251001" => {1.0, 5.0, 0.10},
     "claude-haiku-4-5" => {1.0, 5.0, 0.10},
+    "gemini-4-carbon" => {1.50, 8.0, 0.15},
+    "gemini-4-neon" => {0.50, 2.50, 0.05},
     "gemini-4-argon" => {2.0, 10.0, 0.10},
     "gemini-2.5-pro" => {1.25, 10.0, 0.31},
+    "gpt-6.2-astra" => {10.0, 50.0, 1.00},
     "grok-4.7" => {2.0, 6.0, 0.50},
     "grok-4" => {3.0, 15.0, 0.75},
     "deepseek-v4-pro" => {0.66, 1.98, 0.022},
     "deepseek-r1" => {0.55, 2.19, 0.14}
   }
+
+  def billing_for(agent_id, model) when is_map(model) do
+    explicit = model["billing"] || model[:billing]
+
+    cond do
+      explicit in ~w(subscription api subscription_or_api free) ->
+        explicit
+
+      free_pricing?(model["pricing"] || model[:pricing]) ->
+        "free"
+
+      to_string(agent_id) == "cursor" and (model["id"] || model[:id]) == "auto" ->
+        "subscription"
+
+      to_string(agent_id) in ~w(codex claude cursor) ->
+        "subscription_or_api"
+
+      to_string(agent_id) == "opencode" and
+          String.starts_with?(to_string(model["id"] || model[:id] || ""), "github-copilot/") ->
+        "subscription"
+
+      true ->
+        "api"
+    end
+  end
+
+  def billing_label(agent_id, model) when is_map(model) do
+    case {to_string(agent_id), billing_for(agent_id, model)} do
+      {_, "free"} -> "Free (Included)"
+      {"cursor", "subscription"} -> "Subscription"
+      {"cursor", "subscription_or_api"} -> "Subscription / API"
+      {"claude", "subscription_or_api"} -> "Subscription / API"
+      {"codex", "subscription_or_api"} -> "Subscription / API"
+      {_, "subscription"} -> "Subscription"
+      {_, "subscription_or_api"} -> "Subscription / API"
+      _ -> "API"
+    end
+  end
+
+  def price_label(model) when is_map(model) do
+    case model["pricing"] || model[:pricing] do
+      %{"input" => inp, "output" => outp}
+      when is_number(inp) and is_number(outp) and inp == 0 and outp == 0 ->
+        "$0 / 1M"
+
+      %{input: inp, output: outp}
+      when is_number(inp) and is_number(outp) and inp == 0 and outp == 0 ->
+        "$0 / 1M"
+
+      %{"input" => inp, "output" => outp} when is_number(inp) and is_number(outp) ->
+        "$#{trim_num(inp)} in · $#{trim_num(outp)} out / 1M"
+
+      %{input: inp, output: outp} when is_number(inp) and is_number(outp) ->
+        "$#{trim_num(inp)} in · $#{trim_num(outp)} out / 1M"
+
+      _ ->
+        if (model["id"] || model[:id]) == "auto", do: "Plan rate", else: "Plan / provider rate"
+    end
+  end
+
+  defp free_pricing?(%{"input" => inp, "output" => outp})
+       when is_number(inp) and is_number(outp) and inp == 0 and outp == 0,
+       do: true
+
+  defp free_pricing?(%{input: inp, output: outp})
+       when is_number(inp) and is_number(outp) and inp == 0 and outp == 0,
+       do: true
+
+  defp free_pricing?(_), do: false
+
+  defp trim_num(value) when is_float(value) do
+    rounded = Float.round(value, 3)
+    whole = trunc(rounded)
+    if rounded == whole * 1.0, do: Integer.to_string(whole), else: Float.to_string(rounded)
+  end
+
+  defp trim_num(value) when is_integer(value), do: Integer.to_string(value)
 
   def fetch(agent_id, executable) when is_atom(agent_id) do
     if is_binary(executable) and File.regular?(executable) do
@@ -144,7 +224,8 @@ defmodule Boss.Agents.ModelDiscovery do
             "default_effort" =>
               if(m["default_reasoning_level"] in efforts, do: m["default_reasoning_level"]),
             "context_window" => if(is_integer(m["context_window"]), do: m["context_window"]),
-            "pricing" => pricing_for(slug, m["pricing"])
+            "pricing" => pricing_for(slug, m["pricing"]),
+            "billing" => "subscription_or_api"
           }
         end)
 
@@ -198,7 +279,8 @@ defmodule Boss.Agents.ModelDiscovery do
                   "reasoning_efforts" => [],
                   "default_effort" => nil,
                   "context_window" => nil,
-                  "pricing" => pricing_for(id, nil, "Cursor plan / API")
+                  "pricing" => pricing_for(id, nil, "Cursor plan / API"),
+                  "billing" => if(id == "auto", do: "subscription", else: "subscription_or_api")
                 }
               ]
             else
@@ -233,7 +315,8 @@ defmodule Boss.Agents.ModelDiscovery do
         "reasoning_efforts" => available,
         "default_effort" => if(default_effort in available, do: default_effort),
         "context_window" => nil,
-        "pricing" => if(String.starts_with?(id, "claude-"), do: pricing_for(id, nil))
+        "pricing" => pricing_for(id, nil),
+        "billing" => "subscription_or_api"
       }
     end)
   end
@@ -319,6 +402,13 @@ defmodule Boss.Agents.ModelDiscovery do
         pricing_for(full_id, nil)
       end
 
+    billing =
+      cond do
+        free_pricing?(pricing) -> "free"
+        String.starts_with?(full_id, "github-copilot/") -> "subscription"
+        true -> "api"
+      end
+
     %{
       "id" => full_id,
       "name" => label(obj["name"], full_id),
@@ -326,7 +416,8 @@ defmodule Boss.Agents.ModelDiscovery do
       "reasoning_efforts" => efforts,
       "default_effort" => nil,
       "context_window" => if(is_integer(ctx) and ctx > 0, do: ctx),
-      "pricing" => pricing
+      "pricing" => pricing,
+      "billing" => billing
     }
   end
 

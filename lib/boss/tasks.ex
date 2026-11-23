@@ -163,7 +163,8 @@ defmodule Boss.Tasks do
             where: e.task_id == ^task.id,
             order_by: [desc: e.version],
             limit: 50
-        )
+        ),
+      activity_entries: Boss.Tasks.Entries.list_for_task(project_id, task.id)
     }
   end
 

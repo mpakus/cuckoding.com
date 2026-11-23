@@ -117,7 +117,7 @@ checks that condition again. BOSS does not switch your checkout automatically.
 
 The Autopilot panel renders a live Three.js pixel pipeline (`Backlog`, `Plan`,
 `Implement`, `Check`, `Review`, `Diagnose`, `Integrate`, `Done`, `Needs input`
-and `Stopped`) that honors **Pause motion** and `prefers-reduced-motion`, paired
+and `Stopped`) that honors `prefers-reduced-motion`, paired
 with accessible stage counts and links to each task's details, plan, reviewer
 findings and saved stages. The board refreshes as tasks move. Active and paused
 batches reopen their controls after a browser reload. Closing the browser does
@@ -195,13 +195,8 @@ Verify exact publication, postchecks and **Done**, then start a new Autopilot fo
 the current Backlog. The task just completed is excluded from that snapshot.
 A terminal refusal stops this sequence; it does not authorize another fresh retry.
 
-For a lost or expired browser token, an existing local IEx console can issue
-`Boss.LocalAccess.new_token()`; enter its result directly in the unlock form.
-The token is one-use and expires after ten minutes. If no console is available,
-restart only an explicitly authorized idle instance with a consistent private
-database backup and its original data directory. `bin/boss start_iex` keeps a
-local console attached without enabling distribution/RPC. Never capture its
-Terminal I/O, put tokens in URLs, or weaken browser authentication.
+`bin/boss start_iex` keeps a local console attached without enabling
+distribution/RPC; never capture its Terminal I/O.
 
 The 2026-10-31 owner-authorized Task1 run reached a passing check on candidate
 `03e93ae0c0715d0d875b17d9a0057fd351376e0a`, then stopped Blocked at the

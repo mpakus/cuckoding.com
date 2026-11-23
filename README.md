@@ -36,9 +36,11 @@ agent routing (`Reviewer`, `Implementer`, `Analytic` and custom roles), manual
 Codex attempts, and fresh read-only Codex review in retained Git worktrees.
 Managed workflows and Autopilot add a typed plan, bounded fixes, role-pinned
 planning/implementation/diagnosis/review across **Codex**, **Claude Code**,
-**Cursor Agent** and **OpenCode**, live pipeline telemetry, explicit integration
-and postchecks before Done. Task source adoption and Done-only dependency
-readiness keep execution pinned to reviewed inputs.
+**Cursor Agent** and **OpenCode**, natural-language **Prompt task control** on
+project pages (creating tasks, revising specifications, or controlling task
+states and workflows through BOSS's validated gates), live pipeline telemetry,
+explicit integration and postchecks before Done. Task source adoption and
+Done-only dependency readiness keep execution pinned to reviewed inputs.
 
 ## Run locally
 
@@ -59,30 +61,14 @@ rtk proxy mix phx.server
 Tailwind uses the official npm CLI; standalone macOS binaries failed code-signature
 validation on the development machine. No system security setting is changed.
 
-Open **http://127.0.0.1:4000** and enter the one-use token printed in the terminal.
-It expires after ten minutes. The token is submitted with CSRF protection and is
-never included in the URL. The browser receives a signed, HttpOnly, SameSite=Strict
-cookie. Closing a tab does not stop B\*SS. Without **Remember this browser**, a
-restart or expiration of the 12-hour browser session requires a new token.
-
-Select **Remember this browser for 30 days** at unlock to reconnect automatically
-on the same loopback address and port, including after a B\*SS restart. B\*SS
-remembers one browser per data directory. A new remembered unlock replaces the
-previous one. B\*SS keeps a hash and expiry in its private data directory and
-issues a fresh ordinary session on automatic unlock. Clearing the browser’s
-site data removes its saved access. To revoke automatic unlock on the server,
-run `Boss.LocalAccess.forget_browser()` from its local IEx console.
-The remembered cookie is scoped to the unlock path on the loopback host.
-Browsers share cookies across ports on the same host.
-
-For a replacement token without stopping an IEx server, run
-`Boss.LocalAccess.new_token()` in that server's local console. This invalidates
-any unused token and keeps existing browser sessions valid. Start an IEx server
-with `rtk proxy iex -S mix phx.server` when you need this capability.
+Open **http://127.0.0.1:4000** directly — no unlock token is required. The app
+binds strictly to loopback (`127.0.0.1`), enforces exact `Host` and `Origin`
+checks on HTTP and WebSocket connections, and uses a signed, HttpOnly,
+`SameSite=Strict` cookie with CSRF protection. Closing a tab does not stop B\*SS.
 
 ## Register a project
 
-After connecting the browser, click **Choose repository…** and select a folder in
+Click **Choose repository…** and select a folder in
 the operating system dialog. Paths are read-only in the browser. The specs folder
 defaults to `specs` inside that repository; use **Choose specs folder…** to change
 it. Both folders must already exist. B\*SS accepts a local Git working tree
@@ -402,9 +388,9 @@ file or run separate `mix ecto.*` commands against a running instance. Use a loc
 filesystem, since network filesystems may not honor SQLite locking correctly.
 
 The HTTP server always binds to `127.0.0.1`. Only `127.0.0.1` and `localhost` hosts
-and exact same-port origins are accepted. Both HTTP and LiveView mounts require
-the session; WebSocket origins are checked. This is a single-user local app, not
-a network service or a sandbox for future agent processes.
+and exact same-port origins are accepted on HTTP and WebSocket connections, with
+`SameSite=Strict` cookies and CSRF protection. This is a single-user local desktop
+app, not a network service or a sandbox for future agent processes.
 
 ## Verify
 

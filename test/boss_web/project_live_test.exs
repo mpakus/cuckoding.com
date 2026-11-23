@@ -40,8 +40,7 @@ defmodule BossWeb.ProjectLiveTest do
         "base"
       ])
 
-    {:ok, session} = Boss.LocalAccess.exchange(Boss.LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     picker = start_supervised!({Picker, {:ok, root}})
     Application.put_env(:boss, :folder_picker_server, picker)
     on_exit(fn -> Application.delete_env(:boss, :folder_picker_server) end)
@@ -222,7 +221,7 @@ defmodule BossWeb.ProjectLiveTest do
     refute has_element?(view, "#autopilot-content[hidden]")
 
     view
-    |> form("#autopilot-form", %{"command" => "python3 check.py", "reviewer" => "codex"})
+    |> form("#autopilot-form", %{"command" => "python3 check.py"})
     |> render_submit()
 
     await_intake(fn -> File.exists?(Path.join(gates, "one-1.waiting")) end)

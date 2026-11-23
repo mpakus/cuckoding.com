@@ -23,7 +23,11 @@ defmodule Boss.Projects.Intake.Attempts do
       planner =
         if request.model_catalog != %{},
           do: "codex",
-          else: Boss.Agents.Roles.analytic(Boss.Agents.Roles.implementer())
+          else:
+            Boss.Agents.Roles.analytic(
+              Boss.Agents.Roles.implementer(request.project_id),
+              request.project_id
+            )
 
       unless planner != "codex" or
                Boss.Agents.ModelCatalog.validate(request.model_catalog) == :ok,

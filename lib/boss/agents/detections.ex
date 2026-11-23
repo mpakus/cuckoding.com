@@ -135,10 +135,12 @@ defmodule Boss.Agents.Detections do
           nil
 
         existing ->
+          merged_models = preserve_model_toggles(existing.models, clean_models)
+
           saved =
             existing
             |> Detection.changeset(%{
-              models: %{"items" => clean_models},
+              models: %{"items" => merged_models},
               models_checked_at: ts
             })
             |> Repo.update!()
@@ -147,6 +149,50 @@ defmodule Boss.Agents.Detections do
       end
     end
   end
+
+  def set_model_enabled(agent_id, model_id, enabled?)
+      when is_binary(model_id) and is_boolean(enabled?) do
+    id_str = to_string(agent_id)
+
+    if table_ready?() do
+      Repo.transaction(
+        fn ->
+          case Repo.get(Detection, id_str) do
+            nil ->
+              Repo.rollback(:not_found)
+
+            existing ->
+              items = Map.get(existing.models || %{}, "items", [])
+
+              if Enum.any?(items, &(&1["id"] == model_id)) do
+                updated =
+                  Enum.map(items, fn item ->
+                    if item["id"] == model_id,
+                      do: Map.put(item, "enabled", enabled?),
+                      else: item
+                  end)
+
+                existing
+                |> Detection.changeset(%{models: %{"items" => updated}})
+                |> Repo.update!()
+                |> to_view()
+              else
+                Repo.rollback(:model_not_supported)
+              end
+          end
+        end,
+        mode: :immediate
+      )
+    else
+      {:error, :unavailable}
+    end
+  end
+
+  def enabled_models(%{models: models}) when is_list(models) do
+    Enum.filter(models, &(Map.get(&1, "enabled", true) != false))
+  end
+
+  def enabled_models(_), do: []
 
   def mark_auth_status(agent_id, status)
       when status in [:configured, :stale, :not_configured, :unknown] do
@@ -207,7 +253,14 @@ defmodule Boss.Agents.Detections do
           {%{"items" => []}, nil}
 
         is_list(incoming_models) ->
-          {%{"items" => incoming_models}, ts}
+          merged =
+            if existing && existing.version == version do
+              preserve_model_toggles(existing.models, incoming_models)
+            else
+              incoming_models
+            end
+
+          {%{"items" => merged}, ts}
 
         existing && path != nil && version != nil &&
           existing.path == path && existing.version == version ->
@@ -313,7 +366,19 @@ defmodule Boss.Agents.Detections do
 
       pricing = sanitize_pricing(model["pricing"] || model[:pricing])
 
-      %{
+      billing =
+        case model["billing"] || model[:billing] do
+          val when val in ~w(subscription api subscription_or_api free) -> val
+          _ -> nil
+        end
+
+      enabled =
+        case Map.get(model, "enabled", Map.get(model, :enabled, true)) do
+          false -> false
+          _ -> true
+        end
+
+      base = %{
         "id" => id,
         "name" =>
           if(is_binary(name) and String.valid?(name),
@@ -324,12 +389,30 @@ defmodule Boss.Agents.Detections do
         "reasoning_efforts" => efforts,
         "default_effort" => default_effort,
         "context_window" => ctx,
-        "pricing" => pricing
+        "pricing" => pricing,
+        "enabled" => enabled
       }
+
+      if billing, do: Map.put(base, "billing", billing), else: base
     end
   end
 
   defp sanitize_model(_), do: nil
+
+  defp preserve_model_toggles(%{"items" => prev}, next) when is_list(prev) and is_list(next) do
+    disabled =
+      prev
+      |> Enum.filter(&(is_map(&1) and Map.get(&1, "enabled", true) == false))
+      |> MapSet.new(& &1["id"])
+
+    Enum.map(next, fn item ->
+      if MapSet.member?(disabled, item["id"]) and not Map.has_key?(item, "enabled_explicit"),
+        do: Map.put(item, "enabled", false),
+        else: item
+    end)
+  end
+
+  defp preserve_model_toggles(_, next), do: next
 
   defp sanitize_pricing(p) when is_map(p) do
     unit = p["unit"] || p[:unit] || "1M tokens"

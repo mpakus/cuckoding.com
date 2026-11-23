@@ -7,39 +7,46 @@ defmodule BossWeb.AgentsLive do
       id: :codex,
       name: "Codex",
       docs: "https://developers.openai.com/codex/cli",
-      login: "codex login"
+      login: "codex login",
+      billing_hint: "ChatGPT Plus/Pro Subscription or OpenAI API"
     },
     %{
       id: :claude,
       name: "Claude Code",
       docs: "https://code.claude.com/docs/en/setup",
-      login: "claude auth login"
+      login: "claude auth login",
+      billing_hint: "Claude Max/Pro Subscription or Anthropic API"
     },
     %{
       id: :cursor,
       name: "Cursor Agent",
       docs: "https://cursor.com/docs/cli/overview",
-      login: "agent login"
-    },
-    %{
-      id: :hermes,
-      name: "Hermes",
-      docs: "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
-      login: "hermes model"
-    },
-    %{
-      id: :pi,
-      name: "Pi",
-      docs: "https://pi.dev/docs/latest/quickstart",
-      login: "pi, then /login"
+      login: "agent login",
+      billing_hint: "Cursor Pro/Business Subscription or Usage API"
     },
     %{
       id: :opencode,
       name: "OpenCode",
       docs: "https://opencode.ai/docs/cli/",
-      login: "opencode auth login"
+      login: "opencode auth login",
+      billing_hint: "Included Free Tier or Provider API"
+    },
+    %{
+      id: :hermes,
+      name: "Hermes",
+      docs: "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
+      login: "hermes model",
+      billing_hint: "Provider API"
+    },
+    %{
+      id: :pi,
+      name: "Pi",
+      docs: "https://pi.dev/docs/latest/quickstart",
+      login: "pi, then /login",
+      billing_hint: "Provider API"
     }
   ]
+
   @capabilities [
     headless: "Headless mode",
     streaming: "Streaming output",
@@ -49,127 +56,279 @@ defmodule BossWeb.AgentsLive do
     usage_reporting: "Usage reporting"
   ]
 
+  @role_order %{"analytic" => 0, "implementer" => 1, "reviewer" => 2}
+
   @impl true
   def mount(_params, _session, socket) do
     saved = Detections.load_state()
+    roles = ordered_standard_roles()
+    has_authorized? = Enum.any?(saved.results, fn {_, r} -> authorized?(r) end)
 
     {:ok,
-     assign(socket,
-       page_title: "Agents · BOSS",
+     socket
+     |> assign(
+       page_title: "Agents & Roles · BOSS",
        agents: @agents,
-       roles: Roles.list(),
-       role_name: "",
+       roles: roles,
        role_error: nil,
+       saved_role: nil,
        results: saved.results,
        detecting: false,
        checked_at: saved.checked_at,
        agent_busy: %{},
        agent_notices: %{},
+       connect_open: not has_authorized?,
+       connect_agent: default_connect_agent(saved.results),
+       expanded_models: MapSet.new(),
+       binding_drafts: init_binding_drafts(roles, saved.results),
        error: nil
      )}
   end
 
   @impl true
+  def handle_event("toggle_connect", _, socket) do
+    {:noreply, assign(socket, connect_open: not socket.assigns.connect_open)}
+  end
+
+  def handle_event("open_connect", %{"agent" => raw_id}, socket) do
+    case parse_agent_id(raw_id) do
+      {:ok, id} -> {:noreply, assign(socket, connect_open: true, connect_agent: id)}
+      :error -> {:noreply, assign(socket, connect_open: true)}
+    end
+  end
+
+  def handle_event("open_connect", _, socket) do
+    {:noreply, assign(socket, connect_open: true)}
+  end
+
+  def handle_event("close_connect", _, socket) do
+    {:noreply, assign(socket, connect_open: false)}
+  end
+
+  def handle_event("select_connect_agent", %{"agent" => raw_id}, socket) do
+    case parse_agent_id(raw_id) do
+      {:ok, id} -> {:noreply, assign(socket, connect_agent: id, connect_open: true)}
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_agent_models", %{"agent" => raw_id}, socket) do
+    case parse_agent_id(raw_id) do
+      {:ok, id} ->
+        set = socket.assigns.expanded_models
+
+        next =
+          if MapSet.member?(set, id),
+            do: MapSet.delete(set, id),
+            else: MapSet.put(set, id)
+
+        {:noreply, assign(socket, expanded_models: next)}
+
+      :error ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "toggle_model",
+        %{"agent" => raw_id, "model_id" => model_id} = params,
+        socket
+      ) do
+    enabled? = params["enabled"] == "true"
+
+    with {:ok, id} <- parse_agent_id(raw_id),
+         {:ok, updated_view} <- Detections.set_model_enabled(id, model_id, enabled?) do
+      results = Map.put(socket.assigns.results, id, updated_view)
+      roles = ordered_standard_roles()
+
+      {:noreply,
+       assign(socket,
+         results: results,
+         roles: roles,
+         binding_drafts: sync_binding_drafts(socket.assigns.binding_drafts, roles, results)
+       )}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "update_role_binding",
+        %{"binding_id" => binding_id, "role_kind" => kind} = params,
+        socket
+      )
+      when kind in ~w(analytic implementer reviewer) do
+    existing = find_binding_in_roles(socket.assigns.roles, binding_id)
+    agent_id = params["agent"] || (existing && existing.agent_id) || ""
+    models = Roles.models_for_agent(agent_id)
+
+    agent_changed? =
+      params["_target"] == ["agent"] or (existing != nil and agent_id != existing.agent_id)
+
+    next_model =
+      cond do
+        agent_changed? ->
+          case models do
+            [first | _] -> first.id
+            [] -> nil
+          end
+
+        params["model_id"] in ["", "__default__", nil] ->
+          nil
+
+        is_binary(params["model_id"]) ->
+          params["model_id"]
+
+        existing != nil ->
+          existing.model_id
+
+        true ->
+          nil
+      end
+
+    selected_model = if next_model, do: Enum.find(models, &(&1.id == next_model))
+    efforts = if selected_model, do: selected_model.reasoning_efforts, else: []
+
+    model_changed? =
+      agent_changed? or params["_target"] == ["model_id"] or
+        (existing != nil and next_model != existing.model_id)
+
+    next_effort =
+      cond do
+        efforts == [] ->
+          nil
+
+        model_changed? ->
+          if existing && existing.reasoning_effort in efforts do
+            existing.reasoning_effort
+          else
+            selected_model.default_effort
+          end
+
+        is_binary(params["reasoning_effort"]) and params["reasoning_effort"] in efforts ->
+          params["reasoning_effort"]
+
+        true ->
+          nil
+      end
+
+    selection = %{
+      "model_id" => next_model,
+      "reasoning_effort" => next_effort
+    }
+
+    apply_role_save_result(
+      socket,
+      kind,
+      Roles.update_binding(binding_id, agent_id, selection)
+    )
+  end
+
+  def handle_event("auto_create_role_binding", %{"role_kind" => kind} = params, socket)
+      when kind in ~w(analytic implementer reviewer) do
+    current = Map.get(socket.assigns.binding_drafts, kind, %{})
+    agent_id = params["agent"] || current[:agent_id] || ""
+    models = Roles.models_for_agent(agent_id)
+
+    agent_changed? = params["_target"] == ["agent"] or agent_id != current[:agent_id]
+
+    next_model =
+      cond do
+        agent_changed? ->
+          case models do
+            [first | _] -> first.id
+            [] -> nil
+          end
+
+        params["model_id"] in ["", "__default__", nil] ->
+          if models != [], do: hd(models).id, else: nil
+
+        is_binary(params["model_id"]) and Enum.any?(models, &(&1.id == params["model_id"])) ->
+          params["model_id"]
+
+        models != [] ->
+          hd(models).id
+
+        true ->
+          nil
+      end
+
+    selected_model = if next_model, do: Enum.find(models, &(&1.id == next_model))
+    efforts = if selected_model, do: selected_model.reasoning_efforts, else: []
+
+    next_effort =
+      cond do
+        efforts == [] ->
+          nil
+
+        agent_changed? or params["_target"] == ["model_id"] ->
+          selected_model.default_effort
+
+        is_binary(params["reasoning_effort"]) and params["reasoning_effort"] in efforts ->
+          params["reasoning_effort"]
+
+        true ->
+          selected_model && selected_model.default_effort
+      end
+
+    apply_role_save_result(
+      socket,
+      kind,
+      Roles.add_binding(kind, agent_id, %{
+        "model_id" => next_model,
+        "reasoning_effort" => next_effort
+      })
+    )
+  end
+
+  def handle_event("add_next_role_binding", %{"role_kind" => kind}, socket)
+      when kind in ~w(analytic implementer reviewer) do
+    eligible_ids =
+      eligible_agents_for_role(kind, socket.assigns.results)
+      |> Enum.map(&Atom.to_string(&1.id))
+
+    case Roles.add_next_binding(kind, eligible_ids) do
+      {:ok, _} ->
+        roles = ordered_standard_roles()
+
+        {:noreply,
+         assign(socket,
+           roles: roles,
+           saved_role: kind,
+           role_error: nil,
+           binding_drafts:
+             sync_binding_drafts(socket.assigns.binding_drafts, roles, socket.assigns.results)
+         )}
+
+      {:error, :all_combinations_bound} ->
+        {:noreply,
+         assign(socket,
+           role_error:
+             "All enabled Agent + Model combinations are already bound to #{String.capitalize(kind)}."
+         )}
+
+      other ->
+        apply_role_save_result(socket, kind, other)
+    end
+  end
+
+  def handle_event("remove_role_binding", %{"binding_id" => id} = params, socket) do
+    _ = Roles.remove_binding(id)
+    roles = ordered_standard_roles()
+
+    {:noreply,
+     assign(socket,
+       roles: roles,
+       saved_role: params["role_kind"],
+       role_error: nil,
+       binding_drafts:
+         sync_binding_drafts(socket.assigns.binding_drafts, roles, socket.assigns.results)
+     )}
+  end
+
   def handle_event("detect", _, %{assigns: assigns} = socket)
       when assigns.detecting or map_size(assigns.agent_busy) > 0,
       do: {:noreply, socket}
-
-  def handle_event("create_role", %{"name" => name}, socket) do
-    case Roles.create(name) do
-      {:ok, _} ->
-        {:noreply, assign(socket, roles: Roles.list(), role_name: "", role_error: nil)}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, role_name: name || "", role_error: role_error(changeset))}
-    end
-  end
-
-  def handle_event("update_role", %{"role_id" => id, "name" => name}, socket) do
-    case Roles.update(id, name) do
-      {:ok, _} ->
-        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
-
-      {:error, :not_found} ->
-        {:noreply,
-         assign(socket, roles: Roles.list(), role_error: "That role is no longer available.")}
-
-      {:error, :standard} ->
-        {:noreply, assign(socket, role_error: standard_message())}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, role_error: role_error(changeset))}
-    end
-  end
-
-  def handle_event("delete_role", %{"role_id" => id}, socket) do
-    case Roles.delete(id) do
-      {:ok, _} ->
-        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
-
-      {:error, :standard} ->
-        {:noreply, assign(socket, role_error: standard_message())}
-
-      {:error, :not_found} ->
-        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
-    end
-  end
-
-  def handle_event("assign_role", %{"role_id" => id, "agent" => agent_id} = params, socket) do
-    outcome =
-      case params do
-        %{"assigned" => "true"} ->
-          Roles.assign_member(id, agent_id, %{
-            "model_id" => params["model_id"],
-            "reasoning_effort" =>
-              if(params["_target"] != ["model_id"], do: params["reasoning_effort"])
-          })
-
-        %{"_target" => ["assigned"]} when not is_map_key(params, "assigned") ->
-          Roles.assign_member(id, agent_id, nil)
-
-        _ ->
-          {:error, :invalid_binding}
-      end
-
-    case outcome do
-      {:ok, _} ->
-        {:noreply, assign(socket, roles: Roles.list(), role_error: nil)}
-
-      {:error, :not_found} ->
-        {:noreply,
-         assign(socket, roles: Roles.list(), role_error: "That role is no longer available.")}
-
-      {:error, :agent_not_authorized} ->
-        {:noreply,
-         assign(socket,
-           roles: Roles.list(),
-           role_error: "Roles connect only to detected and authorized agents."
-         )}
-
-      {:error, :model_not_supported} ->
-        {:noreply,
-         assign(socket,
-           roles: Roles.list(),
-           role_error: "Choose a supported model fetched for that authorized agent."
-         )}
-
-      {:error, :invalid_reasoning_effort} ->
-        {:noreply,
-         assign(socket,
-           roles: Roles.list(),
-           role_error: "Choose a reasoning effort supported by the selected model."
-         )}
-
-      {:error, :unknown_agent} ->
-        {:noreply, assign(socket, role_error: "Choose an agent from the installed list.")}
-
-      {:error, :invalid_binding} ->
-        {:noreply, assign(socket, role_error: "The agent selection could not be saved.")}
-    end
-  end
-
-  def handle_event("assign_role", _, socket),
-    do: {:noreply, assign(socket, role_error: "The agent selection could not be saved.")}
 
   def handle_event("detect", _, socket) do
     detector = Application.get_env(:boss, :agent_detector, Boss.Agents.Detector)
@@ -188,6 +347,7 @@ defmodule BossWeb.AgentsLive do
 
       {:noreply,
        socket
+       |> assign(connect_open: true, connect_agent: id)
        |> put_agent_busy(id, :authorizing)
        |> put_agent_notice(id, nil)
        |> start_async({:agent_action, id}, fn ->
@@ -232,11 +392,13 @@ defmodule BossWeb.AgentsLive do
   def handle_async(:detect, {:ok, {:ok, state}}, socket) do
     latest = Detections.load_state()
     state = if latest.checked_at, do: latest, else: state
+    roles = ordered_standard_roles()
 
     {:noreply,
      assign(socket,
        results: state.results,
-       roles: Roles.list(),
+       roles: roles,
+       binding_drafts: sync_binding_drafts(socket.assigns.binding_drafts, roles, state.results),
        detecting: false,
        checked_at: state.checked_at,
        error: nil
@@ -252,13 +414,16 @@ defmodule BossWeb.AgentsLive do
   def handle_async({:agent_action, id}, {:ok, outcome}, socket) do
     socket = clear_agent_busy(socket, id)
     saved = Detections.load_state()
+    merged_results = Map.merge(socket.assigns.results, saved.results)
+    roles = ordered_standard_roles()
 
     socket =
       socket
       |> assign(
-        results: Map.merge(socket.assigns.results, saved.results),
+        results: merged_results,
         checked_at: saved.checked_at || socket.assigns.checked_at,
-        roles: Roles.list()
+        roles: roles,
+        binding_drafts: sync_binding_drafts(socket.assigns.binding_drafts, roles, merged_results)
       )
 
     socket =
@@ -286,7 +451,17 @@ defmodule BossWeb.AgentsLive do
               do: "Sign-in confirmed. The model catalog could not be refreshed.",
               else: "Authorized · #{length(view.models)} models loaded."
 
-          socket |> put_agent_result(id, view) |> put_agent_notice(id, notice)
+          next_results = Map.put(socket.assigns.results, id, view)
+          next_roles = ordered_standard_roles()
+
+          socket
+          |> assign(
+            results: next_results,
+            roles: next_roles,
+            binding_drafts:
+              sync_binding_drafts(socket.assigns.binding_drafts, next_roles, next_results)
+          )
+          |> put_agent_notice(id, notice)
 
         {:verify, {:ok, %{auth_status: :stale} = view}} ->
           socket
@@ -305,8 +480,19 @@ defmodule BossWeb.AgentsLive do
           put_agent_notice(socket, id, scan_error(reason))
 
         {:models, {:ok, view}} ->
+          next_results = Map.put(socket.assigns.results, id, view)
+
           socket
-          |> put_agent_result(id, view)
+          |> assign(
+            results: next_results,
+            roles: ordered_standard_roles(),
+            binding_drafts:
+              sync_binding_drafts(
+                socket.assigns.binding_drafts,
+                socket.assigns.roles,
+                next_results
+              )
+          )
           |> put_agent_notice(id, "Loaded #{length(view.models || [])} supported models.")
 
         {:models, {:error, {:auth_required, view}}} ->
@@ -343,6 +529,150 @@ defmodule BossWeb.AgentsLive do
     end
   end
 
+  defp ordered_standard_roles do
+    Roles.standard_list()
+    |> Enum.sort_by(&Map.get(@role_order, &1.kind, 99))
+  end
+
+  defp authorized?(%{probe_status: :ok, auth_status: :configured}), do: true
+  defp authorized?(_), do: false
+
+  defp default_connect_agent(results) do
+    unconfigured =
+      Enum.find(@agents, fn a ->
+        case results[a.id] do
+          %{probe_status: :ok, auth_status: status} when status != :configured -> true
+          _ -> false
+        end
+      end)
+
+    missing =
+      Enum.find(@agents, fn a ->
+        not authorized?(results[a.id])
+      end)
+
+    cond do
+      unconfigured -> unconfigured.id
+      missing -> missing.id
+      true -> :codex
+    end
+  end
+
+  defp init_binding_drafts(roles, results) do
+    Map.new(roles, fn role ->
+      eligible = eligible_agents_for_role(role.kind, results)
+
+      first_agent =
+        case eligible do
+          [a | _] -> Atom.to_string(a.id)
+          [] -> nil
+        end
+
+      models = if first_agent, do: Roles.models_for_agent(first_agent), else: []
+
+      first_model =
+        case models do
+          [m | _] -> m
+          [] -> nil
+        end
+
+      {role.kind,
+       %{
+         agent_id: first_agent,
+         model_id: if(first_model, do: first_model.id, else: "__default__"),
+         reasoning_effort: (first_model && first_model.default_effort) || ""
+       }}
+    end)
+  end
+
+  defp sync_binding_drafts(drafts, roles, results) do
+    defaults = init_binding_drafts(roles, results)
+
+    Map.new(roles, fn role ->
+      kind = role.kind
+      eligible_ids = eligible_agents_for_role(kind, results) |> Enum.map(&Atom.to_string(&1.id))
+      current = Map.get(drafts, kind)
+
+      if is_map(current) and current[:agent_id] in eligible_ids do
+        models = Roles.models_for_agent(current[:agent_id])
+        model_ids = Enum.map(models, & &1.id)
+
+        model_id =
+          if current[:model_id] in model_ids or models == [],
+            do: current[:model_id] || "__default__",
+            else: hd(models).id
+
+        selected = Enum.find(models, &(&1.id == model_id))
+        efforts = if selected, do: selected.reasoning_efforts, else: []
+
+        effort =
+          if current[:reasoning_effort] in efforts,
+            do: current[:reasoning_effort],
+            else: (selected && selected.default_effort) || ""
+
+        {kind, %{agent_id: current[:agent_id], model_id: model_id, reasoning_effort: effort}}
+      else
+        {kind, defaults[kind]}
+      end
+    end)
+  end
+
+  defp eligible_agents_for_role(role_kind, results) do
+    Enum.filter(@agents, fn agent ->
+      id_str = Atom.to_string(agent.id)
+      authorized?(results[agent.id]) and Roles.runner_allowed?(role_kind, id_str)
+    end)
+  end
+
+  defp find_binding_in_roles(roles, raw_id) do
+    id_str = to_string(raw_id)
+
+    Enum.find_value(roles, fn r ->
+      Enum.find(r.bindings, &(to_string(&1.id) == id_str))
+    end)
+  end
+
+  defp apply_role_save_result(socket, kind, {:ok, _}) do
+    roles = ordered_standard_roles()
+
+    {:noreply,
+     assign(socket,
+       roles: roles,
+       saved_role: kind,
+       role_error: nil,
+       binding_drafts:
+         sync_binding_drafts(socket.assigns.binding_drafts, roles, socket.assigns.results)
+     )}
+  end
+
+  defp apply_role_save_result(socket, _kind, {:error, :agent_not_authorized}) do
+    {:noreply,
+     assign(socket,
+       roles: ordered_standard_roles(),
+       role_error: "Roles connect only to detected and authorized agents."
+     )}
+  end
+
+  defp apply_role_save_result(socket, _kind, {:error, :model_not_supported}) do
+    {:noreply,
+     assign(socket,
+       roles: ordered_standard_roles(),
+       role_error: "Choose a supported model fetched for that authorized agent."
+     )}
+  end
+
+  defp apply_role_save_result(socket, _kind, {:error, :invalid_reasoning_effort}) do
+    {:noreply,
+     assign(socket,
+       roles: ordered_standard_roles(),
+       role_error: "Choose a reasoning effort supported by the selected model."
+     )}
+  end
+
+  defp apply_role_save_result(socket, _kind, {:error, _}) do
+    {:noreply, assign(socket, role_error: "Could not save this role binding.")}
+  end
+
   defp parse_agent_id(raw) when is_binary(raw) do
     case Enum.find(Metadata.ids(), &(Atom.to_string(&1) == raw)) do
       nil -> :error
@@ -365,608 +695,855 @@ defmodule BossWeb.AgentsLive do
     do: assign(socket, agent_notices: Map.put(socket.assigns.agent_notices, id, text))
 
   defp put_agent_result(socket, id, view),
-    do: assign(socket, results: Map.put_new(socket.assigns.results, id, view))
+    do: assign(socket, results: Map.put(socket.assigns.results, id, view))
 
   @impl true
   def render(assigns) do
     authorized_agents =
-      Enum.filter(assigns.agents, fn agent ->
-        case assigns.results[agent.id] do
-          %{probe_status: :ok, auth_status: :configured} -> true
-          _ -> false
-        end
-      end)
+      Enum.filter(assigns.agents, fn agent -> authorized?(assigns.results[agent.id]) end)
 
-    assigns = assign(assigns, :authorized_agents, authorized_agents)
+    selected_meta =
+      Enum.find(assigns.agents, List.first(assigns.agents), &(&1.id == assigns.connect_agent))
+
+    assigns =
+      assigns
+      |> assign(:authorized_agents, authorized_agents)
+      |> assign(:selected_meta, selected_meta)
+      |> assign(:selected_result, assigns.results[selected_meta.id])
 
     ~H"""
-    <header class="app-page-header flex flex-col items-start gap-5 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="app-eyebrow">Local tools</p>
-        <h1 class="app-page-title">Agents</h1>
-        <p class="app-page-description">
-          Detect local CLIs, authorize accounts, inspect supported models with pricing and reasoning, and wire roles.
+    <header class="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <p class="app-eyebrow">Local CLI Hub</p>
+        <div class="flex flex-wrap items-baseline gap-3">
+          <h1 class="text-2xl font-semibold tracking-tight text-ink">Agents &amp; Roles</h1>
+          <span id="agents-status" role="status" class="text-xs text-muted">
+            <%= cond do %>
+              <% @detecting -> %>
+                Detecting local CLIs…
+              <% @checked_at && is_nil(@error) -> %>
+                Detection complete · {length(@authorized_agents)} connected
+              <% true -> %>
+                {length(@authorized_agents)} connected
+            <% end %>
+          </span>
+          <time
+            :if={@checked_at}
+            id="agents-checked-at"
+            datetime={DateTime.to_iso8601(@checked_at)}
+            class="font-mono text-[11px] text-muted"
+          >
+            {Calendar.strftime(@checked_at, "%H:%M:%S UTC")}
+          </time>
+        </div>
+        <p id="agents-help" class="mt-1 text-xs text-muted">
+          Connect authorized local CLIs, choose models with API vs Subscription pricing, and bind them to Analytic, Implementer, and Reviewer. Metadata discovery makes no paid call and does not verify provider access.
         </p>
       </div>
-      <button
-        id="detect-agents"
-        type="button"
-        phx-click="detect"
-        disabled={@detecting or map_size(@agent_busy) > 0}
-        aria-describedby="agents-help"
-        class="app-button-primary shrink-0 px-5 py-3 font-semibold disabled:opacity-50"
-      >{if @detecting, do: "Detecting…", else: "Detect agents"}</button>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <button
+          id="detect-agents"
+          type="button"
+          phx-click="detect"
+          disabled={@detecting or map_size(@agent_busy) > 0}
+          class="app-button-secondary px-3.5 py-2 text-xs font-semibold disabled:opacity-50"
+        >
+          {if @detecting, do: "Scanning…", else: "Scan CLIs"}
+        </button>
+        <button
+          id="open-connect-agent"
+          type="button"
+          phx-click="toggle_connect"
+          aria-expanded={to_string(@connect_open)}
+          aria-controls="connect-agent-panel"
+          class="app-button-primary px-3.5 py-2 text-xs font-semibold"
+        >
+          {if @connect_open, do: "Hide connect panel", else: "+ Connect agent"}
+        </button>
+      </div>
     </header>
 
-    <div class="mt-6 border-y border-line py-5">
-      <p id="agents-help" class="max-w-3xl text-sm leading-6 text-body">
-        Detect checks the CLIs installed on this computer, saves the detection state locally, and
-        fetches supported models for authorized agents. Detection makes no paid inference call and
-        does not verify provider access or remaining quota; BOSS does not read credential files.
-      </p>
-      <p id="agents-status" role="status" class="mt-3 min-h-5 text-sm font-medium text-ink">
-        <%= cond do %>
-          <% @detecting -> %>
-            Detecting agents and refreshing authorized model catalogs…
-          <% @checked_at && is_nil(@error) -> %>
-            Detection complete · {length(@authorized_agents)} of {length(@agents)} agents authorized.
-          <% true -> %>
-            Choose Detect agents to check installed CLIs.
-        <% end %>
-      </p>
-      <p :if={@checked_at} class="mt-2 text-sm text-muted">
-        Saved scan:
-        <time id="agents-checked-at" datetime={DateTime.to_iso8601(@checked_at)}>
-          {Calendar.strftime(@checked_at, "%Y-%m-%d %H:%M:%S UTC")}
-        </time>
-      </p>
-    </div>
-
-    <div
+    <p
       :if={@error}
       id="agents-error"
       role="alert"
-      class="mt-4 rounded-sm border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning"
+      class="mt-3 rounded-sm border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger"
     >
-      <p>Latest scan failed. {@error}</p>
-      <p :if={@checked_at} class="mt-1">Showing the last completed scan.</p>
-    </div>
+      {@error}
+      <span :if={@checked_at}> Showing the last completed scan.</span>
+    </p>
 
-    <div
-      id="agents"
-      aria-busy={@detecting}
-      class="mt-6 grid min-w-0 gap-6 md:grid-cols-2"
-    >
-      <.agent
-        :for={agent <- @agents}
-        agent={agent}
-        result={@results[agent.id]}
-        busy={@agent_busy[agent.id]}
-        detecting={@detecting}
-        notice={@agent_notices[agent.id]}
-      />
-    </div>
-
-    <section id="roles" aria-labelledby="roles-title" class="mt-10 border-t border-line pt-8">
-      <h2 id="roles-title" class="app-panel-heading">Roles</h2>
-      <p id="roles-help" class="mt-2 max-w-3xl text-sm leading-6 text-body">
-        Assign detected and authorized agents to a role, then choose a model for each agent.
-        Managed workflows run with Codex, Claude Code, Cursor Agent, and OpenCode. Codex uses its
-        workflow model policy. Pi and Hermes selections are saved in the roster.
-      </p>
-      <form id="create-role" phx-submit="create_role" class="mt-4 flex flex-wrap items-end gap-3">
-        <div class="min-w-0 flex-1">
-          <label for="role-name" class="block text-sm font-medium">New role</label>
-          <input
-            id="role-name"
-            name="name"
-            value={@role_name}
-            required
-            maxlength="80"
-            autocomplete="off"
-            class="app-field mt-1 w-full min-w-0 px-3 py-2 text-sm"
-          />
-        </div>
-        <button type="submit" class="app-button-secondary px-4 py-2 text-sm font-semibold">
-          Create role
-        </button>
-      </form>
-      <p :if={@role_error} id="role-error" role="alert" class="mt-3 text-sm text-warning">
-        {@role_error}
-      </p>
-      <div class="mt-4 grid min-w-0 gap-4">
-        <article :for={role <- @roles} id={"role-#{role.id}"} class="app-panel">
-          <div :if={role.standard}>
-            <h3 id={"role-#{role.id}-title"} class="text-base font-semibold">{role.name}</h3>
-            <p id={"role-#{role.id}-purpose"} class="mt-1 text-sm leading-6 text-body">
-              {role.purpose}
-            </p>
-          </div>
-          <form
-            :if={!role.standard}
-            id={"role-#{role.id}-name"}
-            phx-submit="update_role"
-            class="flex flex-wrap items-end gap-3"
-          >
-            <input type="hidden" name="role_id" value={role.id} />
-            <div class="min-w-0 flex-1">
-              <label for={"role-#{role.id}-name-input"} class="block text-sm font-medium">
-                Role name
-              </label>
-              <input
-                id={"role-#{role.id}-name-input"}
-                name="name"
-                value={role.name}
-                required
-                maxlength="80"
-                autocomplete="off"
-                class="app-field mt-1 w-full min-w-0 px-3 py-2 text-sm"
-              />
-            </div>
-            <button type="submit" class="app-button-secondary px-4 py-2 text-sm font-semibold">
-              Save name
-            </button>
-            <button
-              type="button"
-              id={"role-#{role.id}-delete"}
-              phx-click="delete_role"
-              phx-value-role_id={role.id}
-              class="app-button-danger px-4 py-2 text-sm font-semibold"
+    <div class={[
+      "mt-5 grid items-start gap-5",
+      @connect_open && "lg:grid-cols-[minmax(0,1fr)_24rem]"
+    ]}>
+      <div class="min-w-0 space-y-6">
+        <section id="connected-agents" aria-labelledby="connected-agents-heading">
+          <div class="flex items-center justify-between gap-2">
+            <h2
+              id="connected-agents-heading"
+              class="text-sm font-semibold uppercase tracking-wider text-muted"
             >
-              Remove role
+              Connected &amp; authorized agents ({length(@authorized_agents)})
+            </h2>
+            <button
+              :if={!@connect_open}
+              type="button"
+              phx-click="open_connect"
+              class="text-xs font-medium text-forest underline underline-offset-4"
+            >
+              + Connect another agent
             </button>
-          </form>
+          </div>
 
-          <div id={"role-#{role.id}-agents"} class="mt-4">
-            <fieldset>
-              <legend class="text-sm font-medium">
-                Detected &amp; authorized agent models in this role
-              </legend>
+          <div
+            :if={@authorized_agents == []}
+            id="connected-agents-empty"
+            class="mt-3 rounded-sm border border-line bg-surface p-4 text-sm text-muted"
+          >
+            No local agents are connected and authorized yet. Use <strong>+ Connect agent</strong>
+            on the right or <strong>Scan CLIs</strong>
+            to detect installed CLIs, sign in, and load models.
+          </div>
 
-              <p
-                :if={@authorized_agents == []}
-                id={"role-#{role.id}-empty-authorized"}
-                class="mt-2 rounded-sm border border-dashed border-line bg-paper px-3 py-2.5 text-xs text-muted"
-              >
-                No detected and authorized agents yet. Detect and authorize an agent above to connect its models to this role.
-              </p>
+          <div
+            :if={@authorized_agents != []}
+            class="mt-3 grid gap-3 sm:grid-cols-2"
+          >
+            <article
+              :for={agent <- @authorized_agents}
+              id={"connected-agent-#{agent.id}"}
+              class="rounded-sm border border-line bg-surface p-3.5"
+            >
+              <% res = @results[agent.id] %>
+              <% busy = @agent_busy[agent.id] %>
+              <% notice = @agent_notices[agent.id] %>
+              <% models = Enum.map(res.models || [], &Roles.present_model(agent.id, &1)) %>
+              <% enabled_count = Enum.count(models, & &1.enabled) %>
+              <% expanded? = MapSet.member?(@expanded_models, agent.id) %>
 
-              <div class="mt-3 space-y-2.5">
-                <form
-                  :for={agent <- @agents}
-                  :if={agent in @authorized_agents or Atom.to_string(agent.id) in role.agent_ids}
-                  id={"role-#{role.id}-agents-#{agent.id}"}
-                  phx-change="assign_role"
-                  class="rounded-sm border border-line bg-paper p-3 text-sm"
-                >
-                  <input type="hidden" name="role_id" value={role.id} />
-                  <input type="hidden" name="agent" value={agent.id} />
-                  <% id_str = Atom.to_string(agent.id) %>
-                  <% active? = agent in @authorized_agents %>
-                  <% checked? = id_str in role.agent_ids %>
-                  <% sel =
-                    Map.get(role.selections || %{}, id_str, %{model_id: nil, reasoning_effort: nil}) %>
-                  <% models = (@results[agent.id] && @results[agent.id].models) || [] %>
-                  <% efforts = efforts_for_selection(models, sel.model_id) %>
-                  <% model_missing? = sel.model_id && !Enum.any?(models, &(&1["id"] == sel.model_id)) %>
-
-                  <div class="flex flex-wrap items-center justify-between gap-3">
-                    <label class="flex items-center gap-2 font-medium text-ink">
-                      <input
-                        id={"role-#{role.id}-agent-#{agent.id}"}
-                        type="checkbox"
-                        name="assigned"
-                        value="true"
-                        checked={checked?}
-                      />
-                      <span>{agent.name}</span>
-                      <span class="app-badge">{if active?, do: "Authorized", else: "Unavailable"}</span>
-                    </label>
-                    <span class="font-mono text-xs text-muted">
-                      {length(models)} {if length(models) == 1, do: "model", else: "models"}
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h3 class="text-sm font-semibold text-ink">{agent.name}</h3>
+                    <span class="rounded-sm border border-forest/30 bg-sage px-1.5 py-0.5 text-[11px] font-medium text-forest">
+                      Authorized
+                    </span>
+                    <span :if={res.version} class="font-mono text-[11px] text-muted">
+                      v{res.version}
                     </span>
                   </div>
-
-                  <div
-                    :if={checked? and active?}
-                    class="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-2"
+                  <p class="mt-0.5 truncate font-mono text-[11px] text-muted" title={res.path}>
+                    {res.path}
+                  </p>
+                </div>
+                <div class="flex shrink-0 items-center gap-1.5">
+                  <button
+                    id={"refresh-models-#{agent.id}"}
+                    type="button"
+                    phx-click="fetch_models"
+                    phx-value-agent={agent.id}
+                    disabled={@detecting or busy != nil}
+                    class="app-button-secondary px-2 py-1 text-[11px] disabled:opacity-50"
                   >
-                    <div class="min-w-0">
+                    {if busy == :fetching_models, do: "Loading…", else: "Refresh"}
+                  </button>
+                  <button
+                    id={"manage-agent-#{agent.id}"}
+                    type="button"
+                    phx-click="open_connect"
+                    phx-value-agent={agent.id}
+                    class="app-button-secondary px-2 py-1 text-[11px]"
+                  >
+                    Auth
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-xs">
+                <span class="text-body">
+                  <strong>{enabled_count}</strong>
+                  / {length(models)} models enabled
+                  <span class="text-muted">· {agent.billing_hint}</span>
+                </span>
+                <button
+                  :if={models != []}
+                  id={"toggle-models-#{agent.id}"}
+                  type="button"
+                  phx-click="toggle_agent_models"
+                  phx-value-agent={agent.id}
+                  class="font-medium text-forest underline underline-offset-4"
+                >
+                  {if expanded?, do: "Compact", else: "Select models"}
+                </button>
+              </div>
+
+              <p :if={notice} role="status" class="mt-2 text-xs text-forest">
+                {notice}
+              </p>
+
+              <div
+                :if={models != []}
+                id={"agent-models-#{agent.id}"}
+                class={["mt-2 space-y-1", !expanded? && "max-h-36 overflow-y-auto pr-1"]}
+              >
+                <label
+                  :for={m <- if(expanded?, do: models, else: Enum.take(models, 4))}
+                  class="flex cursor-pointer items-center justify-between gap-2 rounded-sm border border-line/70 bg-paper px-2 py-1.5 text-xs hover:border-forest/50"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={m.enabled}
+                      phx-click="toggle_model"
+                      phx-value-agent={agent.id}
+                      phx-value-model_id={m.id}
+                      phx-value-enabled={to_string(!m.enabled)}
+                      class="h-3.5 w-3.5 accent-forest"
+                    />
+                    <span
+                      title={m.name}
+                      class={[
+                        "truncate font-medium",
+                        m.enabled && "text-ink",
+                        !m.enabled && "text-muted line-through"
+                      ]}
+                    >
+                      {m.name}
+                    </span>
+                    <span
+                      :if={m.reasoning_efforts != []}
+                      title={"Reasoning efforts: #{Enum.join(m.reasoning_efforts, ", ")}"}
+                      class="hidden shrink-0 font-mono text-[10px] text-muted 2xl:inline"
+                    >
+                      · reasoning
+                    </span>
+                  </span>
+                  <span class="flex shrink-0 items-center gap-1.5">
+                    <span class="font-mono text-[11px] text-muted">{m.price_label}</span>
+                    <span class={billing_badge_class(m.billing)}>
+                      {m.billing_label}
+                    </span>
+                  </span>
+                </label>
+                <p :if={!expanded? and length(models) > 4} class="pt-0.5 text-[11px] text-muted">
+                  +{length(models) - 4} more models — choose “Select models” to view all
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="agent-roles"
+          aria-labelledby="agent-roles-heading"
+          class="border-t border-line pt-5"
+        >
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2
+                id="agent-roles-heading"
+                class="text-sm font-semibold uppercase tracking-wider text-muted"
+              >
+                Three workflow roles (Agent + Model + Role bindings)
+              </h2>
+              <p class="mt-1 text-xs text-muted">
+                Bind connected agents and models to <strong>Analytic</strong>, <strong>Implementer</strong>, and <strong>Reviewer</strong>. Projects pick one binding from each role.
+              </p>
+            </div>
+          </div>
+
+          <p
+            :if={@role_error}
+            id="agent-roles-error"
+            role="alert"
+            class="mt-3 rounded-sm border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger"
+          >
+            {@role_error}
+          </p>
+
+          <div class="mt-3 grid gap-4 xl:grid-cols-3">
+            <article
+              :for={role <- @roles}
+              id={"role-#{role.id}"}
+              class="flex flex-col justify-between rounded-sm border border-line bg-surface p-4"
+            >
+              <% eligible = eligible_agents_for_role(role.kind, @results) %>
+              <% eligible_ids = Enum.map(eligible, &Atom.to_string(&1.id)) %>
+
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <h3 id={"role-#{role.id}-title"} class="text-base font-semibold text-ink">
+                      {role.name}
+                    </h3>
+                    <span
+                      :if={@saved_role == role.kind}
+                      id={"role-saved-#{role.kind}"}
+                      role="status"
+                      class="rounded-sm border border-forest/30 bg-sage px-1.5 py-0.5 text-[10px] font-medium text-forest"
+                    >
+                      Auto-saved
+                    </span>
+                  </div>
+                  <span class="rounded-sm border border-line bg-paper px-2 py-0.5 font-mono text-[11px] text-muted">
+                    {length(role.bindings)} bound
+                  </span>
+                </div>
+                <p id={"role-#{role.id}-purpose"} class="mt-1.5 text-xs leading-5 text-body">
+                  {role.purpose}
+                </p>
+
+                <div class="mt-3 space-y-2">
+                  <p
+                    :if={role.bindings == [] and eligible == []}
+                    id={"role-#{role.id}-empty"}
+                    class="rounded-sm border border-dashed border-line bg-paper px-2.5 py-2 text-xs text-muted"
+                  >
+                    No Agent + Model bound yet.
+                  </p>
+
+                  <form
+                    :for={binding <- role.bindings}
+                    id={"role-binding-#{binding.id}"}
+                    phx-change="update_role_binding"
+                    class="space-y-2 rounded-sm border border-line bg-paper p-2.5 text-xs"
+                  >
+                    <input type="hidden" name="binding_id" value={binding.id} />
+                    <input type="hidden" name="role_kind" value={role.kind} />
+
+                    <% row_models = Roles.models_for_agent(binding.agent_id) %>
+                    <% row_model_ids = Enum.map(row_models, & &1.id) %>
+                    <% row_selected_model =
+                      if binding.model_id, do: Enum.find(row_models, &(&1.id == binding.model_id)) %>
+                    <% row_efforts =
+                      if row_selected_model, do: row_selected_model.reasoning_efforts, else: [] %>
+
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span
+                          class="truncate font-mono text-[11px] font-semibold text-forest"
+                          title={binding.tag}
+                        >
+                          {binding.tag}
+                        </span>
+                        <span class="font-mono text-[10px] text-muted">
+                          {binding.price_label}
+                        </span>
+                        <span class={billing_badge_class(binding.billing)}>
+                          {binding.billing_label}
+                        </span>
+                        <span :if={!binding.authorized} class="text-[10px] text-warning">
+                          Offline
+                        </span>
+                      </div>
+                      <button
+                        id={"remove-binding-#{binding.id}"}
+                        type="button"
+                        phx-click="remove_role_binding"
+                        phx-value-binding_id={binding.id}
+                        phx-value-role_kind={role.kind}
+                        aria-label={"Remove #{binding.tag}"}
+                        class="shrink-0 rounded-sm px-1.5 py-0.5 text-muted hover:bg-danger-soft hover:text-danger"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div class={[
+                      "grid gap-1.5",
+                      row_efforts != [] && "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5.5rem]",
+                      row_efforts == [] && "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
+                    ]}>
+                      <div>
+                        <label
+                          for={"binding-agent-#{binding.id}"}
+                          class="block text-[10px] font-medium text-muted"
+                        >
+                          Agent
+                        </label>
+                        <select
+                          id={"binding-agent-#{binding.id}"}
+                          name="agent"
+                          class="app-field mt-0.5 w-full px-2 py-1 text-xs"
+                        >
+                          <option
+                            :if={binding.agent_id not in eligible_ids}
+                            value={binding.agent_id}
+                            selected
+                            disabled
+                          >
+                            {binding.agent_name} (offline)
+                          </option>
+                          <option
+                            :for={a <- eligible}
+                            value={a.id}
+                            selected={binding.agent_id == Atom.to_string(a.id)}
+                          >
+                            {a.name}
+                          </option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label
+                          for={"binding-model-#{binding.id}"}
+                          class="block text-[10px] font-medium text-muted"
+                        >
+                          Model
+                        </label>
+                        <select
+                          id={"binding-model-#{binding.id}"}
+                          name="model_id"
+                          class="app-field mt-0.5 w-full px-2 py-1 text-xs"
+                        >
+                          <option
+                            :if={binding.model_id == nil or row_models == []}
+                            value=""
+                            selected={binding.model_id == nil}
+                          >
+                            CLI default
+                          </option>
+                          <option
+                            :if={
+                              is_binary(binding.model_id) and binding.model_id not in row_model_ids
+                            }
+                            value={binding.model_id}
+                            selected
+                            disabled
+                          >
+                            {binding.model_name} (disabled)
+                          </option>
+                          <option
+                            :for={m <- row_models}
+                            value={m.id}
+                            selected={binding.model_id == m.id}
+                          >
+                            {m.name} · {m.billing_label} ({m.price_label})
+                          </option>
+                        </select>
+                      </div>
+
+                      <div :if={row_efforts != []}>
+                        <label
+                          for={"binding-effort-#{binding.id}"}
+                          class="block text-[10px] font-medium text-muted"
+                        >
+                          Effort
+                        </label>
+                        <select
+                          id={"binding-effort-#{binding.id}"}
+                          name="reasoning_effort"
+                          class="app-field mt-0.5 w-full px-2 py-1 text-xs"
+                        >
+                          <option value="" selected={binding.reasoning_effort in [nil, ""]}>
+                            Default
+                          </option>
+                          <option
+                            :for={eff <- row_efforts}
+                            value={eff}
+                            selected={binding.reasoning_effort == eff}
+                          >
+                            {eff}
+                          </option>
+                        </select>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <% draft = Map.get(@binding_drafts, role.kind, %{}) %>
+              <% draft_models =
+                if draft[:agent_id], do: Roles.models_for_agent(draft[:agent_id]), else: [] %>
+              <% selected_m = Enum.find(draft_models, &(&1.id == draft[:model_id])) %>
+              <% draft_efforts = if selected_m, do: selected_m.reasoning_efforts, else: [] %>
+
+              <div class="mt-3 border-t border-line pt-3">
+                <p
+                  :if={eligible == []}
+                  id={"role-#{role.id}-empty-authorized"}
+                  class="text-xs text-muted"
+                >
+                  Connect and authorize an execution agent to bind models to {role.name}.
+                </p>
+
+                <form
+                  :if={eligible != [] and role.bindings == []}
+                  id={"role-bind-form-#{role.kind}"}
+                  phx-change="auto_create_role_binding"
+                  phx-submit="auto_create_role_binding"
+                  class="space-y-2"
+                >
+                  <input type="hidden" name="role_kind" value={role.kind} />
+                  <div class="grid gap-1.5 sm:grid-cols-2">
+                    <div>
                       <label
-                        for={"role-#{role.id}-model-#{agent.id}"}
-                        class="block text-xs font-medium text-muted"
+                        for={"role-#{role.kind}-agent"}
+                        class="block text-[11px] font-medium text-muted"
+                      >
+                        Agent
+                      </label>
+                      <select
+                        id={"role-#{role.kind}-agent"}
+                        name="agent"
+                        class="app-field mt-0.5 w-full px-2 py-1.5 text-xs"
+                      >
+                        <option
+                          :for={a <- eligible}
+                          value={a.id}
+                          selected={draft[:agent_id] == Atom.to_string(a.id)}
+                        >
+                          {a.name}
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        for={"role-#{role.kind}-model"}
+                        class="block text-[11px] font-medium text-muted"
                       >
                         Model
                       </label>
                       <select
-                        id={"role-#{role.id}-model-#{agent.id}"}
+                        id={"role-#{role.kind}-model"}
                         name="model_id"
-                        class="app-field mt-1 w-full min-w-0 px-2.5 py-1.5 text-xs"
+                        class="app-field mt-0.5 w-full px-2 py-1.5 text-xs"
                       >
-                        <option value="__default__" selected={is_nil(sel.model_id)}>
-                          {if agent.id == :cursor,
-                            do: "Agent default (Auto)",
-                            else: "Agent default / policy routing"}
-                        </option>
-                        <option :if={model_missing?} value={sel.model_id} selected disabled>
-                          Unavailable · {sel.model_id}
+                        <option :if={draft_models == []} value="__default__" selected>
+                          CLI default
                         </option>
                         <option
-                          :for={m <- models}
-                          value={m["id"]}
-                          selected={sel.model_id == m["id"]}
+                          :for={m <- draft_models}
+                          value={m.id}
+                          selected={draft[:model_id] == m.id}
                         >
-                          {model_option_label(m)}
+                          {m.name} · {m.billing_label} ({m.price_label})
                         </option>
                       </select>
                     </div>
-                    <div class="min-w-0">
+                  </div>
+
+                  <div class="flex items-end justify-between gap-2">
+                    <div :if={draft_efforts != []} class="min-w-0 flex-1">
                       <label
-                        for={"role-#{role.id}-effort-#{agent.id}"}
-                        class="block text-xs font-medium text-muted"
+                        for={"role-#{role.kind}-effort"}
+                        class="block text-[11px] font-medium text-muted"
                       >
-                        Reasoning effort
+                        Effort
                       </label>
                       <select
-                        id={"role-#{role.id}-effort-#{agent.id}"}
+                        id={"role-#{role.kind}-effort"}
                         name="reasoning_effort"
-                        disabled={efforts == []}
-                        class="app-field mt-1 w-full min-w-0 px-2.5 py-1.5 text-xs disabled:opacity-50"
+                        class="app-field mt-0.5 w-full px-2 py-1.5 text-xs"
                       >
-                        <option value="default" selected={sel.reasoning_effort not in efforts}>
-                          {if efforts == [], do: "Standard (no effort levels)", else: "Model default"}
+                        <option value="" selected={draft[:reasoning_effort] in [nil, ""]}>
+                          Default
                         </option>
                         <option
-                          :for={eff <- efforts}
+                          :for={eff <- draft_efforts}
                           value={eff}
-                          selected={sel.reasoning_effort == eff}
+                          selected={draft[:reasoning_effort] == eff}
                         >
                           {eff}
                         </option>
                       </select>
                     </div>
+                    <button
+                      id={"add-binding-#{role.kind}"}
+                      type="submit"
+                      class="app-button-secondary ml-auto shrink-0 px-3 py-1.5 text-xs font-semibold"
+                    >
+                      + Bind to {role.name}
+                    </button>
                   </div>
-                  <p :if={!active?} class="mt-2 text-xs text-muted">
-                    {sel.model_id || "Agent default"} · Verify this agent to use the saved selection.
-                  </p>
                 </form>
+
+                <div
+                  :if={eligible != [] and role.bindings != []}
+                  class="flex items-center justify-between gap-2"
+                >
+                  <span class="text-[11px] text-muted">Changes save automatically</span>
+                  <button
+                    id={"add-binding-#{role.kind}"}
+                    type="button"
+                    phx-click="add_next_role_binding"
+                    phx-value-role_kind={role.kind}
+                    class="app-button-secondary shrink-0 px-2.5 py-1 text-xs font-semibold"
+                  >
+                    + Add agent · model
+                  </button>
+                </div>
               </div>
-            </fieldset>
+            </article>
           </div>
-        </article>
+        </section>
       </div>
-    </section>
+
+      <aside
+        :if={@connect_open}
+        id="connect-agent-panel"
+        aria-labelledby="connect-agent-heading"
+        class="rounded-sm border border-line bg-surface p-4 lg:sticky lg:top-6"
+      >
+        <div class="flex items-center justify-between gap-2 border-b border-line pb-3">
+          <div>
+            <p class="app-eyebrow">Local CLI Setup</p>
+            <h2 id="connect-agent-heading" class="text-base font-semibold text-ink">
+              Connect &amp; authorize agent
+            </h2>
+          </div>
+          <button
+            id="close-connect-agent"
+            type="button"
+            phx-click="close_connect"
+            aria-label="Close connect agent panel"
+            class="rounded-sm px-2 py-1 text-xs text-muted hover:bg-paper hover:text-ink"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="mt-3">
+          <p class="text-xs font-medium text-muted">1. Choose local CLI agent</p>
+          <div class="mt-1.5 grid grid-cols-2 gap-1.5">
+            <button
+              :for={agent <- @agents}
+              id={"pick-agent-#{agent.id}"}
+              type="button"
+              phx-click="select_connect_agent"
+              phx-value-agent={agent.id}
+              class={[
+                "flex items-center justify-between rounded-sm border px-2.5 py-2 text-left text-xs transition",
+                @selected_meta.id == agent.id && "border-forest bg-sage/60 font-semibold text-ink",
+                @selected_meta.id != agent.id &&
+                  "border-line bg-paper text-body hover:border-forest/50"
+              ]}
+            >
+              <span class="truncate">{agent.name}</span>
+              <span class={[
+                "ml-1 h-2 w-2 shrink-0 rounded-full",
+                connect_dot_class(@results[agent.id])
+              ]}></span>
+            </button>
+          </div>
+        </div>
+
+        <.connect_agent_detail
+          agent={@selected_meta}
+          result={@selected_result}
+          busy={@agent_busy[@selected_meta.id]}
+          notice={@agent_notices[@selected_meta.id]}
+          detecting={@detecting}
+        />
+      </aside>
+    </div>
     """
   end
 
   attr :agent, :map, required: true
-  attr :result, :any, required: true
+  attr :result, :any, default: nil
   attr :busy, :any, default: nil
-  attr :detecting, :boolean, required: true
   attr :notice, :any, default: nil
+  attr :detecting, :boolean, default: false
 
-  defp agent(assigns) do
-    models = (assigns.result && Map.get(assigns.result, :models)) || []
-    detected? = match?(%{probe_status: :ok}, assigns.result)
-    authorized? = match?(%{probe_status: :ok, auth_status: :configured}, assigns.result)
+  defp connect_agent_detail(assigns) do
+    models =
+      if assigns.result && is_list(assigns.result.models) do
+        Enum.map(assigns.result.models, &Roles.present_model(assigns.agent.id, &1))
+      else
+        []
+      end
 
-    assigns =
-      assign(assigns,
-        capabilities: @capabilities,
-        models: models,
-        detected?: detected?,
-        authorized?: authorized?
-      )
+    assigns = assign(assigns, :models, models)
 
     ~H"""
-    <section
-      id={"agent-#{@agent.id}"}
-      aria-labelledby={"agent-title-#{@agent.id}"}
-      class="app-panel flex min-w-0 flex-col"
-    >
+    <div id={"agent-#{@agent.id}"} class="mt-4 space-y-3 border-t border-line pt-3 text-xs">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 id={"agent-title-#{@agent.id}"} class="app-panel-heading">{@agent.name}</h2>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span
-            :if={@detected?}
-            class={[
-              "inline-flex items-center rounded-[2px] px-2 py-1 text-[11px] font-semibold leading-tight",
-              if(@authorized?,
-                do: "bg-sage text-forest",
-                else: "border border-warning-line bg-warning-soft text-warning"
-              )
-            ]}
+        <h3 class="text-sm font-semibold text-ink">{@agent.name}</h3>
+        <span class="rounded-sm border border-line bg-paper px-2 py-0.5 font-medium text-body">
+          {status_label(@result)}
+        </span>
+      </div>
+
+      <dl class="space-y-1 text-muted">
+        <div class="flex justify-between gap-2">
+          <dt>Sign-in status</dt>
+          <dd class="font-medium text-ink">{auth_label(@result)}</dd>
+        </div>
+        <div :if={@result && @result.version} class="flex justify-between gap-2">
+          <dt>Version</dt>
+          <dd class="font-mono text-ink">{@result.version}</dd>
+        </div>
+        <div :if={@result && @result.path} class="flex justify-between gap-2">
+          <dt>Executable</dt>
+          <dd class="truncate font-mono text-ink" title={@result.path}>{@result.path}</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt>Access mode</dt>
+          <dd class="text-right text-ink">{@agent.billing_hint}</dd>
+        </div>
+      </dl>
+
+      <div
+        id={"agent-auth-box-#{@agent.id}"}
+        class="space-y-2 rounded-sm border border-line bg-paper p-3"
+      >
+        <p class="font-medium text-ink">2. Connect &amp; authorize CLI</p>
+        <p class="text-muted">
+          Sign-in command: <code class="font-mono text-ink">{@agent.login}</code>
+          ·
+          <a
+            href={@agent.docs}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-forest underline underline-offset-2"
           >
-            {if @authorized?, do: "Authorized", else: "Authorization needed"}
-          </span>
-          <p class="app-badge">
-            {if @result, do: probe_status(@result.probe_status), else: "Not checked"}
-          </p>
+            Setup docs
+          </a>
+        </p>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button
+            id={"authorize-#{@agent.id}"}
+            type="button"
+            phx-click="authorize_agent"
+            phx-value-agent={@agent.id}
+            disabled={@detecting or @busy != nil}
+            class="app-button-secondary px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
+          >
+            {if @busy == :authorizing, do: "Opening Terminal…", else: "Authorize in Terminal"}
+          </button>
+          <button
+            id={"verify-auth-#{@agent.id}"}
+            type="button"
+            phx-click="verify_agent"
+            phx-value-agent={@agent.id}
+            disabled={@detecting or @busy != nil}
+            class="app-button-primary px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
+          >
+            {if @busy == :verifying, do: "Verifying…", else: "Verify & load models"}
+          </button>
         </div>
       </div>
 
-      <div :if={@result} class="mt-4 space-y-4 text-sm">
-        <dl class="space-y-3">
-          <div>
-            <dt class="text-muted">Version</dt>
-            <dd class="mt-1 font-mono">{@result.version || "Not reported"}</dd>
-          </div>
-          <div>
-            <dt class="text-muted">Executable</dt>
-            <dd class="mt-1 break-all font-mono">{@result.path || "Not found on PATH"}</dd>
-          </div>
-          <div>
-            <dt class="text-muted">Local sign-in report</dt>
-            <dd class="mt-1">{auth_status(@result.auth_status, @agent.id)}</dd>
+      <p
+        :if={@notice}
+        id={"agent-notice-#{@agent.id}"}
+        role="status"
+        class="rounded-sm border border-line bg-sage/50 px-2.5 py-2 text-ink"
+      >
+        {@notice}
+      </p>
+
+      <ul :if={@result && @result.errors != []} class="space-y-1 text-warning">
+        <li :for={err <- @result.errors}>{error_label(err)}</li>
+      </ul>
+
+      <div :if={@models != []} class="space-y-1.5 border-t border-line pt-3">
+        <div class="flex items-center justify-between">
+          <p class="font-medium text-ink">
+            3. Available models ({Enum.count(@models, & &1.enabled)}/{length(@models)} active)
+          </p>
+        </div>
+        <div class="max-h-60 space-y-1 overflow-y-auto pr-1">
+          <label
+            :for={m <- @models}
+            class="flex cursor-pointer items-center justify-between gap-2 rounded-sm border border-line bg-paper px-2 py-1.5 hover:border-forest/50"
+          >
+            <span class="flex min-w-0 items-center gap-2">
+              <input
+                type="checkbox"
+                checked={m.enabled}
+                phx-click="toggle_model"
+                phx-value-agent={@agent.id}
+                phx-value-model_id={m.id}
+                phx-value-enabled={to_string(!m.enabled)}
+                class="h-3.5 w-3.5 accent-forest"
+              />
+              <span class="truncate font-medium text-ink">{m.name}</span>
+            </span>
+            <span class="flex shrink-0 items-center gap-1.5">
+              <span class="font-mono text-[10px] text-muted">{m.price_label}</span>
+              <span class={billing_badge_class(m.billing)}>{m.billing_label}</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <details :if={@result} class="border-t border-line pt-2 text-muted">
+        <summary class="cursor-pointer font-medium text-body">CLI capabilities</summary>
+        <dl class="mt-1.5 grid grid-cols-2 gap-1">
+          <div :for={{key, label} <- capabilities()} data-capability={key}>
+            <dt class="inline">{label}:</dt>
+            <dd class="inline font-medium text-ink">
+              {capability_label(@result.capabilities[key])}
+            </dd>
           </div>
         </dl>
-
-        <div
-          :if={@detected? && !@authorized?}
-          id={"agent-auth-box-#{@agent.id}"}
-          class="space-y-2.5 rounded-sm border border-warning-line bg-warning-soft/60 p-3"
-        >
-          <p class="text-xs font-medium text-warning">
-            Authorize {@agent.name} to load its supported models and enable connecting it to roles.
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <button
-              id={"authorize-#{@agent.id}"}
-              type="button"
-              phx-click="authorize_agent"
-              phx-value-agent={@agent.id}
-              disabled={@detecting or @busy != nil}
-              class="app-button-primary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-            >
-              {if @busy == :authorizing, do: "Opening…", else: "Open login in Terminal"}
-            </button>
-            <button
-              id={"verify-auth-#{@agent.id}"}
-              type="button"
-              phx-click="verify_agent"
-              phx-value-agent={@agent.id}
-              disabled={@detecting or @busy != nil}
-              class="app-button-secondary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-            >
-              {if @busy == :verifying, do: "Verifying…", else: "Verify & fetch models"}
-            </button>
-          </div>
-        </div>
-
-        <div
-          :if={@authorized?}
-          id={"agent-models-#{@agent.id}"}
-          class="space-y-2.5 rounded-sm border border-line bg-paper p-3"
-        >
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-ink">
-              Supported models ({length(@models)})
-            </h3>
-            <div class="flex flex-wrap gap-2">
-              <button
-                id={"fetch-models-#{@agent.id}"}
-                type="button"
-                phx-click="fetch_models"
-                phx-value-agent={@agent.id}
-                disabled={@detecting or @busy != nil}
-                class="app-button-secondary min-h-8 px-2.5 py-1 text-xs disabled:opacity-50"
-              >
-                {if @busy == :fetching_models, do: "Fetching…", else: "Refresh models"}
-              </button>
-              <button
-                id={"authorize-#{@agent.id}"}
-                type="button"
-                phx-click="authorize_agent"
-                phx-value-agent={@agent.id}
-                disabled={@detecting or @busy != nil}
-                class="app-button-secondary min-h-8 px-2.5 py-1 text-xs disabled:opacity-50"
-              >
-                {if @busy == :authorizing, do: "Authorizing…", else: "Re-authorize"}
-              </button>
-            </div>
-          </div>
-
-          <p :if={@models == []} class="text-xs text-muted">
-            No model list reported yet. Choose Refresh models to query this CLI.
-          </p>
-
-          <div :if={@models != []} class="max-h-60 space-y-2 overflow-y-auto pr-1">
-            <div
-              :for={m <- @models}
-              data-model-id={m["id"]}
-              class="rounded-sm border border-line bg-surface px-2.5 py-2 text-xs"
-            >
-              <div class="flex flex-wrap items-baseline justify-between gap-2">
-                <span class="font-semibold text-ink">{m["name"] || m["id"]}</span>
-                <code class="break-all font-mono text-[11px] text-muted">{m["id"]}</code>
-              </div>
-              <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-body">
-                <span>
-                  <strong class="font-medium text-muted">Pricing:</strong>
-                  {format_pricing(m["pricing"])}
-                </span>
-                <span>
-                  <strong class="font-medium text-muted">Reasoning:</strong>
-                  {format_reasoning(m)}
-                </span>
-                <span :if={is_integer(m["context_window"])}>
-                  <strong class="font-medium text-muted">Context:</strong>
-                  {format_context(m["context_window"])}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <p :if={@notice} id={"agent-notice-#{@agent.id}"} role="status" class="text-xs text-body">
-          {@notice}
-        </p>
-
-        <details class="border-t border-line pt-3">
-          <summary class="cursor-pointer font-semibold focus-visible:outline-2 focus-visible:outline-forest">
-            Capabilities advertised by CLI help
-          </summary>
-          <dl class="mt-3 space-y-2">
-            <div
-              :for={{key, label} <- @capabilities}
-              data-capability={key}
-              class="flex flex-wrap justify-between gap-2"
-            >
-              <dt class="text-muted">{label}</dt>
-              <dd>{capability_status(@result.capabilities[key])}</dd>
-            </div>
-          </dl>
-        </details>
-
-        <ul
-          :if={@result.errors != []}
-          aria-label={"#{@agent.name} detection issues"}
-          class="space-y-1 text-warning"
-        >
-          <li :for={error <- @result.errors}>{probe_error(error)}</li>
-        </ul>
-      </div>
-
-      <div class="mt-6 space-y-3 border-t border-line pt-4 text-sm text-body">
-        <.link
-          href={@agent.docs}
-          class="text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
-        >
-          Official {@agent.name} installation and setup
-        </.link>
-        <p>
-          CLI sign-in command:
-          <code class="break-all rounded bg-surface px-1 py-0.5 text-ink">{@agent.login}</code>
-        </p>
-      </div>
-    </section>
+      </details>
+    </div>
     """
   end
 
-  defp efforts_for_selection(models, model_id) do
-    case Enum.find(models, &(&1["id"] == model_id)) do
-      %{"reasoning_efforts" => list} when is_list(list) -> list
-      _ -> []
-    end
-  end
+  defp capabilities, do: @capabilities
 
-  defp model_option_label(m) do
-    name = m["name"] || m["id"]
-    price = short_pricing(m["pricing"])
-    reasoning = if m["reasoning"], do: "reasoning", else: "standard"
-    "#{name} (#{reasoning} · #{price})"
-  end
+  defp connect_dot_class(%{probe_status: :ok, auth_status: :configured}), do: "bg-forest"
+  defp connect_dot_class(%{probe_status: :ok}), do: "bg-warning"
 
-  defp short_pricing(%{"input" => inp, "output" => outp})
-       when is_number(inp) and is_number(outp) and inp == 0 and outp == 0,
-       do: "free"
+  defp connect_dot_class(%{probe_status: status})
+       when status in [:missing, :failed, :unsupported],
+       do: "bg-danger"
 
-  defp short_pricing(%{"input" => inp, "output" => outp})
-       when is_number(inp) and is_number(outp) do
-    "$#{fmt_usd(inp)}/$#{fmt_usd(outp)} per 1M"
-  end
+  defp connect_dot_class(_), do: "bg-line"
 
-  defp short_pricing(%{"unit" => unit}) when is_binary(unit), do: unit
-  defp short_pricing(_), do: "plan / API"
+  defp billing_badge_class("free"),
+    do:
+      "rounded-sm border border-forest/30 bg-sage px-1.5 py-0.5 text-[10px] font-medium text-forest"
 
-  defp format_pricing(%{"input" => inp, "output" => outp} = p)
-       when is_number(inp) and is_number(outp) do
-    if inp == 0 and outp == 0 do
-      "Free ($0.00 / 1M tokens)"
-    else
-      cached =
-        case p["cached_input"] do
-          c when is_number(c) and c > 0 -> " · $#{fmt_usd(c)} cached"
-          _ -> ""
-        end
+  defp billing_badge_class("subscription"),
+    do:
+      "rounded-sm border border-forest/30 bg-sage/60 px-1.5 py-0.5 text-[10px] font-medium text-ink"
 
-      "$#{fmt_usd(inp)} in · $#{fmt_usd(outp)} out#{cached} / 1M"
-    end
-  end
+  defp billing_badge_class("subscription_or_api"),
+    do: "rounded-sm border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium text-body"
 
-  defp format_pricing(%{"unit" => unit}) when is_binary(unit), do: unit
-  defp format_pricing(_), do: "Subscription / usage-billed"
+  defp billing_badge_class(_),
+    do:
+      "rounded-sm border border-warning-line/60 bg-peach/50 px-1.5 py-0.5 text-[10px] font-medium text-ink"
 
-  defp fmt_usd(num) when is_number(num) do
-    rounded = Float.round(num * 1.0, 3)
+  defp status_label(nil), do: "Not checked"
+  defp status_label(%{probe_status: :ok}), do: "CLI metadata recognized"
+  defp status_label(%{probe_status: :missing}), do: "Not found on PATH"
+  defp status_label(%{probe_status: :unsupported}), do: "CLI metadata unsupported"
+  defp status_label(%{probe_status: :failed}), do: "Detection incomplete"
 
-    cond do
-      rounded == Float.round(rounded, 0) -> :erlang.float_to_binary(rounded, decimals: 2)
-      rounded == Float.round(rounded, 2) -> :erlang.float_to_binary(rounded, decimals: 2)
-      true -> :erlang.float_to_binary(rounded, decimals: 3)
-    end
-  end
+  defp auth_label(nil), do: "Not checked"
+  defp auth_label(%{auth_status: :configured}), do: "CLI reports credentials configured"
+  defp auth_label(%{auth_status: :stale}), do: "Session expired — sign in again"
+  defp auth_label(%{auth_status: :not_configured}), do: "CLI reports no credentials configured"
+  defp auth_label(_), do: "Unknown"
 
-  defp format_reasoning(%{"reasoning" => true, "reasoning_efforts" => efforts})
-       when is_list(efforts) and efforts != [] do
-    Enum.join(efforts, " · ")
-  end
+  defp capability_label(:advertised), do: "Advertised"
+  defp capability_label(:not_advertised), do: "Not advertised"
+  defp capability_label(_), do: "Unknown"
 
-  defp format_reasoning(%{"reasoning" => true}), do: "Supported"
-  defp format_reasoning(_), do: "Standard"
+  defp error_label(%{stage: :version, reason: :unrecognized}),
+    do: "Version check returned unrecognized output."
 
-  defp format_context(ctx) when is_integer(ctx) and ctx >= 1_000_000 do
-    "#{Float.round(ctx / 1_000_000, 1)}M"
-  end
+  defp error_label(%{stage: :help, reason: :timeout}), do: "Help check timed out."
 
-  defp format_context(ctx) when is_integer(ctx) and ctx >= 1_000 do
-    "#{div(ctx, 1_000)}k"
-  end
+  defp error_label(%{stage: :auth, reason: :unsupported}),
+    do: "Sign-in check is not supported."
 
-  defp format_context(ctx), do: to_string(ctx)
+  defp error_label(%{stage: :auth, reason: :output_limit}),
+    do: "Sign-in check exceeded its output limit."
 
-  defp probe_status(:ok), do: "CLI metadata recognized"
-  defp probe_status(:missing), do: "Not found on PATH"
-  defp probe_status(:unsupported), do: "CLI metadata unsupported"
-  defp probe_status(_), do: "Detection incomplete"
+  defp error_label(%{stage: :models}),
+    do: "Model catalog could not be read from this CLI."
 
-  defp auth_status(:configured, agent) when agent in [:pi, :hermes, :opencode],
-    do: "CLI reports a configured model provider"
+  defp error_label(_), do: "Probe step did not complete."
 
-  defp auth_status(:configured, _), do: "CLI reports credentials configured"
-
-  defp auth_status(:stale, _),
-    do: "CLI reports expired or unverified session — re-run login in your terminal"
-
-  defp auth_status(:not_configured, _), do: "CLI reports no credentials configured"
-  defp auth_status(_, _), do: "Unknown"
-
-  defp capability_status(:advertised), do: "Advertised"
-  defp capability_status(:not_advertised), do: "Not advertised"
-  defp capability_status(_), do: "Unknown"
-
-  defp probe_error(error) do
-    stage =
-      %{version: "Version", help: "Help", auth: "Sign-in", models: "Model catalog"}[error.stage] ||
-        "CLI"
-
-    reason =
-      %{
-        timeout: "timed out",
-        output_limit: "exceeded its output limit",
-        unrecognized: "returned unrecognized output",
-        unsupported: "is not supported",
-        invalid_models: "returned unrecognized output",
-        auth_required: "requires sign-in"
-      }[error.reason] || "could not finish"
-
-    "#{stage} check #{reason}."
-  end
-
-  defp standard_message, do: "Reviewer, Implementer, and Analytic stay in place."
-
-  defp role_error(%Ecto.Changeset{} = changeset) do
-    options = changeset.errors |> Keyword.get_values(:name) |> Enum.map(&elem(&1, 1))
-
-    cond do
-      Enum.any?(options, &(&1[:validation] == :required)) -> "Enter a role name."
-      Enum.any?(options, &(&1[:constraint] == :unique)) -> "A role with that name already exists."
-      Enum.any?(options, &(&1[:validation] == :length)) -> "Use 80 characters or fewer."
-      true -> "The role could not be saved."
-    end
-  end
-
-  defp scan_error(:busy), do: "Another detection is running. Try Detect agents again shortly."
-  defp scan_error(:cancelled), do: "Detection was interrupted. Try again."
-  defp scan_error(_), do: "Agent detection is unavailable. Try again."
+  defp scan_error(:busy), do: "Another detection is running."
+  defp scan_error(:unavailable), do: "Agent detection is unavailable."
+  defp scan_error(_), do: "Detection was interrupted."
 end

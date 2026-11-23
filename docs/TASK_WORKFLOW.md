@@ -7,7 +7,12 @@ with retained workspaces and Stop, plus [manual candidate checks](MANUAL_CHECKS.
 and [read-only Codex assessments](MANUAL_REVIEWS.md);
 these attempts never advance task state.
 Managed progress is derived from persisted commit-bound stage evidence; generic
-caller-selected workflow edges below remain closed.
+caller-selected workflow edges below remain closed. On `/projects/:id`, **Prompt
+task control** (`Boss.Projects.TaskPrompt`) proposes bounded structured JSON
+actions (`priv/task_prompt_schema.json`) in read-only `:task_prompt` mode and
+applies them through `Projects.record_spec/2`, `Tasks.transition/2`,
+`Deliveries` and `Deliveries.Queue` without bypassing producer-owned gates or
+inferring check commands from model output.
 
 ## Command contract
 

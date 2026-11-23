@@ -2,13 +2,39 @@ defmodule Boss.Deliveries.Autopilot do
   @moduledoc "Explicit frozen task selection, advanced through existing delivery evidence one task at a time."
   import Ecto.Query
   alias Boss.{Deliveries, Repo, Runs, Tasks}
-  alias Boss.Deliveries.{AutopilotBatch, AutopilotItem, Delivery, Queue, Request, Step}
+
+  alias Boss.Deliveries.{
+    AutopilotBatch,
+    AutopilotItem,
+    AutopilotLoopConfig,
+    Delivery,
+    Queue,
+    Request,
+    SpecRework,
+    Step
+  }
 
   @shared_failures ~w(catalog_unavailable catalog_invalid catalog_insufficient_models codex_unavailable models_exhausted provider_auth provider_rate_limit provider_schema provider_transport)
 
   def start(project, command, tasks, text, reviewer, server \\ Boss.Runs.Manager),
     do:
       GenServer.call(server, {:autopilot_start, project, command, tasks, text, reviewer}, 10_000)
+
+  def start_loop(
+        project,
+        command,
+        tasks,
+        text,
+        reviewer,
+        opts \\ [parallel: true, spec_loop: true],
+        server \\ Boss.Runs.Manager
+      ),
+      do:
+        GenServer.call(
+          server,
+          {:autopilot_start_loop, project, command, tasks, text, reviewer, opts},
+          10_000
+        )
 
   def resume(project, id, version, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:autopilot_resume, project, id, version}, 10_000)
@@ -62,6 +88,31 @@ defmodule Boss.Deliveries.Autopilot do
 
   def running?, do: Repo.exists?(from b in AutopilotBatch, where: b.status == "running")
 
+  def parallel_running? do
+    if loop_table_ready?() do
+      Repo.exists?(
+        from b in AutopilotBatch,
+          join: lc in AutopilotLoopConfig,
+          on: lc.autopilot_id == b.id,
+          where: b.status == "running" and lc.parallel_enabled == 1
+      )
+    else
+      false
+    end
+  rescue
+    _ -> false
+  end
+
+  def loop_info(nil), do: nil
+
+  def loop_info(batch_id) when is_binary(batch_id) do
+    if loop_table_ready?() do
+      Repo.get(AutopilotLoopConfig, batch_id)
+    end
+  rescue
+    _ -> nil
+  end
+
   def owns_request?(id), do: Repo.get(AutopilotItem, id) != nil
 
   @doc false
@@ -110,9 +161,17 @@ defmodule Boss.Deliveries.Autopilot do
 
       %{status: "running"} = batch ->
         complete?(batch) and
-          not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
-            r.status == "started" and not settled?(d)
-          end)
+          if parallel_batch?(batch.id) do
+            not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
+              r.status == "started" and not is_nil(d) and
+                (d.status in ~w(integrating interrupted) or d.cleanup == "unknown" or
+                   not is_nil(shared_failure_code(d)))
+            end)
+          else
+            not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
+              r.status == "started" and not settled?(d)
+            end)
+          end
 
       _ ->
         false
@@ -136,14 +195,14 @@ defmodule Boss.Deliveries.Autopilot do
   end
 
   @doc false
-  def admit(project, command, tasks, text, reviewer, owned \\ false, intake \\ nil) do
+  def admit(project, command, tasks, text, reviewer, owned \\ false, intake \\ nil, opts \\ []) do
     with true <-
            is_integer(project) and project > 0 and Boss.Agents.Metadata.review_runner?(reviewer),
          {:ok, _} <- Ecto.UUID.cast(command),
          true <-
            is_list(tasks) and length(tasks) in 1..256 and
              Enum.all?(tasks, &(is_integer(&1) and &1 > 0)) and Enum.uniq(tasks) == tasks,
-         {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
+         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text) do
       transaction(fn ->
         case Repo.get_by(AutopilotBatch, project_id: project, command_id: command) do
           %{task_ids: ^tasks, check_config: ^config, config_hash: ^hash, reviewer: ^reviewer} =
@@ -192,6 +251,8 @@ defmodule Boss.Deliveries.Autopilot do
                 autonomy_version: intake_autonomy(intake),
                 routing_version: routing_version
               })
+
+            maybe_insert_loop_config!(batch, opts)
 
             Enum.with_index(tasks)
             |> Enum.each(fn {task, position} ->
@@ -339,10 +400,15 @@ defmodule Boss.Deliveries.Autopilot do
 
     entries = if batch, do: rows(batch.id), else: []
 
-    if batch &&
-         not Enum.any?(entries, fn {_, r, d, _} ->
+    can_preflight? =
+      batch &&
+        (not Enum.any?(entries, fn {_, r, d, _} ->
            r.status == "started" and not settled?(d)
-         end) do
+         end) or
+           (parallel_batch?(batch.id) and
+              Enum.any?(entries, fn {_, r, _, _} -> r.status == "queued" end)))
+
+    if can_preflight? do
       project = Repo.get!(Boss.Projects.Project, batch.project_id)
 
       published? = Enum.any?(entries, fn {_, _, d, _} -> match?(%Delivery{status: "done"}, d) end)
@@ -369,7 +435,317 @@ defmodule Boss.Deliveries.Autopilot do
     if cancelling?(batch.id) do
       :waiting
     else
-      advance_active_batch(batch, preflight, cursor)
+      case loop_info(batch.id) do
+        %AutopilotLoopConfig{} = cfg
+        when cfg.parallel_enabled == 1 or cfg.spec_loop_enabled == 1 ->
+          advance_loop_batch(batch, cfg, preflight, cursor)
+
+        _ ->
+          advance_active_batch(batch, preflight, cursor)
+      end
+    end
+  end
+
+  defp advance_loop_batch(batch, %AutopilotLoopConfig{} = cfg, preflight, cursor) do
+    entries = rows(batch.id)
+    unfinished = Enum.reject(entries, fn {_, _, d, _} -> settled?(d) end)
+
+    started_unfinished =
+      Enum.filter(unfinished, fn {_, r, _, _} -> r.status == "started" end)
+
+    active_count =
+      Enum.count(started_unfinished, fn {_, _, d, _} ->
+        not is_nil(d) and Deliveries.active?(d)
+      end)
+
+    any_active? = active_count > 0
+
+    parallel_limit =
+      if cfg.parallel_enabled == 1 do
+        max(
+          min(
+            Boss.Projects.RoleBindings.implementer_pool_size(batch.project_id),
+            Boss.Deliveries.Scheduling.capacity!()
+          ),
+          1
+        )
+      else
+        1
+      end
+
+    shared_code =
+      Enum.find_value(entries, fn {_, _, d, _} -> shared_failure_code(d) end)
+
+    halted_entry =
+      Enum.find(started_unfinished, fn {_, _, d, _} ->
+        not is_nil(d) and not Deliveries.active?(d) and d.status != "ready_to_merge"
+      end)
+
+    ready_entry =
+      Enum.find(started_unfinished, fn {_, _, d, _} ->
+        match?(%Delivery{status: "ready_to_merge"}, d)
+      end)
+
+    cond do
+      not is_nil(shared_code) ->
+        if any_active?, do: :waiting, else: block(batch, shared_failure_reason(shared_code))
+
+      not is_nil(halted_entry) ->
+        if any_active? do
+          :waiting
+        else
+          {_, _, delivery, _} = halted_entry
+
+          block(
+            batch,
+            "Task stopped: " <>
+              (delivery.reason || delivery.status) <>
+              " Autopilot did not start another task."
+          )
+        end
+
+      not is_nil(ready_entry) ->
+        if any_active? do
+          :waiting
+        else
+          {item, _, delivery, _} = ready_entry
+
+          case Deliveries.admit_integration(
+                 batch.project_id,
+                 delivery.id,
+                 item.integration_command_id
+               ) do
+            {:ok, {:new, saved}} ->
+              {:launch, :integrate, saved, batch.id}
+
+            {:error, :busy} ->
+              :waiting
+
+            {:error, :storage_error} ->
+              Repo.rollback(:storage_error)
+
+            _ ->
+              block(
+                batch,
+                "The saved approval cannot be integrated. Inspect its retained evidence."
+              )
+          end
+        end
+
+      unfinished == [] ->
+        if Enum.all?(entries, fn {_, _, d, _} -> d.status == "done" end) do
+          {:changed, view(save(batch, "completed", nil))}
+        else
+          maybe_restart_spec_loop(batch, cfg, entries)
+        end
+
+      active_count >= parallel_limit ->
+        :waiting
+
+      Deliveries.managed_busy?() ->
+        :waiting
+
+      true ->
+        queued_entries = Enum.filter(unfinished, fn {_, r, _, _} -> r.status == "queued" end)
+
+        if queued_entries == [] do
+          if any_active? do
+            :waiting
+          else
+            block(
+              batch,
+              "A selected task changed or its request was cancelled. Start a fresh selection after inspection."
+            )
+          end
+        else
+          start_next_loop_entry(batch, queued_entries, any_active?, preflight, cursor)
+        end
+    end
+  end
+
+  defp start_next_loop_entry(batch, queued_entries, any_active?, preflight, cursor) do
+    release_unknown_cleanups!()
+
+    cond do
+      Boss.Deliveries.Scheduling.quarantined?() ->
+        if any_active? do
+          :waiting
+        else
+          block(
+            batch,
+            "Another execution has unknown cleanup. Inspect it before a fresh Autopilot start."
+          )
+        end
+
+      Deliveries.managed_busy?() ->
+        :waiting
+
+      preflight != {batch.id, :ok} ->
+        if any_active? do
+          :waiting
+        else
+          reason =
+            if preflight == {batch.id, {:error, :target_checked_out}},
+              do:
+                "The integration target branch is checked out. Switch that checkout to another branch, then start Autopilot again.",
+              else:
+                "The integration target is unavailable or changed. Inspect the repository before starting Autopilot again."
+
+          block(batch, reason)
+        end
+
+      true ->
+        offset =
+          case cursor do
+            {id, version, offset}
+            when id == batch.id and version == batch.version and is_integer(offset) ->
+              offset
+
+            _ ->
+              0
+          end
+
+        deadline = System.monotonic_time(:millisecond) + 1_000
+
+        selected =
+          queued_entries
+          |> Enum.drop(offset)
+          |> Enum.reduce_while({:scanned, offset}, fn entry, {:scanned, index} ->
+            if System.monotonic_time(:millisecond) >= deadline do
+              {:halt, {:scanned, index}}
+            else
+              {_, request, _, _} = entry
+
+              if Tasks.Dependencies.check(batch.project_id, request.task_id) == :ok,
+                do: {:halt, entry},
+                else: {:cont, {:scanned, index + 1}}
+            end
+          end)
+
+        case selected do
+          {:scanned, count} when count < length(queued_entries) ->
+            {:waiting, {batch.id, batch.version, count}}
+
+          {:scanned, _} ->
+            if any_active? do
+              :waiting
+            else
+              block(
+                batch,
+                "No remaining task is ready. Open tasks that need attention and resolve missing, unfinished or cyclic prerequisites, then start Autopilot again."
+              )
+            end
+
+          {_, request, _, _} ->
+            case Queue.claim(request.id) do
+              {:ok, {:started, _, delivery}} ->
+                {:launch, :deliver, delivery, batch.id}
+
+              {:error, :busy} ->
+                :waiting
+
+              {:error, :storage_error} ->
+                Repo.rollback(:storage_error)
+
+              _ ->
+                if any_active? do
+                  :waiting
+                else
+                  block(
+                    batch,
+                    "A selected task changed before launch. Start a fresh selection after inspection."
+                  )
+                end
+            end
+        end
+    end
+  end
+
+  defp maybe_restart_spec_loop(batch, %AutopilotLoopConfig{} = cfg, entries) do
+    if cfg.spec_loop_enabled == 1 and cfg.loop_pass < cfg.max_passes do
+      reworked = SpecRework.refine_settled_deliveries(batch.project_id, entries, cfg.loop_pass)
+
+      if reworked == [] do
+        block(
+          batch,
+          "All runnable tasks finished. Open the tasks that need attention for details."
+        )
+      else
+        next_pass = cfg.loop_pass + 1
+
+        reason =
+          "Reviewer refined #{length(reworked)} task specification(s) and returned them to Backlog — continuing Autopilot loop (pass #{next_pass}/#{cfg.max_passes})."
+
+        _closed = save(batch, "blocked", reason)
+
+        candidates = Queue.autopilot_candidates(batch.project_id, batch.routing_version)
+
+        if length(candidates) in 1..256 do
+          text = check_text_from_config(batch.check_config)
+
+          next_batch =
+            Repo.insert!(%AutopilotBatch{
+              id: Ecto.UUID.generate(),
+              project_id: batch.project_id,
+              command_id: Ecto.UUID.generate(),
+              task_ids: candidates,
+              check_config: batch.check_config,
+              config_hash: batch.config_hash,
+              reviewer: batch.reviewer,
+              autonomy_version: batch.autonomy_version,
+              routing_version: batch.routing_version
+            })
+
+          maybe_insert_loop_config!(next_batch,
+            parallel: cfg.parallel_enabled == 1,
+            spec_loop: true,
+            loop_pass: next_pass,
+            max_passes: cfg.max_passes,
+            parent_autopilot_id: batch.id
+          )
+
+          cfg
+          |> AutopilotLoopConfig.changeset(%{
+            reworked_task_ids: JSON.encode!(reworked),
+            next_autopilot_id: next_batch.id
+          })
+          |> Repo.update!()
+
+          Enum.with_index(candidates)
+          |> Enum.each(fn {task_id, position} ->
+            case Queue.admit(
+                   batch.project_id,
+                   task_id,
+                   Ecto.UUID.generate(),
+                   text,
+                   batch.reviewer,
+                   next_batch.autonomy_version,
+                   next_batch.routing_version
+                 ) do
+              {:ok, request} ->
+                Repo.insert!(%AutopilotItem{
+                  request_id: request.id,
+                  autopilot_id: next_batch.id,
+                  position: position,
+                  integration_command_id: Ecto.UUID.generate()
+                })
+
+              {:error, err} ->
+                Repo.rollback(err)
+            end
+          end)
+
+          Tasks.broadcast(batch.project_id)
+          {:restarted_loop, view(next_batch)}
+        else
+          {:changed, view(Repo.get!(AutopilotBatch, batch.id))}
+        end
+      end
+    else
+      block(
+        batch,
+        "All runnable tasks finished. Open the tasks that need attention for details."
+      )
     end
   end
 
@@ -732,7 +1108,65 @@ defmodule Boss.Deliveries.Autopilot do
     result
   end
 
+  defp broadcast({:ok, {:restarted_loop, batch}} = result) do
+    Runs.broadcast(batch)
+    result
+  end
+
   defp broadcast(result), do: result
+
+  defp loop_table_ready? do
+    Repo.query!(
+      "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='autopilot_loop_configs')"
+    ).rows == [[1]]
+  rescue
+    _ -> false
+  end
+
+  defp parallel_batch?(batch_id) do
+    case loop_info(batch_id) do
+      %AutopilotLoopConfig{parallel_enabled: 1} -> true
+      _ -> false
+    end
+  end
+
+  defp maybe_insert_loop_config!(batch, opts) when is_list(opts) do
+    parallel? = Keyword.get(opts, :parallel, false)
+    spec_loop? = Keyword.get(opts, :spec_loop, false)
+
+    if (parallel? or spec_loop?) and loop_table_ready?() do
+      %AutopilotLoopConfig{}
+      |> AutopilotLoopConfig.changeset(%{
+        autopilot_id: batch.id,
+        project_id: batch.project_id,
+        parallel_enabled: if(parallel?, do: 1, else: 0),
+        spec_loop_enabled: if(spec_loop?, do: 1, else: 0),
+        loop_pass: Keyword.get(opts, :loop_pass, 1),
+        max_passes: Keyword.get(opts, :max_passes, 2),
+        parent_autopilot_id: Keyword.get(opts, :parent_autopilot_id)
+      })
+      |> Repo.insert!()
+    end
+  end
+
+  defp maybe_insert_loop_config!(_, _), do: :ok
+
+  defp check_text_from_config(config) when is_map(config) do
+    if Boss.Checks.Command.spec_only?(config) do
+      ""
+    else
+      (config["argv"] || [])
+      |> Enum.map_join(" ", fn arg ->
+        if String.contains?(arg, [" ", "\"", "'"]) do
+          "\"" <> String.replace(arg, "\"", "\\\"") <> "\""
+        else
+          arg
+        end
+      end)
+    end
+  end
+
+  defp check_text_from_config(_), do: ""
 
   defp complete?(batch),
     do:

@@ -71,7 +71,12 @@ defmodule BossWeb.DeliveryPanel do
           class="app-field w-full min-w-0 px-3 py-2 text-sm disabled:opacity-50"
         >
           <option
-            :for={agent <- Boss.Agents.Roles.reviewer_choices()}
+            :for={
+              agent <-
+                Boss.Agents.Roles.reviewer_choices(
+                  if(spec = Map.get(@details, :spec), do: Map.get(spec, :project_id))
+                )
+            }
             value={agent.id}
             selected={@request.reviewer == agent.id}
           >
@@ -95,25 +100,32 @@ defmodule BossWeb.DeliveryPanel do
             <% end %>
           <% end %>
         </p>
-        <label for="delivery-command" class="block pt-3 text-sm font-medium">Workflow check command</label>
-        <input
-          id="delivery-command"
-          name="command"
-          value={@request.text}
-          required
-          maxlength="4096"
-          readonly={@request.locked}
-          disabled={!@start_available && !@queue_available}
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="mix test"
-          aria-describedby="delivery-command-help delivery-account"
-          class="app-field w-full min-w-0 px-3 py-2 font-mono text-sm"
-        />
-        <p id="delivery-command-help" class="text-xs text-muted">
-          Use a trusted command. It runs locally on each candidate and after integration.
-          Arguments support quoting, without shell expansion. Keep secrets out of arguments and output.
-        </p>
+        <details class="pt-2 text-xs">
+          <summary class="cursor-pointer font-medium text-muted hover:text-ink">
+            Optional CLI check command (leave empty for specification-only review)
+          </summary>
+          <div class="mt-2 space-y-1">
+            <label for="delivery-command" class="block text-xs font-medium text-body">
+              Optional workflow check command
+            </label>
+            <input
+              id="delivery-command"
+              name="command"
+              value={@request.text}
+              maxlength="4096"
+              readonly={@request.locked}
+              disabled={!@start_available && !@queue_available}
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Optional (leave empty for Reviewer spec verification)"
+              aria-describedby="delivery-command-help delivery-account"
+              class="app-field w-full min-w-0 px-3 py-1.5 font-mono text-xs"
+            />
+            <p id="delivery-command-help" class="text-xs text-muted">
+              Optional. When blank, the selected Reviewer verifies the candidate directly against the task specification; when provided, runs without shell expansion in a clean check worktree. Keep secrets out of arguments and output.
+            </p>
+          </div>
+        </details>
         <div class="flex flex-wrap gap-2 pt-2">
           <button
             id="start-delivery"
@@ -181,8 +193,12 @@ defmodule BossWeb.DeliveryPanel do
               · Reviewer: {reviewer(request.reviewer)}
             </p>
             <p class="text-xs text-muted">
-              Saved check command
-              <code class="block break-all text-body">{JSON.encode!(request.check_config["argv"])}</code>
+              Verification:
+              <%= if Boss.Checks.Command.spec_only?(request.check_config) do %>
+                <span class="text-body">Reviewer specification review</span>
+              <% else %>
+                <code class="block break-all text-body">{JSON.encode!(request.check_config["argv"])}</code>
+              <% end %>
             </p>
             <p :if={request.reason} class="whitespace-pre-wrap break-words text-warning">
               {request.reason}
@@ -255,9 +271,13 @@ defmodule BossWeb.DeliveryPanel do
               Map.get(delivery, :analytic) || "codex"
             )} · Reviewer: {reviewer(delivery.reviewer)}
           </p>
-          <p :if={delivery.check_config["argv"]} class="text-xs text-muted">
-            Saved check command
-            <code class="block break-all text-body">{JSON.encode!(delivery.check_config["argv"])}</code>
+          <p class="text-xs text-muted">
+            Verification:
+            <%= if Boss.Checks.Command.spec_only?(delivery.check_config) do %>
+              <span class="text-body">Reviewer specification review</span>
+            <% else %>
+              <code class="block break-all text-body">{JSON.encode!(delivery.check_config["argv"])}</code>
+            <% end %>
           </p>
           <p :if={!merge_stage(delivery) && candidate(delivery)} class="text-xs text-muted">
             Candidate commit <code class="block break-all text-body">{candidate(delivery)}</code>

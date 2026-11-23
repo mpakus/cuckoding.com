@@ -154,6 +154,26 @@ defmodule Boss.Runs.Manager do
         state
       )
 
+  def handle_call(
+        {:autopilot_start_loop, project, command, tasks, text, reviewer, opts},
+        _from,
+        state
+      ),
+      do:
+        queue_reply(
+          Autopilot.admit(
+            project,
+            command,
+            tasks,
+            text,
+            reviewer,
+            map_size(state.active) > 0,
+            nil,
+            opts
+          ),
+          state
+        )
+
   def handle_call({:autopilot_resume, project, id, version}, _from, state),
     do: queue_reply(Autopilot.resume_saved(project, id, version), state)
 
@@ -192,6 +212,12 @@ defmodule Boss.Runs.Manager do
 
     if autopilot do
       :ets.insert(state.registry, {{:autopilot, autopilot}, run.project_id, worker})
+
+      :ets.insert(
+        state.registry,
+        {{:autopilot_worker, autopilot, run.id}, run.project_id, worker}
+      )
+
       if Autopilot.cancelled?(autopilot), do: send(worker, :stop)
     end
 
@@ -276,26 +302,52 @@ defmodule Boss.Runs.Manager do
 
   def handle_info(_, state), do: {:noreply, state}
 
-  defp autopilot_tick(state) when map_size(state.active) > 0,
-    do: {:noreply, schedule(state, 500)}
-
   defp autopilot_tick(state) do
-    case Autopilot.advance(state.autopilot_cursor) do
-      {:ok, {:launch, kind, run, batch}} ->
-        execute = if kind == :integrate, do: state.integration_worker, else: state.delivery_worker
+    parallel? = Autopilot.parallel_running?()
 
-        {:noreply,
-         schedule(start_worker(run, execute, %{state | autopilot_cursor: nil}, batch), 500)}
+    cond do
+      not parallel? and map_size(state.active) > 0 ->
+        {:noreply, schedule(state, 500)}
 
-      {:error, :storage_error} ->
-        {:stop, :run_storage_lost, state}
+      parallel? and managed_autopilot_locked?(state) ->
+        {:noreply, schedule(state, 500)}
 
-      {:ok, {:waiting, cursor}} ->
-        {:noreply, schedule(%{state | autopilot_cursor: cursor}, 500)}
+      true ->
+        case Autopilot.advance(state.autopilot_cursor) do
+          {:ok, {:launch, kind, run, batch}} ->
+            execute =
+              if kind == :integrate, do: state.integration_worker, else: state.delivery_worker
 
-      _ ->
-        {:noreply, schedule(%{state | autopilot_cursor: nil}, 500)}
+            next_state = start_worker(run, execute, %{state | autopilot_cursor: nil}, batch)
+
+            delay =
+              if parallel? and kind == :deliver and not managed_autopilot_locked?(next_state),
+                do: 50,
+                else: 500
+
+            {:noreply, schedule(next_state, delay)}
+
+          {:error, :storage_error} ->
+            {:stop, :run_storage_lost, state}
+
+          {:ok, {:waiting, cursor}} ->
+            {:noreply, schedule(%{state | autopilot_cursor: cursor}, 500)}
+
+          {:ok, {:restarted_loop, _next_batch}} ->
+            {:noreply, schedule(%{state | autopilot_cursor: nil}, 50)}
+
+          _ ->
+            {:noreply, schedule(%{state | autopilot_cursor: nil}, 500)}
+        end
     end
+  end
+
+  defp managed_autopilot_locked?(state) do
+    map_size(state.active) >= Scheduling.capacity!() or
+      Enum.any?(state.active, fn
+        {_, {%Deliveries.Delivery{status: status}, _}} -> status == "integrating"
+        _ -> true
+      end)
   end
 
   defp queue_tick(state) do
@@ -357,9 +409,16 @@ defmodule Boss.Runs.Manager do
         if match?(%Intake.Request{}, original),
           do: :ets.delete(state.registry, {:intake, original.id})
 
+        worker_pid = elem(Map.fetch!(state.active, original.id), 1)
+
         :ets.match_delete(
           state.registry,
-          {{:autopilot, :_}, original.project_id, elem(Map.fetch!(state.active, original.id), 1)}
+          {{:autopilot, :_}, original.project_id, worker_pid}
+        )
+
+        :ets.match_delete(
+          state.registry,
+          {{:autopilot_worker, :_, original.id}, original.project_id, worker_pid}
         )
 
         {:noreply,

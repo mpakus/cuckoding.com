@@ -223,8 +223,10 @@ defmodule Boss.Deliveries.Protocol do
           a review_candidate_commit and prepared_candidate_commit, the review describes
           the former and this worktree starts from a fresh snapshot of the latter.
           Do not commit, merge, push or start background processes. BOSS will execute
-          the user's saved check command and independent review after you finish.
-          The input includes check_config: prepare the project for that exact command.
+          the user's saved check command (when configured) and independent review after you finish.
+          The input includes check_config: when check_config.mode is "spec_only" (argv is []),
+          no external check command runs and the Reviewer verifies the candidate directly against
+          the specification; otherwise prepare the project for that exact command.
           Checks run in a fresh worktree without ignored dependency or build caches.
           After implementation_timeout this worktree starts from captured unverified partial work;
           preserve useful code, diagnose the supplied fresh check failure and finish it.

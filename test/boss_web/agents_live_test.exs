@@ -25,6 +25,7 @@ defmodule BossWeb.AgentsLiveTest do
            "reasoning_efforts" => ["medium", "high", "xhigh"],
            "default_effort" => "high",
            "context_window" => 500_000,
+           "billing" => "subscription_or_api",
            "pricing" => %{
              "input" => 2.0,
              "output" => 10.0,
@@ -32,7 +33,7 @@ defmodule BossWeb.AgentsLiveTest do
              "unit" => "1M tokens"
            }
          },
-         %{"id" => "plain-model", "name" => "Plain model"}
+         %{"id" => "plain-model", "name" => "Plain model", "billing" => "api"}
        ]}
     end
 
@@ -44,19 +45,40 @@ defmodule BossWeb.AgentsLiveTest do
       {:ok,
        [
          %{
+           "id" => "gemini-4-carbon",
+           "name" => "Gemini 4 Carbon",
+           "reasoning" => true,
+           "reasoning_efforts" => ["low", "medium", "high"],
+           "default_effort" => "high",
+           "billing" => "subscription_or_api",
+           "pricing" => %{"input" => 1.25, "output" => 10.0, "unit" => "1M tokens"}
+         },
+         %{
            "id" => "claude-sonnet-4-thinking",
            "name" => "Claude Sonnet Thinking",
            "reasoning" => true,
            "reasoning_efforts" => ["low", "medium", "high"],
            "default_effort" => "high",
-           "context_window" => nil,
+           "billing" => "subscription_or_api",
            "pricing" => %{"input" => 3.0, "output" => 15.0, "unit" => "1M tokens"}
          }
        ]}
     end
 
     def fetch(agent, _) when agent in [:pi, :hermes, :opencode] do
-      {:ok, [%{"id" => "provider/#{agent}-model", "name" => "Configured #{agent} model"}]}
+      {:ok,
+       [
+         %{
+           "id" => "provider/#{agent}-model",
+           "name" => "Configured #{agent} model",
+           "billing" => if(agent == :opencode, do: "free", else: "api"),
+           "pricing" =>
+             if(agent == :opencode,
+               do: %{"input" => 0.0, "output" => 0.0, "unit" => "1M tokens"},
+               else: nil
+             )
+         }
+       ]}
     end
   end
 
@@ -111,44 +133,50 @@ defmodule BossWeb.AgentsLiveTest do
       end
     end)
 
-    {:ok, session} = Boss.LocalAccess.exchange(Boss.LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn}
   end
 
-  test "protected navigation and rendering never start a probe", %{conn: conn} do
-    anonymous = %{build_conn() | host: "127.0.0.1", port: 4002}
-    assert redirected_to(get(anonymous, "/agents")) == "/unlock"
-    assert html_response(get(conn, "/agents"), 200) =~ "Detect agents"
+  test "loopback navigation and rendering never start a probe and expose + Connect agent panel",
+       %{conn: conn} do
+    foreign =
+      %{build_conn() | host: "127.0.0.1", port: 4002}
+      |> put_req_header("origin", "https://evil.example")
+
+    assert response(get(foreign, "/agents"), 403) == "Forbidden"
+    assert html_response(get(conn, "/agents"), 200) =~ "Agents &amp; Roles"
     home = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
 
     assert home |> LazyHTML.query("nav a[href='/agents']") |> LazyHTML.text() |> String.trim() ==
              "Agents"
 
     {:ok, view, _} = live(conn, "/agents")
-    assert has_element?(view, "#agent-codex", "Not checked")
-    assert has_element?(view, "#agent-claude", "Not checked")
-    assert has_element?(view, "#agent-cursor", "Not checked")
-    assert has_element?(view, "#agent-hermes", "Not checked")
-    assert has_element?(view, "#agent-pi", "Not checked")
-    assert has_element?(view, "#agent-opencode", "Not checked")
-    assert has_element?(view, "#agent-codex a[href='https://developers.openai.com/codex/cli']")
-    assert has_element?(view, "#agent-claude a[href='https://code.claude.com/docs/en/setup']")
-    assert has_element?(view, "#agent-cursor a[href='https://cursor.com/docs/cli/overview']")
-    assert has_element?(view, "#agent-hermes code", "hermes model")
-    assert has_element?(view, "#agent-pi code", "pi, then /login")
-    assert has_element?(view, "#agent-opencode code", "opencode auth login")
-    assert has_element?(view, "#agent-codex code", "codex login")
-    assert has_element?(view, "#agent-claude code", "claude auth login")
-    assert has_element?(view, "#agent-cursor code", "agent login")
+    assert has_element?(view, "#connected-agents-empty")
+    assert has_element?(view, "#connect-agent-panel")
+
+    for {id, url, cmd} <- [
+          {"codex", "https://developers.openai.com/codex/cli", "codex login"},
+          {"claude", "https://code.claude.com/docs/en/setup", "claude auth login"},
+          {"cursor", "https://cursor.com/docs/cli/overview", "agent login"},
+          {"opencode", "https://opencode.ai/docs/cli/", "opencode auth login"},
+          {"hermes", "https://hermes-agent.nousresearch.com/docs/getting-started/installation",
+           "hermes model"},
+          {"pi", "https://pi.dev/docs/latest/quickstart", "pi, then /login"}
+        ] do
+      view |> element("#pick-agent-#{id}") |> render_click()
+      assert has_element?(view, "#agent-#{id}", "Not checked")
+      assert has_element?(view, "#agent-#{id} a[href='#{url}']")
+      assert has_element?(view, "#agent-#{id} code", cmd)
+    end
+
     refute has_element?(view, "#agents-checked-at")
+    refute has_element?(view, "#create-role")
     refute has_element?(view, "button", "Start")
     refute_receive {:scan, _}
   end
 
-  test "explicit detection allows one scan and distinguishes metadata from provider readiness", %{
-    conn: conn
-  } do
+  test "explicit detection shows connected agents immediately and keeps unauthorized CLI in connect panel",
+       %{conn: conn} do
     {:ok, view, _} = live(conn, "/agents")
     view |> element("#detect-agents") |> render_click()
     assert_receive {:scan, from}
@@ -158,14 +186,21 @@ defmodule BossWeb.AgentsLiveTest do
     refute_receive {:scan, _}
     GenServer.reply(from, {:ok, rows()})
     render_async(view, 2_000)
+
     refute has_element?(view, "#detect-agents[disabled]")
+    assert has_element?(view, "#connected-agent-codex", "Authorized")
+    assert has_element?(view, "#connected-agent-codex", "/tools/codex")
+    assert has_element?(view, "#connected-agent-codex", "v1.2.3")
+    refute has_element?(view, "#connected-agent-claude")
+
+    view |> element("#manage-agent-codex") |> render_click()
     assert has_element?(view, "#agent-codex", "CLI metadata recognized")
     assert has_element?(view, "#agent-codex", "CLI reports credentials configured")
-    assert has_element?(view, "#agent-codex", "/tools/codex")
-    assert has_element?(view, "#agent-codex", "1.2.3")
     assert has_element?(view, "#agent-codex [data-capability='headless']", "Advertised")
     assert has_element?(view, "#agent-codex [data-capability='streaming']", "Not advertised")
     assert has_element?(view, "#agent-codex [data-capability='usage_reporting']", "Unknown")
+
+    view |> element("#pick-agent-claude") |> render_click()
     assert has_element?(view, "#agent-claude", "CLI reports no credentials configured")
     assert has_element?(view, "#agents-checked-at[datetime]")
     assert has_element?(view, "#agents-help", "does not verify provider access")
@@ -193,7 +228,14 @@ defmodule BossWeb.AgentsLiveTest do
       }
     ])
 
+    if not has_element?(view, "#connect-agent-panel") do
+      view |> element("#open-connect-agent") |> render_click()
+    end
+
+    view |> element("#pick-agent-codex") |> render_click()
     assert has_element?(view, "#agent-codex", "Not found on PATH")
+
+    view |> element("#pick-agent-claude") |> render_click()
     assert has_element?(view, "#agent-claude", "CLI metadata unsupported")
     assert has_element?(view, "#agent-claude", "Version check returned unrecognized output")
     assert has_element?(view, "#agent-claude", "Sign-in check is not supported")
@@ -209,6 +251,7 @@ defmodule BossWeb.AgentsLiveTest do
       claude
     ])
 
+    view |> element("#pick-agent-codex") |> render_click()
     assert has_element?(view, "#agent-codex", "Detection incomplete")
     assert has_element?(view, "#agent-codex", "Help check timed out")
     assert has_element?(view, "#agent-codex", "Sign-in check exceeded its output limit")
@@ -230,7 +273,7 @@ defmodule BossWeb.AgentsLiveTest do
       render_async(view, 2_000)
       assert has_element?(view, "#agents-error[role='alert']", message)
       assert has_element?(view, "#agents-error", "Showing the last completed scan")
-      assert has_element?(view, "#agent-codex", "1.2.3")
+      assert has_element?(view, "#connected-agent-codex", "v1.2.3")
       assert render(element(view, "#agents-checked-at")) == checked_at
       refute has_element?(view, "#detect-agents[disabled]")
     end
@@ -240,204 +283,135 @@ defmodule BossWeb.AgentsLiveTest do
     assert has_element?(view, "#agents-status", "Detection complete")
   end
 
-  test "standard roles stay, connect only to detected-authorized models-agents, and persist detections across reloads",
+  test "3 standard roles support multiple Agent + Model bindings, model toggles, and billing/price badges",
        %{conn: conn} do
     {:ok, view, _} = live(conn, "/agents")
-    roles = Map.new(Boss.Agents.Roles.list(), &{&1.kind, &1})
+    roles = Map.new(Boss.Agents.Roles.standard_list(), &{&1.kind, &1})
+    assert Map.keys(roles) |> Enum.sort() == ["analytic", "implementer", "reviewer"]
+    refute has_element?(view, "#create-role")
+
     reviewer = roles["reviewer"]
     implementer = roles["implementer"]
     analytic = roles["analytic"]
 
-    assert has_element?(view, "#role-#{reviewer.id}-purpose", "Reviews specs and code")
+    assert has_element?(view, "#role-#{reviewer.id}-purpose", "verifies tasks directly")
     assert has_element?(view, "#role-#{implementer.id}-purpose", "Writes code and tests")
-    assert has_element?(view, "#role-#{analytic.id}-purpose", "helps the Reviewer")
-    refute has_element?(view, "#role-#{reviewer.id}-delete")
+    assert has_element?(view, "#role-#{analytic.id}-purpose", "Brain that orchestrates")
 
-    # Before detection/authorization, roles cannot connect to undetected agents
-    assert has_element?(view, "#role-#{reviewer.id}-empty-authorized")
-    refute has_element?(view, "#role-#{reviewer.id}-agent-codex")
-
-    # Detect: Codex & Cursor configured, Claude not_configured
     [codex, claude] = rows()
     cursor = %{codex | id: :cursor, name: "Cursor Agent", path: "/tools/agent"}
-    detect(view, [codex, claude, cursor])
+    opencode = %{codex | id: :opencode, name: "OpenCode", path: "/tools/opencode"}
+    detect(view, [codex, claude, cursor, opencode])
 
-    # Supported models with pricing and reasoning are fetched for authorized agents
+    # Models show price and API vs Subscription billing badges
     assert has_element?(view, "#agent-models-codex", "GPT-6.1 Sol")
-    assert has_element?(view, "#agent-models-codex", "$2.00 in · $10.00 out")
-    assert has_element?(view, "#agent-models-codex", "medium · high · xhigh")
+    assert has_element?(view, "#agent-models-codex", "$2 in · $10 out / 1M")
+    assert has_element?(view, "#agent-models-codex", "Subscription / API")
+    assert has_element?(view, "#agent-models-opencode", "Free (Included)")
+    assert has_element?(view, "#agent-models-opencode", "$0 / 1M")
 
-    # Unauthorized Claude shows authorization action and is excluded from role checkboxes
-    assert has_element?(view, "#agent-auth-box-claude")
-    refute has_element?(view, "#role-#{reviewer.id}-agent-claude")
-    assert has_element?(view, "#role-#{reviewer.id}-agent-codex")
-    assert has_element?(view, "#role-#{reviewer.id}-agent-cursor")
+    # Unauthorized Claude can be authorized and verified from + Connect agent panel
+    if not has_element?(view, "#connect-agent-panel") do
+      view |> element("#open-connect-agent") |> render_click()
+    end
 
+    view |> element("#pick-agent-claude") |> render_click()
     view |> element("#authorize-claude") |> render_click()
     render_async(view, 2_000)
-    assert has_element?(view, "#agent-claude", "Opened login in macOS Terminal")
-    refute has_element?(view, "#role-#{reviewer.id}-agent-claude")
+    assert has_element?(view, "#agent-notice-claude", "Opened login in macOS Terminal")
 
     view |> element("#verify-auth-claude") |> render_click()
     render_async(view, 2_000)
+    assert has_element?(view, "#connected-agent-claude", "Authorized")
     assert has_element?(view, "#agent-models-claude", "Claude Opus 4.6")
-    assert has_element?(view, "#role-#{reviewer.id}-agent-claude")
 
-    for {role, agents} <- [{reviewer, ~w(claude cursor)}, {implementer, ~w(cursor codex)}],
-        agent <- agents do
-      view
-      |> form("#role-#{role.id}-agents-#{agent}", %{assigned: "true"})
-      |> render_change()
-    end
+    # Toggle a model off -> excluded from role model dropdown; toggle back on -> restored
+    render_click(view, "toggle_model", %{
+      "agent" => "codex",
+      "model_id" => "plain-model",
+      "enabled" => "false"
+    })
 
-    assert has_element?(view, "#role-#{reviewer.id}-agent-cursor[checked]")
-    assert has_element?(view, "#role-#{implementer.id}-agent-cursor[checked]")
+    refute has_element?(view, "#role-reviewer-model option[value='plain-model']")
+
+    # Reviewer, Implementer, and Analytic AUTO-SAVE immediately on select change (no submit click!)
+    view
+    |> form("#role-bind-form-reviewer", %{
+      "role_kind" => "reviewer",
+      "agent" => "cursor"
+    })
+    |> render_change()
+
+    assert has_element?(view, "#role-saved-reviewer", "Auto-saved")
+    assert has_element?(view, "#role-#{reviewer.id}", "Reviews:CursorGemini4Carbon·high")
+
+    # Add a second Reviewer binding and auto-save its effort on change
+    view |> element("#add-binding-reviewer") |> render_click()
+    [_, second_reviewer] = Boss.Agents.Roles.bindings_for("reviewer")
 
     view
-    |> form("#role-#{implementer.id}-agents-codex", %{
-      assigned: "true",
-      model_id: "gpt-6.1-sol"
+    |> form("#role-binding-#{second_reviewer.id}", %{
+      "binding_id" => to_string(second_reviewer.id),
+      "role_kind" => "reviewer",
+      "agent" => "codex",
+      "model_id" => "gpt-6.1-sol",
+      "reasoning_effort" => "xhigh"
     })
-    |> render_change(%{"_target" => ["model_id"]})
+    |> render_change()
+
+    refute has_element?(
+             view,
+             "#binding-model-#{second_reviewer.id} option[value='plain-model']"
+           )
+
+    # Implementer auto-saves on change
+    view
+    |> form("#role-bind-form-implementer", %{
+      "role_kind" => "implementer",
+      "agent" => "opencode"
+    })
+    |> render_change()
+
+    assert has_element?(view, "#role-saved-implementer", "Auto-saved")
+
+    # Analytic auto-saves on change, then editing the bound row directly auto-saves the model change
+    view
+    |> form("#role-bind-form-analytic", %{
+      "role_kind" => "analytic",
+      "agent" => "claude"
+    })
+    |> render_change()
+
+    [analytic_binding] = Boss.Agents.Roles.bindings_for("analytic")
 
     view
-    |> form("#role-#{implementer.id}-agents-codex", %{
-      assigned: "true",
-      model_id: "gpt-6.1-sol",
-      reasoning_effort: "xhigh"
+    |> form("#role-binding-#{analytic_binding.id}", %{
+      "binding_id" => to_string(analytic_binding.id),
+      "role_kind" => "analytic",
+      "agent" => "claude",
+      "model_id" => "claude-opus-4-6",
+      "reasoning_effort" => "high"
     })
-    |> render_change(%{"_target" => ["reasoning_effort"]})
+    |> render_change()
 
-    render_change(view, "assign_role", %{
-      "role_id" => to_string(implementer.id),
-      "agent" => "cursor",
-      "_target" => ["assigned"]
-    })
+    assert has_element?(view, "#role-saved-analytic", "Auto-saved")
+    assert has_element?(view, "#role-#{reviewer.id}", "Reviews:CursorGemini4Carbon·high")
+    assert has_element?(view, "#role-#{reviewer.id}", "Reviews:CodexGPT6.1Sol·xhigh")
+    assert has_element?(view, "#role-#{implementer.id}", "Implementer:OpenCodeOpencodeModel")
+    assert has_element?(view, "#role-#{analytic.id}", "Analytic:ClaudeOpus4.6·high")
 
-    refute has_element?(view, "#role-#{implementer.id}-agent-cursor[checked]")
-    assert has_element?(view, "#role-#{reviewer.id}-agent-cursor[checked]")
-
-    assert has_element?(
-             view,
-             "#role-#{implementer.id}-model-codex option[value='gpt-6.1-sol'][selected]"
-           )
-
-    assert has_element?(
-             view,
-             "#role-#{implementer.id}-effort-codex option[value='xhigh'][selected]"
-           )
-
-    # Reload /agents in a fresh LiveView: saved detections, models, and role model bindings persist!
+    # Reload /agents: detections, model toggles, and auto-saved role bindings persist
     {:ok, reloaded, _} = live(conn, "/agents")
     refute_receive {:scan, _}
-    assert has_element?(reloaded, "#agents-checked-at[datetime]")
-    assert has_element?(reloaded, "#agent-models-codex", "GPT-6.1 Sol")
+    assert has_element?(reloaded, "#role-#{reviewer.id}", "Reviews:CursorGemini4Carbon·high")
+    assert has_element?(reloaded, "#role-#{reviewer.id}", "Reviews:CodexGPT6.1Sol·xhigh")
+    assert has_element?(reloaded, "#role-#{implementer.id}", "Implementer:OpenCodeOpencodeModel")
+    assert has_element?(reloaded, "#role-#{analytic.id}", "Analytic:ClaudeOpus4.6·high")
 
-    assert has_element?(
+    refute has_element?(
              reloaded,
-             "#role-#{implementer.id}-model-codex option[value='gpt-6.1-sol'][selected]"
+             "#binding-model-#{second_reviewer.id} option[value='plain-model']"
            )
-
-    reloaded |> form("#create-role", %{name: "Planner"}) |> render_submit()
-    planner = Enum.find(Boss.Agents.Roles.list(), &(&1.name == "Planner"))
-    reloaded |> form("#role-#{planner.id}-name", %{name: "Architect"}) |> render_submit()
-    assert has_element?(reloaded, "#role-#{planner.id}-name-input[value='Architect']")
-    reloaded |> element("#role-#{planner.id}-delete") |> render_click()
-    refute has_element?(reloaded, "#role-#{planner.id}")
-    assert has_element?(reloaded, "#role-#{reviewer.id}-title", "Reviewer")
-  end
-
-  test "a custom role saves and reloads a model for each of the six agents", %{conn: conn} do
-    {:ok, view, _} = live(conn, "/agents")
-    [codex, claude] = rows()
-
-    rows = [
-      codex,
-      %{claude | auth_status: :configured},
-      %{codex | id: :cursor, path: "/tools/agent"}
-      | for(id <- [:pi, :hermes, :opencode], do: %{codex | id: id, auth_status: :unknown})
-    ]
-
-    detect(view, rows)
-    view |> form("#create-role", %{name: "Planner"}) |> render_submit()
-    role = Enum.find(Boss.Agents.Roles.list(), &(&1.name == "Planner"))
-
-    choices = [
-      codex: "gpt-6.1-sol",
-      cursor: "claude-sonnet-4-thinking",
-      claude: "opus",
-      pi: "provider/pi-model",
-      hermes: "provider/hermes-model",
-      opencode: "provider/opencode-model"
-    ]
-
-    for {agent, model} <- choices do
-      view
-      |> form("#role-#{role.id}-agents-#{agent}", %{assigned: "true"})
-      |> render_change()
-
-      view
-      |> form("#role-#{role.id}-agents-#{agent}", %{assigned: "true", model_id: model})
-      |> render_change(%{"_target" => ["model_id"]})
-    end
-
-    {:ok, reloaded, _} = live(conn, "/agents")
-
-    for {agent, model} <- choices do
-      assert has_element?(
-               reloaded,
-               "#role-#{role.id}-model-#{agent} option[value='#{model}'][selected]"
-             )
-    end
-  end
-
-  test "switching models clears an incompatible effort and preserves an unavailable member",
-       %{conn: conn} do
-    {:ok, view, _} = live(conn, "/agents")
-    [codex, claude] = rows()
-    detect(view, [codex, %{claude | auth_status: :configured}])
-    {:ok, role} = Boss.Agents.Roles.create("Model testing")
-
-    assert {:ok, _} =
-             Boss.Agents.Roles.assign(role.id, ["codex", "claude"], %{
-               "codex" => %{"model_id" => "gpt-6.1-sol", "reasoning_effort" => "high"},
-               "claude" => %{"model_id" => "opus"}
-             })
-
-    detect(view, [codex, claude])
-
-    view
-    |> form("#role-#{role.id}-agents-codex", %{
-      assigned: "true",
-      model_id: "plain-model",
-      reasoning_effort: "high"
-    })
-    |> render_change(%{"_target" => ["model_id"]})
-
-    updated = Enum.find(Boss.Agents.Roles.list(), &(&1.id == role.id))
-
-    assert updated.selections == %{
-             "claude" => %{model_id: "opus", reasoning_effort: nil},
-             "codex" => %{model_id: "plain-model", reasoning_effort: nil}
-           }
-
-    assert has_element?(view, "#role-#{role.id}-agents-claude", "Unavailable")
-    Boss.Agents.Detections.save_models(:codex, [%{"id" => "replacement"}])
-    {:ok, refreshed, _} = live(conn, "/agents")
-
-    assert has_element?(
-             refreshed,
-             "#role-#{role.id}-model-codex option[value='plain-model'][selected][disabled]"
-           )
-
-    render_change(refreshed, "assign_role", %{
-      "role_id" => to_string(role.id),
-      "agent" => "claude",
-      "_target" => ["assigned"]
-    })
-
-    updated = Enum.find(Boss.Agents.Roles.list(), &(&1.id == role.id))
-    assert updated.selections == %{"codex" => %{model_id: "plain-model", reasoning_effort: nil}}
   end
 
   test "an async exit becomes a sanitized retryable error", %{conn: conn} do
@@ -454,7 +428,7 @@ defmodule BossWeb.AgentsLiveTest do
     assert_receive {:DOWN, ^monitor, :process, ^pid, :killed}
     render_async(view, 2_000)
     assert has_element?(view, "#agents-error", "Detection was interrupted")
-    assert has_element?(view, "#agent-codex", "1.2.3")
+    assert has_element?(view, "#connected-agent-codex", "v1.2.3")
     refute has_element?(view, "#detect-agents[disabled]")
   end
 

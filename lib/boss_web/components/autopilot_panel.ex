@@ -5,9 +5,11 @@ defmodule BossWeb.AutopilotPanel do
     assigns =
       assigns
       |> assign_new(:intake_attempts, fn -> [] end)
-      |> assign_new(:reviewers, fn ->
-        [%{id: "codex", name: "Codex"}, %{id: "claude", name: "Claude Code"}]
-      end)
+      |> assign_new(:interrupted_tasks, fn -> [] end)
+      |> assign_new(:implementer_pool_size, fn -> 1 end)
+      |> assign_new(:loop_cfg, fn -> nil end)
+      |> assign_new(:spec_loop, fn -> true end)
+      |> assign_new(:reviewer_tag, fn -> nil end)
 
     ~H"""
     <section
@@ -26,15 +28,27 @@ defmodule BossWeb.AutopilotPanel do
           aria-controls="autopilot-content"
           class="app-button-secondary px-3 py-2 text-sm"
         >{if @open, do: "Hide controls", else: "Show controls"}</button>
+        <span
+          :if={@implementer_pool_size > 1}
+          class="rounded bg-sage px-2 py-1 font-mono text-xs font-semibold text-forest"
+        >
+          {@implementer_pool_size} parallel Implementers
+        </span>
+        <span
+          :if={@loop_cfg && @loop_cfg.spec_loop_enabled == 1}
+          class="rounded bg-paper border border-line px-2 py-1 font-mono text-xs text-muted"
+        >
+          Loop pass {@loop_cfg.loop_pass}/{@loop_cfg.max_passes}
+        </span>
         <span :if={@batch} id="autopilot-status" role="status" class="app-badge">
           {label(@batch.status)}
         </span>
       </div>
       <p class="mt-3 max-w-3xl text-sm leading-6 text-muted">
         <%= if @documentation do %>
-          Autopilot plans tasks from committed documentation and code, then implements them in dependency order.
+          Autopilot dispatches ready tasks across your enabled Implementer pool, verifies with Reviewer against specs, and moves approved tasks to Done (or refines specs back to Backlog for the next loop pass).
         <% else %>
-          A new Start runs eligible unfinished tasks one at a time through implementation, checks, fixes, review and integration.
+          A new Start dispatches eligible unfinished tasks across your Implementer pool through implementation, Reviewer verification, and integration (returning spec-rework items cleanly to Backlog).
         <% end %>
       </p>
       <div
@@ -122,8 +136,12 @@ defmodule BossWeb.AutopilotPanel do
                 Saved reviewer: {agent_name(@batch.reviewer)}
               </span>
               <span class="text-muted">
-                Check
-                <code class="font-mono text-ink">{JSON.encode!(@batch.check_config["argv"])}</code>
+                Verification:
+                <%= if Boss.Checks.Command.spec_only?(@batch.check_config) do %>
+                  <strong class="text-ink">Reviewer spec check</strong>
+                <% else %>
+                  <code class="font-mono text-ink">{JSON.encode!(@batch.check_config["argv"])}</code>
+                <% end %>
               </span>
             </div>
             <div class="flex flex-wrap items-center gap-3 font-mono text-[11px] text-muted">
@@ -282,6 +300,26 @@ defmodule BossWeb.AutopilotPanel do
             >
               {length(@choices)} eligible unfinished tasks
             </p>
+            <div
+              :if={!@plans_from_docs && @interrupted_tasks != []}
+              id="autopilot-interrupted-banner"
+              class="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-warning-line bg-warning-soft px-3 py-2 text-xs text-warning"
+            >
+              <span>
+                <strong>{length(@interrupted_tasks)} interrupted task(s)</strong>
+                ({Enum.map_join(Enum.take(@interrupted_tasks, 2), ", ", & &1.title)})
+                were stopped on an earlier run. Recover them so dependent Backlog tasks can run.
+              </span>
+              <button
+                id="recover-interrupted-autopilot"
+                type="button"
+                phx-target={@myself}
+                phx-click="recover_interrupted"
+                class="app-button-secondary px-2.5 py-1 text-xs font-semibold"
+              >
+                Recover &amp; include ({length(@interrupted_tasks)})
+              </button>
+            </div>
             <p
               :if={!@plans_from_docs && @choices == [] && !@documentation}
               class="mt-2 text-sm text-muted"
@@ -304,39 +342,61 @@ defmodule BossWeb.AutopilotPanel do
                 <span class="block break-all text-xs text-muted">{entry.relative_path} · revision {entry.task_revision}</span>
               </li>
             </ul>
-            <label for="autopilot-command" class="mt-4 block text-sm font-medium">Check command for every task</label>
-            <input
-              id="autopilot-command"
-              name="command"
-              type="text"
-              value={@text}
-              placeholder="mix test"
-              maxlength="4096"
-              required
-              autocomplete="off"
-              aria-describedby="autopilot-command-help"
-              class="app-field mt-1 w-full min-w-0 px-3 py-2 text-sm"
-            />
-            <p id="autopilot-command-help" class="mt-1 text-xs text-muted">
-              Verify the command before starting. It runs without a shell before review and after integration.
-            </p>
-            <label for="autopilot-reviewer" class="mt-4 block text-sm font-medium">Independent reviewer</label>
-            <select
-              id="autopilot-reviewer"
-              name="reviewer"
-              class="app-field mt-1 max-w-full px-3 py-2 text-sm"
+            <div
+              id="autopilot-bound-reviewer"
+              class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line bg-paper px-3 py-2 text-xs"
             >
-              <option
-                :for={agent <- @reviewers}
-                value={agent.id}
-                selected={@reviewer == agent.id}
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium text-ink">Reviewer role</span>
+                <span class="rounded bg-sage px-1.5 py-0.5 font-mono text-[11px] font-semibold text-forest">
+                  {@reviewer_tag || agent_name(@reviewer)}
+                </span>
+              </div>
+              <span class="text-muted">
+                {agent_name(@reviewer)} automatically reviews each task against its specification.
+              </span>
+            </div>
+            <div class="mt-3 rounded-sm border border-line bg-paper px-3 py-2 text-xs">
+              <label for="autopilot-spec-loop" class="block font-medium text-ink">
+                Reviewer spec-rework loop
+              </label>
+              <select
+                id="autopilot-spec-loop"
+                name="spec_loop"
+                class="app-field mt-1 w-full px-2.5 py-1.5 text-xs"
               >
-                {agent.name}
-              </option>
-            </select>
-            <p id="autopilot-reviewer-help" class="mt-1 text-xs text-muted">
-              The list is the agents assigned to Reviewer. Codex, Claude, Cursor, and OpenCode can run the review.
-            </p>
+                <option value="true" selected={@spec_loop}>
+                  Auto-loop: Reviewer refines spec &amp; returns task to Backlog (up to 2 passes)
+                </option>
+                <option value="false" selected={!@spec_loop}>
+                  Single pass: keep rejected tasks in Needs Attention
+                </option>
+              </select>
+            </div>
+            <details class="mt-3 rounded-sm border border-line bg-paper px-3 py-2 text-xs">
+              <summary class="cursor-pointer font-medium text-muted hover:text-ink">
+                Optional CLI check command (leave empty for specification-only review)
+              </summary>
+              <div class="mt-2">
+                <label for="autopilot-command" class="block text-xs font-medium text-body">
+                  Optional check command
+                </label>
+                <input
+                  id="autopilot-command"
+                  name="command"
+                  type="text"
+                  value={@text}
+                  placeholder="Optional (e.g. mix test) — leave empty to verify by specification"
+                  maxlength="4096"
+                  autocomplete="off"
+                  aria-describedby="autopilot-command-help"
+                  class="app-field mt-1 w-full min-w-0 px-3 py-1.5 font-mono text-xs"
+                />
+                <p id="autopilot-command-help" class="mt-1 text-xs text-muted">
+                  Not required. When left empty, Reviewer checks the candidate directly against the task text.
+                </p>
+              </div>
+            </details>
           </fieldset>
           <p
             id="autopilot-authorization"
@@ -365,7 +425,10 @@ defmodule BossWeb.AutopilotPanel do
           <button
             id="start-autopilot"
             type="submit"
-            disabled={!@ready || (!@plans_from_docs && length(@choices) not in 1..256)}
+            disabled={
+              !@ready ||
+                (!@plans_from_docs && length(@choices) not in 1..256 && @interrupted_tasks == [])
+            }
             aria-describedby="autopilot-authorization"
             class="app-button-primary px-4 py-2 text-sm font-semibold disabled:opacity-50"
           >Start Autopilot</button>

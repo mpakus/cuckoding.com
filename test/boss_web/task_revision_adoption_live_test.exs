@@ -3,7 +3,7 @@ defmodule BossWeb.TaskRevisionAdoptionLiveTest do
   import Phoenix.LiveViewTest
   require Phoenix.LiveView
   import Ecto.Query
-  alias Boss.{LocalAccess, Projects, Repo, Runs, Tasks}
+  alias Boss.{Projects, Repo, Runs, Tasks}
 
   setup %{conn: conn} do
     project =
@@ -17,8 +17,7 @@ defmodule BossWeb.TaskRevisionAdoptionLiveTest do
 
     first = spec(project, "Original", ["missing"])
     second = spec(project, "Updated", [])
-    {:ok, session} = LocalAccess.exchange(LocalAccess.new_token())
-    conn = %{conn | host: "127.0.0.1", port: 4002} |> init_test_session(local_session: session)
+    conn = %{conn | host: "127.0.0.1", port: 4002}
     %{conn: conn, project: project, first: first, second: second}
   end
 

@@ -24,6 +24,7 @@ defmodule BossWeb.Autopilot do
        reviewer: "codex",
        reviewer_edited: false,
        reviewers: Roles.reviewer_choices(),
+       spec_loop: true,
        command: Ecto.UUID.generate(),
        pending: nil,
        acting: false,
@@ -50,12 +51,7 @@ defmodule BossWeb.Autopilot do
 
     socket =
       if (first or converted) and documentation?(socket.assigns.project) do
-        text =
-          if File.regular?(Path.join(socket.assigns.project.root_path, "mix.exs")),
-            do: "mix test",
-            else: ""
-
-        assign(socket, open: true, text: if(first, do: text, else: socket.assigns.text))
+        assign(socket, open: true)
       else
         socket
       end
@@ -68,19 +64,47 @@ defmodule BossWeb.Autopilot do
     do: {:noreply, assign(socket, open: !socket.assigns.open)}
 
   def handle_event("edit", params, %{assigns: %{pending: nil}} = socket) do
-    next_reviewer = value(params, "reviewer", socket.assigns.reviewer)
+    explicit_reviewer? =
+      case Map.get(params, "reviewer") do
+        r when is_binary(r) and r != "" -> true
+        _ -> false
+      end
+
+    next_reviewer =
+      if explicit_reviewer?,
+        do: params["reviewer"],
+        else: socket.assigns.reviewer
+
+    spec_loop =
+      case Map.get(params, "spec_loop") do
+        "true" -> true
+        "false" -> false
+        _ -> socket.assigns.spec_loop
+      end
 
     {:noreply,
      assign(socket,
        text: value(params, "command", socket.assigns.text),
        reviewer: next_reviewer,
-       reviewer_edited: socket.assigns.reviewer_edited or Map.has_key?(params, "reviewer"),
+       reviewer_edited: socket.assigns.reviewer_edited or explicit_reviewer?,
+       spec_loop: spec_loop,
        error: nil
      )}
   end
 
   def handle_event("edit", _, socket), do: {:noreply, socket}
   def handle_event("reload", _, socket), do: {:noreply, load(socket)}
+
+  def handle_event(
+        "recover_interrupted",
+        _,
+        %{assigns: %{project: %{id: project_id}, pending: nil, acting: false}} = socket
+      ) do
+    _ = Boss.Deliveries.requeue_interrupted_tasks(project_id)
+    {:noreply, load(socket)}
+  end
+
+  def handle_event("recover_interrupted", _, socket), do: {:noreply, socket}
 
   def handle_event("plan_from_documentation", %{"command-id" => id}, socket) do
     if id == socket.assigns.command and conversion_ready?(socket.assigns) do
@@ -96,28 +120,62 @@ defmodule BossWeb.Autopilot do
 
   def handle_event("start", params, socket) do
     tasks = choices(socket.assigns) |> Enum.map(& &1.task_id)
+    interrupted = interrupted_tasks(socket.assigns)
 
     planning? = plans_from_docs?(socket.assigns)
 
-    reviewer = value(params, "reviewer", socket.assigns.reviewer)
-    offered = Enum.map(socket.assigns.reviewers, & &1.id)
+    explicit_reviewer =
+      case Map.get(params, "reviewer") do
+        r when is_binary(r) and r != "" -> r
+        _ -> nil
+      end
+
+    reviewer =
+      cond do
+        is_binary(explicit_reviewer) ->
+          explicit_reviewer
+
+        socket.assigns.reviewer_edited ->
+          socket.assigns.reviewer
+
+        socket.assigns.project != nil ->
+          Boss.Projects.RoleBindings.reviewer_agent(socket.assigns.project.id)
+
+        true ->
+          socket.assigns.reviewer
+      end
+
+    spec_loop =
+      case Map.get(params, "spec_loop") do
+        "false" -> false
+        "true" -> true
+        _ -> socket.assigns.spec_loop
+      end
 
     cond do
-      reviewer not in offered or not Boss.Agents.Metadata.review_runner?(reviewer) ->
+      not Boss.Agents.Metadata.review_runner?(reviewer) ->
         {:noreply, assign(socket, error: "Choose an agent from the Independent reviewer list.")}
 
-      ready?(socket.assigns) and (planning? or length(tasks) in 1..256) ->
+      ready?(socket.assigns) and
+          (planning? or length(tasks) in 1..256 or interrupted != []) ->
         request = %{
           kind: if(planning?, do: :intake_start, else: :start),
           id: socket.assigns.command,
           tasks: tasks,
+          auto_recover_interrupted: interrupted != [],
+          spec_loop: spec_loop,
           text: value(params, "command", ""),
           reviewer: reviewer
         }
 
         {:noreply,
          socket
-         |> assign(text: request.text, reviewer: request.reviewer, reviewer_edited: true)
+         |> assign(
+           text: request.text,
+           reviewer: request.reviewer,
+           reviewer_edited: socket.assigns.reviewer_edited or is_binary(explicit_reviewer),
+           spec_loop: spec_loop
+         )
          |> act(request)}
 
       true ->
@@ -190,7 +248,34 @@ defmodule BossWeb.Autopilot do
           end
 
         :start ->
-          Engine.start(project, request.id, request.tasks, request.text, request.reviewer)
+          tasks =
+            if Map.get(request, :auto_recover_interrupted, false) and
+                 (request.tasks == [] or
+                    not Enum.any?(
+                      request.tasks,
+                      &(Boss.Tasks.Dependencies.check(project, &1) == :ok)
+                    )) do
+              _ = Boss.Deliveries.requeue_interrupted_tasks(project)
+
+              case Engine.selection(project) do
+                {:ok, ids} when ids != [] -> ids
+                _ -> request.tasks
+              end
+            else
+              request.tasks
+            end
+
+          pool_size = Boss.Projects.RoleBindings.implementer_pool_size(project)
+          spec_loop? = Map.get(request, :spec_loop, true)
+
+          if pool_size > 1 or spec_loop? do
+            Engine.start_loop(project, request.id, tasks, request.text, request.reviewer,
+              parallel: pool_size > 1,
+              spec_loop: spec_loop?
+            )
+          else
+            Engine.start(project, request.id, tasks, request.text, request.reviewer)
+          end
 
         :pause ->
           Engine.pause(project, request.batch, request.version)
@@ -319,20 +404,23 @@ defmodule BossWeb.Autopilot do
   end
 
   defp confirm_start(socket, batch) do
-    with %{kind: :start, id: id, tasks: tasks, text: text, reviewer: reviewer} <-
+    with %{kind: :start, id: id, tasks: tasks, text: text, reviewer: reviewer} = pending <-
            socket.assigns.pending,
          %{id: project} when is_integer(project) and project > 0 <- socket.assigns.project,
          true <-
            is_binary(id) and is_list(tasks) and Boss.Agents.Metadata.review_runner?(reviewer),
-         {:ok, config, hash} <- Boss.Checks.Command.parse(text),
+         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text),
          %{
            command_id: ^id,
            project_id: ^project,
-           task_ids: ^tasks,
+           task_ids: saved_tasks,
            check_config: ^config,
            config_hash: ^hash,
            reviewer: ^reviewer
-         } <- batch do
+         } <- batch,
+         true <-
+           saved_tasks == tasks or
+             (Map.get(pending, :auto_recover_interrupted, false) and is_list(saved_tasks)) do
       assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
     else
       _ -> socket
@@ -349,7 +437,7 @@ defmodule BossWeb.Autopilot do
   defp confirm_intake(socket, intake) do
     with %{kind: :intake_start, id: id, text: text, reviewer: reviewer} <- socket.assigns.pending,
          %{id: project} <- socket.assigns.project,
-         {:ok, config, hash} <- Boss.Checks.Command.parse(text),
+         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text),
          %{
            command_id: ^id,
            project_id: ^project,
@@ -386,7 +474,8 @@ defmodule BossWeb.Autopilot do
           _ -> nil
         end
 
-      {batch, intake, Engine.selection(project), conversion, attempts, Roles.reviewer_choices()}
+      {batch, intake, Engine.selection(project), conversion, attempts,
+       Roles.reviewer_choices(project)}
     end)
   end
 
@@ -394,8 +483,17 @@ defmodule BossWeb.Autopilot do
     ids = Enum.map(reviewers, & &1.id)
     current = socket.assigns.reviewer
 
+    project_rev =
+      if socket.assigns.project do
+        Boss.Projects.RoleBindings.reviewer_agent(socket.assigns.project.id)
+      end
+
     chosen =
       cond do
+        !socket.assigns.reviewer_edited and is_binary(project_rev) and
+            Boss.Agents.Metadata.review_runner?(project_rev) ->
+          project_rev
+
         !socket.assigns.reviewer_edited and is_binary(saved_reviewer) and saved_reviewer in ids ->
           saved_reviewer
 
@@ -438,8 +536,10 @@ defmodule BossWeb.Autopilot do
   defp documentation?(%{intake_mode: "documentation"}), do: true
   defp documentation?(_), do: false
 
-  defp plans_from_docs?(assigns),
-    do: documentation?(assigns.project) and !match?(%{status: "finished"}, assigns.intake)
+  defp plans_from_docs?(assigns) do
+    documentation?(assigns.project) and !match?(%{status: "finished"}, assigns.intake) and
+      !Enum.any?(assigns.entries, &(!Map.get(&1, :reference_only, false)))
+  end
 
   defp ready?(assigns),
     do:
@@ -493,11 +593,38 @@ defmodule BossWeb.Autopilot do
   defp error(_),
     do: "Autopilot could not apply this request. Review the current tasks and try again."
 
+  defp interrupted_tasks(assigns) do
+    Enum.filter(assigns.entries, fn entry ->
+      !Map.get(entry, :reference_only, false) and !entry.missing and
+        entry.state == "interrupted"
+    end)
+  end
+
   @impl true
   def render(assigns) do
+    pool_size =
+      if assigns.project,
+        do: Boss.Projects.RoleBindings.implementer_pool_size(assigns.project.id),
+        else: 1
+
+    reviewer_tag =
+      if assigns.project do
+        get_in(Boss.Projects.RoleBindings.for_project(assigns.project.id), [
+          "reviewer",
+          :active,
+          :tag
+        ])
+      end
+
+    loop_cfg = if assigns.batch, do: Engine.loop_info(assigns.batch.id)
+
     assigns =
       assign(assigns,
         choices: choices(assigns),
+        interrupted_tasks: interrupted_tasks(assigns),
+        implementer_pool_size: pool_size,
+        reviewer_tag: reviewer_tag,
+        loop_cfg: loop_cfg,
         conversion_ready: conversion_ready?(assigns),
         ready: ready?(assigns),
         documentation: documentation?(assigns.project),

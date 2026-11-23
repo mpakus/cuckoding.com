@@ -9,13 +9,10 @@ defmodule Boss.Application do
       System.delete_env("BOSS_HOST_PATH")
     end
 
-    server? = Phoenix.Endpoint.server?(:boss, BossWeb.Endpoint)
-
     children = [
       BossWeb.Telemetry,
       Boss.Repo,
       {Ecto.Migrator, repos: [Boss.Repo]},
-      {Boss.LocalAccess, announce: server?, data_dir: Application.fetch_env!(:boss, :data_dir)},
       {Phoenix.PubSub, name: Boss.PubSub},
       Boss.FolderPicker,
       Boss.Agents.Detector,

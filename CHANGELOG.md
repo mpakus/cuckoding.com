@@ -26,6 +26,29 @@ Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it
 - Keep shared provider/credit outages, Stop and uncertain process cleanup
   visible with agent-specific diagnostics on the board and halt dispatch when
   ownership or the provider is uncertain.
+- Add **Prompt task control** on `/projects/:id` (`Boss.Projects.TaskPrompt`,
+  `BossWeb.TaskPrompt`, `priv/task_prompt_schema.json`) so owners can create
+  tasks, revise task specifications, leave task notes (`add_task_note`), or
+  control task states and workflows via natural-language prompts using a
+  selected `Agent` + `Model` (`Codex`, `Claude Code`, `Cursor Agent` or
+  `OpenCode`) in read-only mode while enforcing BOSS's versioned command and
+  reviewer gates.
+- Rebuild `/agents` (`BossWeb.AgentsLive`) and per-project role management
+  (`Boss.Projects.RoleBindings`, `BossWeb.ProjectRoles`): compact connected-agent
+  cards with model checkboxes, pricing and `Subscription` vs `API` badges; a
+  side `+ Connect agent` CLI authorization panel; multiple named
+  `Agent + Model + Role` bindings across `Analytic`, `Implementer` and
+  `Reviewer` (e.g. `Reviews:CursorGemini4Carbon`, `Reviews:CodexGPT6.2Astra`);
+  per-project 3-role selection on `/projects/:id`; default `spec_only` Reviewer
+  verification against task specifications (with optional CLI check command
+  override); and append-only `task_entries` (`Boss.Tasks.Entries`) showing
+  current task state plus collaborative agent/owner comments, spec enrichments
+  and stage logs in the task drawer.
+- Open directly on loopback (`127.0.0.1`) for local macOS desktop use without a
+  terminal unlock-token prompt, while preserving `Host`, exact-port `Origin`,
+  `SameSite=Strict`, CSRF and WebSocket `check_origin` protections; remove the
+  marketing-only `Pause motion` checkbox from the desktop application footer
+  while keeping OS `prefers-reduced-motion` synchronization.
 - Update Ecto to 3.14.3 for CVE-2026-118391 and Plug to 1.20.4 for
   CVE-2026-120287.
 - Keep multi-byte UTF-8 CLI diagnostics valid across 240 B / 4 KiB / 512 KiB
