@@ -1042,3 +1042,12 @@ See the [agent detection worklog](../.worklog/2026-11-11.md).
   - Linux process-group/subreaper guardian, release packager & desktop `zenity`
     verification (earlier `BOSS-000a` `erlexec` checkboxes stay closed because
     macOS `boss_guardian` replaced `erlexec` in production).
+
+## Greenfield autonomy audit — 2026-11-23
+
+- [x] Verify one committed Markdown file through a runnable CLI, check, review, exact publication, postcheck and Done on macOS with a finite agent fixture.
+- [ ] Persist the first documentation Start's Single pass/Auto-loop choice and bind it to replay and batch creation. Verify both choices with one and multiple implementer bindings.
+- [ ] Protect newer user edits and frontmatter during specs-mode rework. Verify a changed working file survives a rejected or stale adoption.
+- [ ] Measure original-brief coverage for omitted requirements and empty plans separately from per-task Done. Real-provider greenfield acceptance requires a separately authorized run.
+
+Audit scope and local reproduction are in [the architecture guide](../docs/ARCHITECTURE.md) and [the verification log](../.worklog/2026-11-23.md).

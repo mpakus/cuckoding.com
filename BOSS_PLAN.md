@@ -15,6 +15,8 @@
 > policy. See [docs/AUTONOMY.md](docs/AUTONOMY.md) for the implementation contract
 > and its verified acceptance scope.
 
+The [implemented delivery architecture](docs/ARCHITECTURE.md) describes the registration prerequisites, current autonomy limits and executable greenfield acceptance.
+
 ## 1. Vision
 
 **Boss** is a small, local-first application that coordinates coding agents already installed on a developer's computer. The user supplies Markdown specifications; Boss turns them into tasks, delegates planning and coding to agents, verifies deliverables, runs independent reviews, and tracks progress on a clean Kanban board.

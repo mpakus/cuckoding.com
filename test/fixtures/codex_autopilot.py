@@ -20,6 +20,33 @@ if args[-2:] == ["debug", "models"]:
     sys.exit(0)
 prompt = sys.stdin.read()
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
+if os.environ.get("BOSS_AUTOPILOT_MODE") == "greenfield":
+    criterion = "Running hello.py prints hello."
+    if schema and schema.name == "intake_schema.json":
+        data = json.loads(prompt.split("BOSS project intake input (JSON):\n", 1)[1])
+        assert data["documents"] == {"docs/product.md": "# Greeting\n" + criterion + "\n"}
+        report = {"tasks": [{"id": "greeting", "title": "Greeting", "specification": criterion,
+                             "sources": ["docs/product.md"], "depends_on": [], "acceptance": [criterion]}]}
+    else:
+        data = json.loads(prompt.split("BOSS delivery input (JSON):\n", 1)[1])
+        assert data["check_config"]["argv"][:2] == ["python3", "-c"]
+        if schema and schema.name == "plan_schema.json":
+            report = {"summary": criterion, "steps": ["Create hello.py"], "acceptance": [criterion],
+                      "file_scopes": None}
+        elif schema:
+            assert data["check_receipt"]["exit_code"] == 0 and "hello.py" in data["diff"]
+            report = {"verdict": "approved", "summary": criterion, "issues": [],
+                      "acceptance": [{"criterion": criterion, "status": "passed",
+                                      "evidence": "Output assertion passed on the candidate."}]}
+        else:
+            assert not Path("hello.py").exists()
+            Path("hello.py").write_text("print('hello')\n")
+            report = None
+    if report is not None:
+        Path(args[args.index("--output-last-message") + 1]).write_text(json.dumps(report))
+    print(json.dumps({"type": "turn.started"}))
+    print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}))
+    sys.exit(0)
 if schema and schema.name == "intake_schema.json":
     assert args[args.index("--sandbox") + 1] == "read-only"
     intake = json.loads(prompt.split("BOSS project intake input (JSON):\n", 1)[1])

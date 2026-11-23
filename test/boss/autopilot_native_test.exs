@@ -56,13 +56,24 @@ defmodule Boss.AutopilotNativeTest do
 
     repo = start_repo(opts)
     Repo.put_dynamic_repo(repo)
-    Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
+
+    migrations =
+      if context[:greenfield], do: Ecto.Migrator.migrations_path(Repo), else: @migrations
+
+    Ecto.Migrator.run(Repo, migrations, :up, all: true, log: false)
     source = Path.join(root, "source")
     File.mkdir!(source)
     {physical, 0} = System.cmd("/bin/pwd", ["-P"], cd: source)
     source = String.trim(physical)
-    File.write!(Path.join(source, "result.txt"), "base")
-    File.cp!(Path.expand("../fixtures/delivery_check.py", __DIR__), Path.join(source, "check.py"))
+
+    unless context[:greenfield] do
+      File.write!(Path.join(source, "result.txt"), "base")
+
+      File.cp!(
+        Path.expand("../fixtures/delivery_check.py", __DIR__),
+        Path.join(source, "check.py")
+      )
+    end
 
     if context[:timeout_recovery] || context[:network_recovery] do
       File.write!(Path.join(source, "check.py"), ~S"""
@@ -77,17 +88,24 @@ defmodule Boss.AutopilotNativeTest do
     if context[:documentation] || context[:convert_documentation] do
       File.mkdir!(Path.join(source, "docs"))
 
-      File.write!(
-        Path.join(source, "docs/product.md"),
-        "# Product\nAlready implemented: existing.txt.\n## Work\nWrite one, then two."
-      )
+      if context[:greenfield] do
+        File.write!(
+          Path.join(source, "docs/product.md"),
+          "# Greeting\nRunning hello.py prints hello.\n"
+        )
+      else
+        File.write!(
+          Path.join(source, "docs/product.md"),
+          "# Product\nAlready implemented: existing.txt.\n## Work\nWrite one, then two."
+        )
 
-      File.write!(
-        Path.join(source, "docs/architecture.md"),
-        "# Architecture\nresult.txt stores the output."
-      )
+        File.write!(
+          Path.join(source, "docs/architecture.md"),
+          "# Architecture\nresult.txt stores the output."
+        )
 
-      File.write!(Path.join(source, "existing.txt"), "implemented")
+        File.write!(Path.join(source, "existing.txt"), "implemented")
+      end
     end
 
     if context[:convert_documentation] do
@@ -236,6 +254,59 @@ defmodule Boss.AutopilotNativeTest do
              Autopilot.start(c.project.id, command, ids, "python3 check.py", "codex", manager)
 
     assert replay.status == "completed"
+  end
+
+  @tag documentation: true, greenfield: true
+  test "one Markdown file becomes a working CLI on the published branch", c do
+    alias Boss.Projects.Intake
+
+    System.put_env("BOSS_AUTOPILOT_MODE", "greenfield")
+    base = git(c.source, ["rev-parse", "HEAD"])
+    assert git(c.source, ["ls-tree", "-r", "--name-only", base]) == "docs/product.md"
+    assert Projects.list_spec_entries(c.project.id) == []
+
+    command =
+      ~s|python3 -c "import subprocess,sys; out=subprocess.check_output([sys.executable,'hello.py']); sys.stdout.buffer.write(out); sys.exit(out.strip() != b'hello')"|
+
+    {:ok, _} =
+      Intake.start(c.project.id, Ecto.UUID.generate(), command, "codex", start_manager(c.repo))
+
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{status: "finished", batch_id: batch} = Intake.latest(c.project.id)
+    assert is_binary(batch)
+    eventually(fn -> Repo.get!(AutopilotBatch, batch).status != "running" end, 3000)
+    assert Repo.get!(AutopilotBatch, batch).status == "completed"
+    assert [%{state: "done", task_id: task}] = Projects.list_spec_entries(c.project.id)
+    delivery = Repo.get_by!(Deliveries.Delivery, task_id: task)
+    assert delivery.status == "done"
+    target = git(c.source, ["rev-parse", c.project.base_branch])
+    assert target == delivery.integration_intent["candidate_commit"]
+    refute target == base
+    assert git(c.source, ["rev-parse", "HEAD"]) == base
+    assert git(c.source, ["status", "--porcelain"]) == ""
+    assert git(c.source, ["diff", "--name-only", base, target]) == "hello.py"
+    retained = delivery.integration_intent["path"]
+    assert git(retained, ["rev-parse", "HEAD"]) == target
+    assert git(retained, ["status", "--porcelain"]) == ""
+
+    steps = Deliveries.steps(delivery.id)
+
+    assert Enum.map(steps, &{&1.kind, &1.status}) ==
+             Enum.map(
+               ~w(plan implement snapshot check review publish post_check),
+               &{&1, "finished"}
+             )
+
+    expected_output = Boss.Deliveries.Protocol.digest(%{"stdout" => "hello\n", "stderr" => ""})
+
+    for step <- steps, step.kind in ["check", "post_check"] do
+      assert %{"output_hash" => ^expected_output, "exit_code" => 0, "candidate_commit" => ^target} =
+               step.receipt
+    end
+
+    checkout = Path.join(c.root, "published")
+    git(c.source, ["worktree", "add", "--detach", checkout, target])
+    assert {"hello\n", 0} = System.cmd("python3", ["hello.py"], cd: checkout)
   end
 
   @tag documentation: true
