@@ -7,6 +7,15 @@ defmodule Boss.AutopilotNativeTest do
   @moduletag capture_log: true
   @moduletag timeout: 120_000
   @registry Boss.AutopilotNativeActive
+  @greenfield_brief """
+  # Greeting CLI
+
+  ## Acceptance criteria
+
+  - Running hello.py without arguments prints hello.
+  - One name argument prints hello, followed by a comma, a space, and the name.
+  - Extra arguments print usage: hello.py [name] to stderr and exit with status 2.
+  """
   @migrations [
     {20_261_025_180_000, Boss.Repo.Migrations.CreateProjects},
     {20_261_025_220_000, Boss.Repo.Migrations.CreateSpecRevisions},
@@ -89,10 +98,7 @@ defmodule Boss.AutopilotNativeTest do
       File.mkdir!(Path.join(source, "docs"))
 
       if context[:greenfield] do
-        File.write!(
-          Path.join(source, "docs/product.md"),
-          "# Greeting\nRunning hello.py prints hello.\n"
-        )
+        File.write!(Path.join(source, "docs/product.md"), @greenfield_brief)
       else
         File.write!(
           Path.join(source, "docs/product.md"),
@@ -256,57 +262,195 @@ defmodule Boss.AutopilotNativeTest do
     assert replay.status == "completed"
   end
 
-  @tag documentation: true, greenfield: true
-  test "one Markdown file becomes a working CLI on the published branch", c do
-    alias Boss.Projects.Intake
+  for {mode, expected_count} <- [greenfield: 2, greenfield_empty: 1] do
+    @tag documentation: true, greenfield: true, replan: mode == :greenfield_empty
+    test "one Markdown file passes independent whole-brief acceptance (#{mode})", c do
+      alias Boss.Projects.{BriefAcceptance, Intake}
 
-    System.put_env("BOSS_AUTOPILOT_MODE", "greenfield")
-    base = git(c.source, ["rev-parse", "HEAD"])
-    assert git(c.source, ["ls-tree", "-r", "--name-only", base]) == "docs/product.md"
-    assert Projects.list_spec_entries(c.project.id) == []
+      System.put_env("BOSS_AUTOPILOT_MODE", Atom.to_string(unquote(mode)))
+      base = git(c.source, ["rev-parse", "HEAD"])
+      assert git(c.source, ["ls-tree", "-r", "--name-only", base]) == "docs/product.md"
+      assert Projects.list_spec_entries(c.project.id) == []
+
+      manager = start_manager(c.repo)
+
+      assert {:error, :brief_check_required} =
+               Intake.start(c.project.id, Ecto.UUID.generate(), "", "codex", false, manager)
+
+      assert Intake.latest(c.project.id) == nil
+
+      check = Path.expand("../fixtures/greenfield_brief_check.py", __DIR__)
+      batch = run_greenfield(c, ~s|python3 "#{check}"|, manager)
+      assert batch.status == "completed"
+      tasks = Projects.list_spec_entries(c.project.id)
+      assert Enum.all?(tasks, &(&1.state == "done"))
+      assert length(tasks) == unquote(expected_count)
+
+      gate = Enum.find(tasks, &(&1.title == "Verify the complete project brief"))
+
+      assert %{documents: %{"docs/product.md" => @greenfield_brief}, base_commit: ^base} =
+               BriefAcceptance.get(gate.task_id)
+
+      delivery = Repo.get_by!(Deliveries.Delivery, task_id: gate.task_id)
+      assert delivery.status == "done"
+      target = git(c.source, ["rev-parse", c.project.base_branch])
+      assert target == delivery.integration_intent["candidate_commit"]
+      refute target == base
+      assert git(c.source, ["rev-parse", "HEAD"]) == base
+      assert git(c.source, ["status", "--porcelain"]) == ""
+      assert git(c.source, ["diff", "--name-only", base, target]) == "hello.py"
+      retained = delivery.integration_intent["path"]
+      assert git(retained, ["rev-parse", "HEAD"]) == target
+      assert git(retained, ["status", "--porcelain"]) == ""
+
+      steps = Deliveries.steps(delivery.id)
+
+      assert Enum.map(steps, &{&1.kind, &1.status}) ==
+               Enum.map(
+                 ~w(plan implement snapshot check review publish post_check),
+                 &{&1, "finished"}
+               )
+
+      labels = ["S1:L1", "S1:L3", "S1:L5", "S1:L6", "S1:L7"]
+      review = Enum.find(steps, &(&1.kind == "review"))
+
+      assert %{
+               "candidate_commit" => ^target,
+               "report" => %{"verdict" => "approved", "acceptance" => criteria}
+             } = review.receipt
+
+      assert Enum.sort(Enum.map(criteria, & &1["criterion"])) == labels
+      assert Enum.all?(criteria, &(&1["status"] == "passed"))
+
+      stdout = "3/3 brief requirements passed\n"
+      expected_output = Boss.Deliveries.Protocol.digest(%{"stdout" => stdout, "stderr" => ""})
+
+      for step <- steps, step.kind in ["check", "post_check"] do
+        assert %{
+                 "output_hash" => ^expected_output,
+                 "exit_code" => 0,
+                 "candidate_commit" => ^target
+               } =
+                 step.receipt
+      end
+
+      checkout = Path.join(c.root, "published")
+      git(c.source, ["worktree", "add", "--detach", checkout, target])
+      assert {^stdout, 0} = System.cmd("python3", [check], cd: checkout)
+
+      if c[:replan] do
+        verify_changed_brief(c, checkout, target, gate, ~s|python3 "#{check}"|, manager)
+      end
+    end
+  end
+
+  @tag documentation: true, greenfield: true
+  test "a passing task and a narrow executable check cannot cover missing brief requirements",
+       c do
+    System.put_env("BOSS_AUTOPILOT_MODE", "greenfield_omission")
 
     command =
       ~s|python3 -c "import subprocess,sys; out=subprocess.check_output([sys.executable,'hello.py']); sys.stdout.buffer.write(out); sys.exit(out.strip() != b'hello')"|
 
-    {:ok, _} =
-      Intake.start(c.project.id, Ecto.UUID.generate(), command, "codex", start_manager(c.repo))
+    batch = run_greenfield(c, command, start_manager(c.repo))
+    assert batch.status == "blocked"
+    tasks = Projects.list_spec_entries(c.project.id)
+    assert %{state: "done"} = ordinary = Enum.find(tasks, &(&1.title == "Greeting"))
 
-    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
-    assert %{status: "finished", batch_id: batch} = Intake.latest(c.project.id)
-    assert is_binary(batch)
-    eventually(fn -> Repo.get!(AutopilotBatch, batch).status != "running" end, 3000)
-    assert Repo.get!(AutopilotBatch, batch).status == "completed"
-    assert [%{state: "done", task_id: task}] = Projects.list_spec_entries(c.project.id)
-    delivery = Repo.get_by!(Deliveries.Delivery, task_id: task)
-    assert delivery.status == "done"
+    assert %{state: "needs_input"} =
+             gate = Enum.find(tasks, &(&1.title == "Verify the complete project brief"))
+
+    prior = Repo.get_by!(Deliveries.Delivery, task_id: ordinary.task_id)
     target = git(c.source, ["rev-parse", c.project.base_branch])
-    assert target == delivery.integration_intent["candidate_commit"]
-    refute target == base
-    assert git(c.source, ["rev-parse", "HEAD"]) == base
-    assert git(c.source, ["status", "--porcelain"]) == ""
-    assert git(c.source, ["diff", "--name-only", base, target]) == "hello.py"
-    retained = delivery.integration_intent["path"]
-    assert git(retained, ["rev-parse", "HEAD"]) == target
-    assert git(retained, ["status", "--porcelain"]) == ""
+    assert prior.integration_intent["candidate_commit"] == target
 
-    steps = Deliveries.steps(delivery.id)
-
-    assert Enum.map(steps, &{&1.kind, &1.status}) ==
-             Enum.map(
-               ~w(plan implement snapshot check review publish post_check),
-               &{&1, "finished"}
-             )
-
-    expected_output = Boss.Deliveries.Protocol.digest(%{"stdout" => "hello\n", "stderr" => ""})
-
-    for step <- steps, step.kind in ["check", "post_check"] do
-      assert %{"output_hash" => ^expected_output, "exit_code" => 0, "candidate_commit" => ^target} =
-               step.receipt
-    end
+    steps = Deliveries.steps(Repo.get_by!(Deliveries.Delivery, task_id: gate.task_id).id)
+    check = Enum.find(steps, &(&1.kind == "check"))
+    assert check.receipt["exit_code"] == 0
+    review = Enum.find(steps, &(&1.kind == "review"))
+    assert %{"verdict" => "changes_requested", "issues" => issues} = review.receipt["report"]
+    assert Enum.sort(Enum.map(issues, & &1["criterion"])) == ["S1:L6", "S1:L7"]
+    refute Enum.any?(steps, &(&1.kind == "publish"))
 
     checkout = Path.join(c.root, "published")
     git(c.source, ["worktree", "add", "--detach", checkout, target])
-    assert {"hello\n", 0} = System.cmd("python3", ["hello.py"], cd: checkout)
+    oracle = Path.expand("../fixtures/greenfield_brief_check.py", __DIR__)
+    assert {message, 1} = System.cmd("python3", [oracle], cd: checkout, stderr_to_stdout: true)
+    assert message =~ "['Ada Lovelace']"
+    assert message =~ "['Ada', 'Lovelace']"
+  end
+
+  defp verify_changed_brief(c, checkout, target, old_gate, check, manager) do
+    alias Boss.Projects.{BriefAcceptance, Intake}
+    original = Intake.latest(c.project.id)
+    model_marker = Path.join(c.root, "brief-base")
+    File.rm!(model_marker)
+
+    {:ok, unchanged} =
+      Intake.replan(
+        c.project.id,
+        Ecto.UUID.generate(),
+        check,
+        "codex",
+        false,
+        original.id,
+        manager
+      )
+
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{id: id, status: "failed", reason: reason} = Intake.latest(c.project.id)
+    assert id == unchanged.id
+    assert reason =~ "unchanged"
+    refute File.exists?(model_marker)
+    assert Projects.list_spec_entries(c.project.id) == [old_gate]
+
+    changed = String.replace(@greenfield_brief, "prints hello.", "prints hello exactly once.")
+    File.write!(Path.join(checkout, "docs/product.md"), changed)
+    git(checkout, ["add", "docs/product.md"])
+    git(checkout, ["commit", "-m", "Clarify default greeting"])
+    revised_base = git(checkout, ["rev-parse", "HEAD"])
+    git(c.source, ["update-ref", "refs/heads/" <> c.project.base_branch, revised_base, target])
+
+    {:ok, replanned} =
+      Intake.replan(
+        c.project.id,
+        Ecto.UUID.generate(),
+        check,
+        "codex",
+        false,
+        original.id,
+        manager
+      )
+
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{id: id, status: "finished", batch_id: new_batch} = Intake.latest(c.project.id)
+    assert id == replanned.id
+    refute new_batch == original.batch_id
+    assert File.read!(model_marker) == revised_base
+
+    [old, new] = Projects.list_spec_entries(c.project.id) |> Enum.sort_by(& &1.task_id)
+    assert old == old_gate
+    refute old.task_id == new.task_id
+
+    assert %{documents: %{"docs/product.md" => ^changed}, base_commit: ^revised_base} =
+             BriefAcceptance.get(new.task_id)
+
+    assert %{documents: %{"docs/product.md" => @greenfield_brief}} =
+             BriefAcceptance.get(old.task_id)
+
+    batch = Repo.get!(AutopilotBatch, new_batch)
+    assert {:ok, _} = Autopilot.cancel(c.project.id, new_batch, batch.version, @registry)
+    eventually(fn -> :sys.get_state(manager).active == %{} end)
+  end
+
+  defp run_greenfield(c, check, manager) do
+    alias Boss.Projects.Intake
+    {:ok, _} = Intake.start(c.project.id, Ecto.UUID.generate(), check, "codex", false, manager)
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{status: "finished", batch_id: batch} = Intake.latest(c.project.id)
+    assert is_binary(batch)
+    eventually(fn -> Repo.get!(AutopilotBatch, batch).status != "running" end, 5000)
+    Repo.get!(AutopilotBatch, batch)
   end
 
   @tag documentation: true

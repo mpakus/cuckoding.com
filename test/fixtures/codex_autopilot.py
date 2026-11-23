@@ -20,27 +20,75 @@ if args[-2:] == ["debug", "models"]:
     sys.exit(0)
 prompt = sys.stdin.read()
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
-if os.environ.get("BOSS_AUTOPILOT_MODE") == "greenfield":
-    criterion = "Running hello.py prints hello."
+mode = os.environ.get("BOSS_AUTOPILOT_MODE", "approved")
+if mode.startswith("greenfield"):
+    root = Path(os.environ["BOSS_DELIVERY_FIXTURE"])
+    docs_path = "docs/product.md"
+    brief = Path(docs_path).read_text()
     if schema and schema.name == "intake_schema.json":
         data = json.loads(prompt.split("BOSS project intake input (JSON):\n", 1)[1])
-        assert data["documents"] == {"docs/product.md": "# Greeting\n" + criterion + "\n"}
-        report = {"tasks": [{"id": "greeting", "title": "Greeting", "specification": criterion,
-                             "sources": ["docs/product.md"], "depends_on": [], "acceptance": [criterion]}]}
+        assert data["documents"] == {docs_path: brief}
+        (root / "brief-base").write_text(data["base_commit"])
+        criteria = [line[2:] for line in brief.splitlines() if line.startswith("- ")]
+        assert len(criteria) == 3
+        if mode == "greenfield_omission":
+            criteria = criteria[:1]
+        task = {"id": "greeting", "title": "Greeting", "specification": "\n".join(criteria),
+                "sources": [docs_path], "depends_on": [], "acceptance": criteria}
+        report = {"tasks": [] if mode == "greenfield_empty" else [task]}
     else:
         data = json.loads(prompt.split("BOSS delivery input (JSON):\n", 1)[1])
-        assert data["check_config"]["argv"][:2] == ["python3", "-c"]
+        gate = "Verify the complete project brief" in data["specification"]
+        if gate:
+            assert brief in data["specification"]
         if schema and schema.name == "plan_schema.json":
-            report = {"summary": criterion, "steps": ["Create hello.py"], "acceptance": [criterion],
-                      "file_scopes": None}
+            if gate:
+                assert data["brief_documents"] == {docs_path: brief}
+                criteria = data["brief_criteria"]
+            else:
+                spec_criteria = data["specification"].split("## Acceptance criteria\n")[1]
+                criteria = [line[2:] for line in spec_criteria.split("## Source documents")[0]
+                            .splitlines() if line.startswith("- ")]
+            report = {"summary": "Implement the greeting CLI", "steps": ["Check hello.py"],
+                      "acceptance": criteria, "file_scopes": None}
+        elif schema and schema.name == "resolution_schema.json":
+            assert gate and data["previous_feedback"]["report"]["verdict"] == "changes_requested"
+            report = {"summary": "The named greeting and argument limit need repair.",
+                      "steps": ["Implement argument handling and rerun checks."], "assumptions": [],
+                      "external_action": "The fixture's replacement implementation is unavailable."}
         elif schema:
-            assert data["check_receipt"]["exit_code"] == 0 and "hello.py" in data["diff"]
-            report = {"verdict": "approved", "summary": criterion, "issues": [],
-                      "acceptance": [{"criterion": criterion, "status": "passed",
-                                      "evidence": "Output assertion passed on the candidate."}]}
+            assert data["check_receipt"]["exit_code"] == 0
+            source = data["diff"]
+            failed = set()
+            if gate:
+                assert data["brief_base_commit"] == (root / "brief-base").read_text()
+                source = data["brief_diff"]
+                for criterion in data["plan"]["acceptance"]:
+                    line = brief.splitlines()[int(criterion.split(":L")[1]) - 1]
+                    if "One name argument" in line and "sys.argv[1]" not in source:
+                        failed.add(criterion)
+                    if "Extra arguments" in line and "file=sys.stderr" not in source:
+                        failed.add(criterion)
+            assert "hello.py" in source
+            report = {
+                "verdict": "changes_requested" if failed else "approved",
+                "summary": "Inspected the published-base diff and executable check.",
+                "issues": [{"criterion": c, "message": "Argument handling is missing."}
+                           for c in sorted(failed)],
+                "acceptance": [{"criterion": c, "status": "failed" if c in failed else "passed",
+                                "evidence": "Inspected greeting CLI argument handling and check output."}
+                               for c in data["plan"]["acceptance"]]
+            }
         else:
-            assert not Path("hello.py").exists()
-            Path("hello.py").write_text("print('hello')\n")
+            if not Path("hello.py").exists():
+                script = "print('hello')\n" if mode == "greenfield_omission" else """import sys
+
+if len(sys.argv) > 2:
+    print("usage: hello.py [name]", file=sys.stderr)
+    sys.exit(2)
+print("hello" if len(sys.argv) == 1 else "hello, " + sys.argv[1])
+"""
+                Path("hello.py").write_text(script)
             report = None
     if report is not None:
         Path(args[args.index("--output-last-message") + 1]).write_text(json.dumps(report))
