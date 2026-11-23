@@ -263,7 +263,7 @@ defmodule Boss.AutopilotNativeTest do
   end
 
   for {mode, expected_count} <- [greenfield: 2, greenfield_empty: 1] do
-    @tag documentation: true, greenfield: true
+    @tag documentation: true, greenfield: true, replan: mode == :greenfield_empty
     test "one Markdown file passes independent whole-brief acceptance (#{mode})", c do
       alias Boss.Projects.{BriefAcceptance, Intake}
 
@@ -337,6 +337,10 @@ defmodule Boss.AutopilotNativeTest do
       checkout = Path.join(c.root, "published")
       git(c.source, ["worktree", "add", "--detach", checkout, target])
       assert {^stdout, 0} = System.cmd("python3", [check], cd: checkout)
+
+      if c[:replan] do
+        verify_changed_brief(c, checkout, target, gate, ~s|python3 "#{check}"|, manager)
+      end
     end
   end
 
@@ -374,6 +378,69 @@ defmodule Boss.AutopilotNativeTest do
     assert {message, 1} = System.cmd("python3", [oracle], cd: checkout, stderr_to_stdout: true)
     assert message =~ "['Ada Lovelace']"
     assert message =~ "['Ada', 'Lovelace']"
+  end
+
+  defp verify_changed_brief(c, checkout, target, old_gate, check, manager) do
+    alias Boss.Projects.{BriefAcceptance, Intake}
+    original = Intake.latest(c.project.id)
+    model_marker = Path.join(c.root, "brief-base")
+    File.rm!(model_marker)
+
+    {:ok, unchanged} =
+      Intake.replan(
+        c.project.id,
+        Ecto.UUID.generate(),
+        check,
+        "codex",
+        false,
+        original.id,
+        manager
+      )
+
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{id: id, status: "failed", reason: reason} = Intake.latest(c.project.id)
+    assert id == unchanged.id
+    assert reason =~ "unchanged"
+    refute File.exists?(model_marker)
+    assert Projects.list_spec_entries(c.project.id) == [old_gate]
+
+    changed = String.replace(@greenfield_brief, "prints hello.", "prints hello exactly once.")
+    File.write!(Path.join(checkout, "docs/product.md"), changed)
+    git(checkout, ["add", "docs/product.md"])
+    git(checkout, ["commit", "-m", "Clarify default greeting"])
+    revised_base = git(checkout, ["rev-parse", "HEAD"])
+    git(c.source, ["update-ref", "refs/heads/" <> c.project.base_branch, revised_base, target])
+
+    {:ok, replanned} =
+      Intake.replan(
+        c.project.id,
+        Ecto.UUID.generate(),
+        check,
+        "codex",
+        false,
+        original.id,
+        manager
+      )
+
+    eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
+    assert %{id: id, status: "finished", batch_id: new_batch} = Intake.latest(c.project.id)
+    assert id == replanned.id
+    refute new_batch == original.batch_id
+    assert File.read!(model_marker) == revised_base
+
+    [old, new] = Projects.list_spec_entries(c.project.id) |> Enum.sort_by(& &1.task_id)
+    assert old == old_gate
+    refute old.task_id == new.task_id
+
+    assert %{documents: %{"docs/product.md" => ^changed}, base_commit: ^revised_base} =
+             BriefAcceptance.get(new.task_id)
+
+    assert %{documents: %{"docs/product.md" => @greenfield_brief}} =
+             BriefAcceptance.get(old.task_id)
+
+    batch = Repo.get!(AutopilotBatch, new_batch)
+    assert {:ok, _} = Autopilot.cancel(c.project.id, new_batch, batch.version, @registry)
+    eventually(fn -> :sys.get_state(manager).active == %{} end)
   end
 
   defp run_greenfield(c, check, manager) do
