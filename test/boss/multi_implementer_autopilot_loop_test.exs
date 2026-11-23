@@ -8,7 +8,7 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
   alias Boss.Projects.{RoleBindings, TaskPrompt}
   alias Boss.Tasks.Entries
 
-  setup %{conn: conn} do
+  setup %{conn: conn} = context do
     root =
       Path.join(
         System.tmp_dir!(),
@@ -50,7 +50,7 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
         root_path: root,
         specs_path: "docs",
         base_branch: "main",
-        intake_mode: "documentation"
+        intake_mode: if(context[:files], do: "specs", else: "documentation")
       })
 
     seed_authorized_agents()
@@ -190,6 +190,105 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
     assert loop_cfg.parent_autopilot_id == batch.id
     assert Repo.get!(AutopilotBatch, batch.id).status == "blocked"
   end
+
+  @tag files: true
+  test "file-backed rework keeps original bytes and the watcher follows real edits", c do
+    {file, text, task, delivery} = blocked_file(c)
+    assert rework(c.project, delivery) == [task.id]
+    assert File.read!(file) == text
+    [original, refined] = Projects.list_spec_revisions(task.spec_id)
+    assert String.starts_with?(refined.original_text, original.original_text)
+    assert refined.original_text =~ "Reviewer Spec Refinement"
+    assert Tasks.get_task!(task.id).spec_revision_id == refined.id
+    assert {:ok, %{revised: 0}} = Projects.SpecImporter.sync(c.project.id)
+
+    File.write!(Path.join(c.docs_dir, "unrelated.md"), "# Another task")
+    assert {:ok, %{created: 1, revised: 0}} = Projects.SpecImporter.sync(c.project.id)
+    assert [^original, ^refined] = Projects.list_spec_revisions(task.spec_id)
+
+    File.write!(file, refined.original_text)
+    assert {:ok, %{revised: 1}} = Projects.SpecImporter.sync(c.project.id)
+    File.write!(file, text)
+    assert {:ok, %{revised: 1}} = Projects.SpecImporter.sync(c.project.id)
+    File.rename!(file, Path.join(c.docs_dir, "renamed.md"))
+    assert {:ok, %{revised: 1}} = Projects.SpecImporter.sync(c.project.id)
+
+    assert [^original, ^refined, observed, reverted, moved] =
+             Projects.list_spec_revisions(task.spec_id)
+
+    assert observed.original_text == refined.original_text
+    assert reverted.original_text == moved.original_text and moved.original_text == text
+    assert moved.relative_path == "renamed.md"
+    pinned = Tasks.get_task!(task.id)
+    assert pinned.spec_revision_id == refined.id
+
+    assert {:ok, _} =
+             Tasks.transition(task.id, %{
+               action: "adopt_revision",
+               project_id: c.project.id,
+               spec_revision_id: moved.id,
+               expected_version: pinned.state_version,
+               command_id: Ecto.UUID.generate()
+             })
+
+    assert Tasks.get_task!(task.id).spec_revision_id == moved.id
+  end
+
+  @tag files: true
+  test "a newer work file or imported revision survives stale review feedback", c do
+    {path, old, task, delivery} = blocked_file(c)
+    newer = old <> "Owner changed the requirement."
+    File.write!(path, newer)
+    assert rework(c.project, delivery) == []
+    assert File.read!(path) == newer
+    assert [_] = Projects.list_spec_revisions(task.spec_id)
+    assert {:ok, %{revised: 1}} = Projects.SpecImporter.sync(c.project.id)
+    File.write!(path, old)
+    assert rework(c.project, delivery) == []
+    assert File.read!(path) == old
+    assert [_, latest] = Projects.list_spec_revisions(task.spec_id)
+    assert latest.original_text == newer
+    assert Tasks.get_task!(task.id).state == "blocked"
+    refute Enum.any?(Entries.list_for_task(c.project.id, task.id), &(&1.stage == "spec_rework"))
+  end
+
+  @tag files: true
+  test "failed rework receipt rolls back adoption, derived source and revision", c do
+    {file, text, task, delivery} = blocked_file(c)
+    Repo.query!("ALTER TABLE task_entries RENAME TO unavailable_task_entries")
+    assert {:error, :spec_rework_failed} = rework(c.project, delivery)
+    assert File.read!(file) == text
+    assert [original] = Projects.list_spec_revisions(task.spec_id)
+    assert original.id == task.spec_revision_id
+    assert Tasks.get_task!(task.id).state == "blocked"
+    assert Repo.query!("SELECT COUNT(*) FROM spec_rework_revisions").rows == [[0]]
+  end
+
+  defp blocked_file(c) do
+    file = Path.join(c.docs_dir, "customer.md")
+
+    source =
+      "---\r\nid: customer\r\ntitle: Owner title\r\npriority: high # preserve\r\n---\r\n# Contract\r\n\r\nExact content  \r\n"
+
+    File.write!(file, source)
+    assert {:ok, _} = Projects.SpecImporter.sync(c.project.id)
+
+    entry =
+      Enum.find(Projects.list_spec_entries(c.project.id), &(&1.relative_path == "customer.md"))
+
+    task = Tasks.get_task!(entry.task_id)
+    {:ok, {:new, d}} = Deliveries.admit(c.project.id, task.id, Ecto.UUID.generate(), "")
+    {:ok, blocked} = Deliveries.complete(d.id, "blocked", "Add a rate-limit header.")
+    {file, source, task, blocked}
+  end
+
+  defp rework(project, delivery),
+    do:
+      Boss.Deliveries.SpecRework.refine_settled_deliveries(
+        project.id,
+        [{nil, nil, delivery, nil}],
+        1
+      )
 
   test "TaskPrompt includes docs/ directory index and UI offers Multi-Implementer Pool, docs presets & animated board",
        c do

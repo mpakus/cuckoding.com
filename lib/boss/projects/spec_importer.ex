@@ -28,7 +28,14 @@ defmodule Boss.Projects.SpecImporter do
 
              try do
                result =
-                 Repo.transaction(fn -> scan_and_apply(project_id, settle_ms) end,
+                 Repo.transaction(
+                   fn ->
+                     try do
+                       scan_and_apply(project_id, settle_ms)
+                     catch
+                       {:invalid_spec_scan, issues} -> Repo.rollback(issues)
+                     end
+                   end,
                    mode: :immediate
                  )
 
@@ -107,7 +114,7 @@ defmodule Boss.Projects.SpecImporter do
 
   defp current_snapshot(project_id) do
     latest =
-      from r in SpecRevision,
+      from r in SpecRevision.file_observations(),
         group_by: r.spec_id,
         select: %{spec_id: r.spec_id, number: max(r.number)}
 
@@ -206,6 +213,47 @@ defmodule Boss.Projects.SpecImporter do
     if length(state.files) >= 256,
       do: fail(relative, "Specs exceed the limit of 256 Markdown files.")
 
+    text = read_contents(project, relative, before)
+
+    bytes = state.bytes + byte_size(text)
+    if bytes > @total_bytes, do: fail(relative, "Specs exceed the total size limit of 8 MiB.")
+
+    attrs =
+      case SpecDocument.parse(relative, text) do
+        {:ok, attrs} -> attrs
+        {:error, message} -> fail(relative, message)
+      end
+
+    input =
+      case Spec.changeset(project.id, attrs) |> Ecto.Changeset.apply_action(:insert) do
+        {:ok, input} -> input
+        {:error, changeset} -> fail(relative, changeset_message(changeset))
+      end
+
+    if MapSet.member?(state.keys, input.identity_key),
+      do: fail(relative, "Duplicate spec ID in this scan.")
+
+    %{
+      state
+      | bytes: bytes,
+        files: [{attrs, input} | state.files],
+        keys: MapSet.put(state.keys, input.identity_key)
+    }
+  end
+
+  @doc false
+  def current_file?(project, %SpecRevision{} = observed) do
+    validate_root(project)
+    path = Path.join(project.specs_path, observed.relative_path)
+    stat = lstat(path, observed.relative_path)
+
+    stat.type == :regular and stat.size == byte_size(observed.original_text) and
+      read_contents(project, observed.relative_path, stat) == observed.original_text
+  catch
+    {:invalid_spec_scan, _issues} -> false
+  end
+
+  defp read_contents(project, relative, before) do
     if before.size > @file_bytes, do: fail(relative, "Spec exceeds the limit of 1 MiB.")
     path = Path.join(project.specs_path, relative)
     validate_parent(project, path, relative)
@@ -232,36 +280,10 @@ defmodule Boss.Projects.SpecImporter do
         text
       end)
 
-    text =
-      case result do
-        {:ok, text} -> text
-        {:error, reason} -> fail(relative, to_string(:file.format_error(reason)))
-      end
-
-    bytes = state.bytes + byte_size(text)
-    if bytes > @total_bytes, do: fail(relative, "Specs exceed the total size limit of 8 MiB.")
-
-    attrs =
-      case SpecDocument.parse(relative, text) do
-        {:ok, attrs} -> attrs
-        {:error, message} -> fail(relative, message)
-      end
-
-    input =
-      case Spec.changeset(project.id, attrs) |> Ecto.Changeset.apply_action(:insert) do
-        {:ok, input} -> input
-        {:error, changeset} -> fail(relative, changeset_message(changeset))
-      end
-
-    if MapSet.member?(state.keys, input.identity_key),
-      do: fail(relative, "Duplicate spec ID in this scan.")
-
-    %{
-      state
-      | bytes: bytes,
-        files: [{attrs, input} | state.files],
-        keys: MapSet.put(state.keys, input.identity_key)
-    }
+    case result do
+      {:ok, text} -> text
+      {:error, reason} -> fail(relative, to_string(:file.format_error(reason)))
+    end
   end
 
   defp validate_root(project) do
@@ -305,5 +327,5 @@ defmodule Boss.Projects.SpecImporter do
       Enum.map_join(changeset.errors, "; ", fn {field, {message, _}} -> "#{field} #{message}" end)
 
   defp errors(path, message), do: [%{path: if(path == "", do: ".", else: path), message: message}]
-  defp fail(path, message), do: Repo.rollback(errors(path, message))
+  defp fail(path, message), do: throw({:invalid_spec_scan, errors(path, message)})
 end

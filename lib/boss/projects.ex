@@ -24,9 +24,11 @@ defmodule Boss.Projects do
          {:ok, source} <- Ecto.Changeset.apply_action(source_changeset, :insert) do
       Repo.transaction(
         fn ->
-          unless Repo.get(Project, input.project_id) do
-            Repo.rollback(Ecto.Changeset.add_error(spec_changeset, :project_id, "does not exist"))
-          end
+          project =
+            Repo.get(Project, input.project_id) ||
+              Repo.rollback(
+                Ecto.Changeset.add_error(spec_changeset, :project_id, "does not exist")
+              )
 
           spec = Repo.get_by(Spec, project_id: input.project_id, identity_key: input.identity_key)
 
@@ -57,22 +59,19 @@ defmodule Boss.Projects do
               spec
             end
 
-          latest =
-            Repo.one(
-              from r in SpecRevision,
-                where: r.spec_id == ^spec.id,
-                order_by: [desc: r.number],
-                limit: 1
-            )
+          latest = SpecRevision.latest(spec.id)
+
+          observed =
+            if project.intake_mode == "specs", do: SpecRevision.file_source(latest), else: latest
 
           unchanged? =
-            latest && latest.content_hash == source.content_hash &&
-              latest.original_text == source.original_text &&
-              latest.relative_path == spec.relative_path
+            observed && observed.content_hash == source.content_hash &&
+              observed.original_text == source.original_text &&
+              observed.relative_path == spec.relative_path
 
           revision =
             if unchanged? do
-              latest
+              observed
             else
               source_changeset
               |> Ecto.Changeset.change(

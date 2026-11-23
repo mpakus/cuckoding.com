@@ -9,8 +9,8 @@ defmodule Boss.Deliveries.SpecRework do
   """
   alias Boss.{Deliveries, Projects, Repo, Tasks}
   alias Boss.Deliveries.{Delivery, Step}
-  alias Boss.Projects.{Project, Repository, Spec, SpecDocument, SpecRevision}
-  alias Boss.Tasks.{Entries, Revisions, Task}
+  alias Boss.Projects.{BriefAcceptance, Project, Spec, SpecDocument, SpecImporter, SpecRevision}
+  alias Boss.Tasks.{Entries, Event, Revisions, Task}
 
   @max_spec_bytes 24_000
 
@@ -21,20 +21,23 @@ defmodule Boss.Deliveries.SpecRework do
   """
   def refine_settled_deliveries(project_id, entries, pass_number)
       when is_integer(project_id) and is_list(entries) and is_integer(pass_number) do
-    project = Repo.get(Project, project_id)
+    run = fn ->
+      project = Repo.get(Project, project_id)
 
-    if is_nil(project) do
-      []
+      for {_item, _request, %Delivery{id: id}, _task} <- entries,
+          %Delivery{} = delivery <- [Repo.get_by(Delivery, id: id, project_id: project_id)],
+          {:ok, task_id} <- [maybe_rework_delivery(project, delivery, pass_number)],
+          uniq: true,
+          do: task_id
+    end
+
+    if Repo.in_transaction?() do
+      run.()
     else
-      entries
-      |> Enum.reduce([], fn {_item, _request, delivery, _task}, acc ->
-        case maybe_rework_delivery(project, delivery, pass_number) do
-          {:ok, task_id} -> [task_id | acc]
-          _ -> acc
-        end
-      end)
-      |> Enum.reverse()
-      |> Enum.uniq()
+      case Repo.transaction(run, mode: :immediate) do
+        {:ok, reworked} -> reworked
+        {:error, _reason} = error -> error
+      end
     end
   end
 
@@ -44,40 +47,61 @@ defmodule Boss.Deliveries.SpecRework do
            status: status,
            cleanup: "group_empty",
            integration_command_id: nil,
-           failure_code: nil
+           failure_code: nil,
+           spec_revision_id: pin_id
          } = delivery,
          pass_number
        )
        when status in ~w(blocked needs_input) do
-    with %Task{state: task_state} = task when task_state in ~w(blocked needs_input) <-
+    with %Task{state: ^status, spec_revision_id: ^pin_id} = task <-
            Repo.get(Task, delivery.task_id),
-         false <- Projects.Documentation.reference_only?(task.id),
-         %Spec{} = spec <- Repo.get(Spec, task.spec_id),
-         %SpecRevision{} = pinned <- Repo.get(SpecRevision, task.spec_revision_id),
+         nil <- BriefAcceptance.get(task.id),
+         %Event{} <-
+           Repo.get_by(Event,
+             task_id: task.id,
+             version: task.state_version,
+             command_id: "#{delivery.id}:complete:#{status}",
+             spec_revision_id: pin_id
+           ),
+         %Spec{missing: false} = spec <- Repo.get(Spec, task.spec_id),
+         %SpecRevision{id: ^pin_id} = pinned <- SpecRevision.latest(spec.id),
+         {:ok, source} <- source_for_rework(project, pinned),
          {:ok, notes} <- extract_rework_notes(delivery),
-         {:ok, updated_text} <-
-           build_refined_markdown(spec, pinned, task.title, notes, pass_number),
-         :ok <- maybe_write_spec_file(project, spec, updated_text),
-         {:ok, %{revision: new_rev}} <-
-           Projects.record_spec(project.id, spec_attrs(spec, task.title, updated_text)),
-         true <- Revisions.status(task, spec, pinned, new_rev).available?,
-         {:ok, _event} <-
-           Tasks.transition(task.id, %{
-             action: "adopt_revision",
-             project_id: project.id,
-             spec_revision_id: new_rev.id,
-             expected_version: task.state_version,
-             command_id: "#{delivery.id}:spec_rework:#{pass_number}"
-           }) do
-      Entries.add_comment(project.id, task.id, %{
-        author_role: "reviewer",
-        author_agent: delivery.reviewer,
-        kind: "spec_update",
-        stage: "spec_rework",
-        delivery_id: delivery.id,
-        body:
-          "Reviewer refined specification (revision #{new_rev.number}, loop #{pass_number}) and returned task to Backlog: #{notes.headline}"
-      })
+         {:ok, updated_text} <- build_refined_markdown(project, spec, pinned, notes, pass_number),
+         target = %{pinned | number: pinned.number + 1, original_text: updated_text},
+         %{available?: true} <- Revisions.status(task, spec, pinned, target) do
+      %{revision: revision} =
+        persist!(Projects.record_spec(project.id, spec_attrs(spec, task.title, updated_text)))
+
+      if source do
+        {1, _} =
+          Repo.insert_all("spec_rework_revisions", [
+            %{revision_id: revision.id, source_revision_id: source.id}
+          ])
+      end
+
+      persist!(
+        Tasks.transition(task.id, %{
+          action: "adopt_revision",
+          project_id: project.id,
+          spec_revision_id: revision.id,
+          expected_version: task.state_version,
+          command_id: "#{delivery.id}:spec_rework:#{pass_number}"
+        })
+      )
+
+      persist!(
+        Entries.add_comment(project.id, task.id, %{
+          author_role: "reviewer",
+          agent_id: delivery.reviewer,
+          kind: "spec_update",
+          stage: "spec_rework",
+          delivery_id: delivery.id,
+          spec_revision_id: revision.id,
+          body:
+            "Reviewer refined specification (revision #{revision.number}, loop #{pass_number}) and returned task to Backlog: #{notes.headline}"
+        })
+      )
 
       {:ok, task.id}
     else
@@ -86,6 +110,16 @@ defmodule Boss.Deliveries.SpecRework do
   end
 
   defp maybe_rework_delivery(_, _, _), do: :skip
+
+  defp persist!({:ok, value}), do: value
+  defp persist!({:error, _reason}), do: Repo.rollback(:spec_rework_failed)
+
+  defp source_for_rework(%Project{intake_mode: "documentation"}, _pinned), do: {:ok, nil}
+
+  defp source_for_rework(project, pinned) do
+    source = SpecRevision.file_source(pinned)
+    if SpecImporter.current_file?(project, source), do: {:ok, source}, else: :skip
+  end
 
   defp extract_rework_notes(%Delivery{} = delivery) do
     steps = Deliveries.steps(delivery.id)
@@ -223,64 +257,35 @@ defmodule Boss.Deliveries.SpecRework do
 
   defp extract_resolve_advice(_), do: []
 
-  defp build_refined_markdown(spec, pinned, title, notes, pass_number) do
-    explicit_id =
-      case spec.identity_key do
-        "id:" <> id when id != "" -> id
-        _ -> nil
-      end
+  defp build_refined_markdown(project, spec, pinned, notes, pass_number) do
+    source = source_with_identity(project, spec, pinned.original_text)
+    bullets = Enum.map_join(notes.bullets, "\n", &("- " <> &1))
+    full = source <> "\n\n## Reviewer Spec Refinement (Loop #{pass_number})\n" <> bullets <> "\n"
 
-    deps =
-      case SpecDocument.parse(spec.relative_path, pinned.original_text) do
-        {:ok, parsed} -> Map.get(parsed, :depends_on) || []
-        _ -> []
-      end
+    if byte_size(full) <= @max_spec_bytes, do: {:ok, full}, else: {:error, :spec_too_large}
+  end
 
-    body = strip_frontmatter(pinned.original_text, title)
-    bullet_lines = Enum.map_join(notes.bullets, "\n", &("- " <> &1))
+  # Intake originally assigned generated task IDs outside their Markdown.
+  defp source_with_identity(
+         %Project{intake_mode: "documentation"},
+         %Spec{identity_key: "id:" <> id} = spec,
+         text
+       ) do
+    case SpecDocument.parse(spec.relative_path, text) do
+      {:ok, attrs} when not is_map_key(attrs, :explicit_id) ->
+        id_line = "id: #{JSON.encode!(id)}\n"
 
-    refinement_section = """
+        case Regex.run(~r/\A(?:\x{FEFF})?---[ \t]*\r?\n/u, text) do
+          [opening] -> opening <> id_line <> String.replace_prefix(text, opening, "")
+          nil -> "---\n" <> id_line <> "---\n" <> text
+        end
 
-    ## Reviewer Spec Refinement (Loop #{pass_number})
-    #{bullet_lines}
-    """
-
-    id_line = if is_binary(explicit_id), do: "id: #{JSON.encode!(explicit_id)}\n", else: ""
-
-    deps_line =
-      if is_list(deps),
-        do: "depends_on: #{JSON.encode!(deps)}\n",
-        else: ""
-
-    frontmatter =
-      if id_line != "" or deps_line != "" do
-        "---\n#{id_line}#{deps_line}---\n"
-      else
-        ""
-      end
-
-    full = frontmatter <> String.trim_trailing(body) <> "\n" <> refinement_section
-
-    if byte_size(full) <= @max_spec_bytes do
-      {:ok, full}
-    else
-      {:error, :spec_too_large}
+      _ ->
+        text
     end
   end
 
-  defp strip_frontmatter(text, fallback_title) when is_binary(text) do
-    stripped =
-      case Regex.run(~r/\A---\r?\n.*?\r?\n---\r?\n(.*)\z/s, text) do
-        [_, rest] -> String.trim_leading(rest)
-        _ -> text
-      end
-
-    if String.starts_with?(stripped, "# ") do
-      stripped
-    else
-      "# #{fallback_title}\n\n" <> stripped
-    end
-  end
+  defp source_with_identity(_project, _spec, text), do: text
 
   defp spec_attrs(spec, title, text) do
     base = %{
@@ -294,23 +299,6 @@ defmodule Boss.Deliveries.SpecRework do
       _ -> base
     end
   end
-
-  defp maybe_write_spec_file(
-         %Project{intake_mode: "specs"} = project,
-         %{missing: false} = spec,
-         text
-       ) do
-    with {:ok, specs_root} <- Repository.specs_directory(project.root_path, project.specs_path),
-         full <- Path.join(specs_root, spec.relative_path),
-         {:ok, %{type: :regular}} <- File.lstat(full),
-         :ok <- File.write(full, text) do
-      :ok
-    else
-      _ -> {:error, :spec_file_unavailable}
-    end
-  end
-
-  defp maybe_write_spec_file(_, _, _), do: :ok
 
   defp sanitize_line(text, limit) when is_binary(text) do
     text

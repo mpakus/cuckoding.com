@@ -3,7 +3,7 @@ defmodule Boss.Tasks.Revisions do
 
   import Ecto.Query
   alias Boss.Repo
-  alias Boss.Projects.{Spec, SpecDocument, SpecRevision}
+  alias Boss.Projects.{BriefAcceptance, Spec, SpecDocument, SpecRevision}
   alias Boss.Runs.Run
   alias Boss.Deliveries.Delivery
 
@@ -58,6 +58,9 @@ defmodule Boss.Tasks.Revisions do
 
       target.spec_id != task.spec_id or target.number <= pinned.number ->
         {:error, :revision_unavailable}
+
+      BriefAcceptance.get(task.id) != nil ->
+        {:error, :brief_revision_pinned}
 
       Boss.Deliveries.Queue.pending?(task.id) ->
         {:error, :busy}
