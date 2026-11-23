@@ -6,16 +6,90 @@ defmodule Boss.Projects.Intake do
   alias Boss.Projects.{Project, Spec}
   alias Boss.Projects.Intake.{Attempts, Planner, Request}
 
-  def start(project, command, text, reviewer, server \\ Runs.Manager),
-    do: GenServer.call(server, {:project_intake_start, project, command, text, reviewer}, 10_000)
+  def start(project, command, text, reviewer, server_or_loop \\ Runs.Manager)
+
+  def start(project, command, text, reviewer, spec_loop) when is_boolean(spec_loop),
+    do: start(project, command, text, reviewer, spec_loop, Runs.Manager)
+
+  def start(project, command, text, reviewer, server),
+    do: start(project, command, text, reviewer, nil, server)
+
+  def start(project, command, text, reviewer, spec_loop, server),
+    do:
+      GenServer.call(
+        server,
+        {:project_intake_start, project, command, text, reviewer, spec_loop, nil},
+        10_000
+      )
+
+  def replan(
+        project,
+        command,
+        text,
+        reviewer,
+        spec_loop,
+        previous_intake_id,
+        server \\ Runs.Manager
+      )
+      when is_boolean(spec_loop) and is_binary(previous_intake_id) do
+    GenServer.call(
+      server,
+      {:project_intake_start, project, command, text, reviewer, spec_loop, previous_intake_id},
+      10_000
+    )
+  end
 
   def latest(project) do
+    from(r in Request, where: r.project_id == ^project, order_by: [desc: r.inserted_at], limit: 1)
+    |> read_request()
+    |> with_brief_status()
+  end
+
+  defp with_brief_status(nil), do: nil
+  defp with_brief_status(%Request{start_policy: nil} = request), do: request
+
+  defp with_brief_status(request) do
+    brief_task =
+      Repo.one(
+        from a in "project_brief_tasks",
+          join: t in Boss.Tasks.Task,
+          on: t.id == a.task_id,
+          where: a.intake_id == ^request.id,
+          select: %{id: t.id, state: t.state}
+      )
+
+    %{request | replan_source_id: replan_source(request.project_id), brief_task: brief_task}
+  end
+
+  defp replan_source(project) do
     Repo.one(
-      from r in Request,
-        where: r.project_id == ^project,
-        order_by: [desc: r.inserted_at],
-        limit: 1
+      from v in "project_brief_replan_sources",
+        where: v.project_id == ^project,
+        select: v.intake_id
     )
+  end
+
+  def policy(id) do
+    request = read_request(from r in Request, where: r.id == ^id)
+
+    case request && request.start_policy do
+      nil ->
+        nil
+
+      %{"version" => 1, "spec_loop" => loop, "parallel" => parallel} ->
+        %{version: 1, spec_loop: loop, parallel: parallel}
+    end
+  end
+
+  defp read_request(query) do
+    if policy_schema?(),
+      do: Repo.one(from r in query, select_merge: %{start_policy: r.start_policy}),
+      else: Repo.one(query)
+  end
+
+  defp policy_schema? do
+    Repo.query!("SELECT 1 FROM pragma_table_info('project_intakes') WHERE name='start_policy'").rows !=
+      []
   end
 
   def attempts(id), do: Attempts.list(id)
@@ -59,23 +133,38 @@ defmodule Boss.Projects.Intake do
   end
 
   @doc false
-  def batch_allowed?(nil, _, _, _, _, _), do: not busy?()
+  def batch_allowed?(id, project, command, config, hash, reviewer, opts \\ [])
+  def batch_allowed?(nil, _, _, _, _, _, _), do: not busy?()
 
-  def batch_allowed?(id, project, command, config, hash, reviewer) do
-    Repo.exists?(
-      from r in Request,
-        where:
-          r.id == ^id and r.project_id == ^project and r.command_id == ^command and
-            r.check_config == ^config and r.config_hash == ^hash and r.reviewer == ^reviewer and
-            r.status == "planning" and not r.stop_requested and
-            (r.planning_version == 0 or
-               fragment(
-                 "EXISTS (SELECT 1 FROM project_intake_attempts a WHERE a.request_id=? AND a.status='finished' AND a.source_base=json_extract(?, '$.base_commit') AND a.number=(SELECT max(number) FROM project_intake_attempts WHERE request_id=?))",
-                 r.id,
-                 r.workspace,
-                 r.id
-               ))
-    )
+  def batch_allowed?(id, project, command, config, hash, reviewer, opts) do
+    authorized =
+      case policy(id) do
+        nil ->
+          true
+
+        %{parallel: parallel, spec_loop: loop} ->
+          Keyword.get(opts, :parallel, false) == parallel and
+            Keyword.get(opts, :spec_loop, false) == loop and
+            Keyword.get(opts, :max_passes, 2) == 2 and
+            Keyword.get(opts, :loop_pass, 1) == 1 and
+            Keyword.get(opts, :parent_autopilot_id) == nil
+      end
+
+    authorized and
+      Repo.exists?(
+        from r in Request,
+          where:
+            r.id == ^id and r.project_id == ^project and r.command_id == ^command and
+              r.check_config == ^config and r.config_hash == ^hash and r.reviewer == ^reviewer and
+              r.status == "planning" and not r.stop_requested and
+              (r.planning_version == 0 or
+                 fragment(
+                   "EXISTS (SELECT 1 FROM project_intake_attempts a WHERE a.request_id=? AND a.status='finished' AND a.source_base=json_extract(?, '$.base_commit') AND a.number=(SELECT max(number) FROM project_intake_attempts WHERE request_id=?))",
+                   r.id,
+                   r.workspace,
+                   r.id
+                 ))
+      )
   end
 
   def quarantined?, do: Repo.exists?(from r in Request, where: r.cleanup == "unknown")
@@ -83,20 +172,56 @@ defmodule Boss.Projects.Intake do
   def busy?,
     do: Repo.exists?(from r in Request, where: r.status == "planning" or r.cleanup == "unknown")
 
-  def admit(project, command, text, reviewer, owned) do
-    with true <-
+  def admit(project, command, text, reviewer, owned, spec_loop \\ nil, previous_intake_id \\ nil) do
+    with true <- is_nil(spec_loop) or is_boolean(spec_loop),
+         true <-
+           is_nil(previous_intake_id) or
+             match?({:ok, ^previous_intake_id}, Ecto.UUID.cast(previous_intake_id)),
+         true <-
            is_integer(project) and project > 0 and Boss.Agents.Metadata.review_runner?(reviewer),
          {:ok, ^command} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text) do
       transaction(fn ->
-        case Repo.get_by(Request, project_id: project, command_id: command) do
+        case read_request(
+               from r in Request, where: r.project_id == ^project and r.command_id == ^command
+             ) do
           %Request{check_config: ^config, config_hash: ^hash, reviewer: ^reviewer} = request ->
-            {:existing, request}
+            matches =
+              case request.start_policy do
+                nil ->
+                  is_nil(spec_loop) and is_nil(previous_intake_id)
+
+                %{"spec_loop" => saved} = policy ->
+                  saved == (spec_loop || false) and
+                    policy["previous_intake_id"] == previous_intake_id
+              end
+
+            if matches, do: {:existing, request}, else: Repo.rollback(:idempotency_conflict)
 
           %Request{} ->
             Repo.rollback(:idempotency_conflict)
 
           nil ->
+            start_policy =
+              cond do
+                policy_schema?() ->
+                  if Boss.Checks.Command.spec_only?(config),
+                    do: Repo.rollback(:brief_check_required)
+
+                  %{
+                    "version" => 1,
+                    "spec_loop" => spec_loop || false,
+                    "previous_intake_id" => previous_intake_id,
+                    "parallel" => Projects.RoleBindings.implementer_pool_size(project) > 1
+                  }
+
+                is_nil(spec_loop) and is_nil(previous_intake_id) ->
+                  nil
+
+                true ->
+                  Repo.rollback(:storage_error)
+              end
+
             unless match?(%Project{intake_mode: "documentation"}, Repo.get(Project, project)),
               do: Repo.rollback(:invalid_project)
 
@@ -110,19 +235,7 @@ defmodule Boss.Projects.Intake do
                  ),
                do: Repo.rollback(:busy)
 
-            if Repo.exists?(
-                 from r in Request, where: r.project_id == ^project and r.status == "finished"
-               ) or
-                 Repo.exists?(
-                   from s in Spec,
-                     where:
-                       s.project_id == ^project and
-                         fragment(
-                           "NOT EXISTS (SELECT 1 FROM project_documentation_sources refs WHERE refs.spec_id=?)",
-                           s.id
-                         )
-                 ),
-               do: Repo.rollback(:already_planned)
+            ensure_plannable!(project, previous_intake_id)
 
             {:new,
              Repo.insert!(%Request{
@@ -135,6 +248,7 @@ defmodule Boss.Projects.Intake do
                autonomy_version: Boss.Deliveries.ModelPolicy.current(),
                routing_version: Boss.Deliveries.ModelPolicy.current_routing(),
                planning_version: 1,
+               start_policy: start_policy,
                check_text: text
              })}
         end
@@ -142,6 +256,24 @@ defmodule Boss.Projects.Intake do
     else
       _ -> {:error, :invalid_command}
     end
+  end
+
+  defp ensure_plannable!(project, nil) do
+    if Repo.exists?(from r in Request, where: r.project_id == ^project and r.status == "finished") or
+         Repo.exists?(
+           from s in Spec,
+             where:
+               s.project_id == ^project and
+                 fragment(
+                   "NOT EXISTS (SELECT 1 FROM project_documentation_sources refs WHERE refs.spec_id=?)",
+                   s.id
+                 )
+         ),
+       do: Repo.rollback(:already_planned)
+  end
+
+  defp ensure_plannable!(project, previous_intake_id) do
+    unless replan_source(project) == previous_intake_id, do: Repo.rollback(:replan_unavailable)
   end
 
   def pin(id, workspace) do
@@ -281,9 +413,9 @@ defmodule Boss.Projects.Intake do
     end
   end
 
-  defp commit_plan(id, %{workspace: workspace, tasks: tasks}) do
+  defp commit_plan(id, %{workspace: workspace, tasks: tasks} = result) do
     transaction(fn ->
-      request = Repo.get!(Request, id)
+      request = read_request(from r in Request, where: r.id == ^id)
 
       unless request.status == "planning" and request.workspace == workspace,
         do: Repo.rollback(:invalid_intent)
@@ -292,11 +424,19 @@ defmodule Boss.Projects.Intake do
       accepted = Attempts.verified!(request, tasks)
 
       namespace =
-        if Boss.Projects.Documentation.latest(request.project_id),
-          do: "intake-#{request.id}-",
-          else: ""
+        if get_in(request.start_policy, ["previous_intake_id"]) ||
+             Boss.Projects.Documentation.latest(request.project_id),
+           do: "intake-#{request.id}-",
+           else: ""
 
       ids = Enum.map(tasks, &record_task!(request.project_id, workspace, &1, namespace))
+
+      policy = policy(id)
+
+      ids =
+        if policy,
+          do: Projects.BriefAcceptance.append!(request, result, tasks, ids, namespace),
+          else: ids
 
       case ids do
         [] ->
@@ -308,9 +448,14 @@ defmodule Boss.Projects.Intake do
 
         _ ->
           loop_opts =
-            if Boss.Projects.RoleBindings.implementer_pool_size(request.project_id) > 1,
-              do: [parallel: true, spec_loop: true],
-              else: []
+            case policy do
+              %{parallel: parallel, spec_loop: loop} ->
+                [parallel: parallel, spec_loop: loop]
+
+              nil ->
+                parallel = Projects.RoleBindings.implementer_pool_size(request.project_id) > 1
+                [parallel: parallel, spec_loop: parallel]
+            end
 
           with {:ok, batch} <-
                  Autopilot.admit(
@@ -390,6 +535,9 @@ defmodule Boss.Projects.Intake do
       end
     end)
   end
+
+  defp message(:brief_unchanged),
+    do: "The committed documentation is unchanged from the last completed brief."
 
   defp message(:cleanup_unknown),
     do: "Planning stopped without a verified cleanup receipt. Inspect the retained workspace."

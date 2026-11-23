@@ -5,6 +5,9 @@ defmodule Boss.Projects.Intake.Request do
   schema "project_intakes" do
     belongs_to :project, Boss.Projects.Project
     field :command_id, :string
+    field :replan_source_id, :string, virtual: true
+    field :brief_task, :map, virtual: true
+    field :start_policy, :map, load_in_query: false, writable: :insert
     field :check_text, :string
     field :check_config, :map
     field :config_hash, :string
