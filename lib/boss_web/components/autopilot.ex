@@ -648,7 +648,7 @@ defmodule BossWeb.Autopilot do
       "Another execution is active, another Autopilot is running or paused, or previous process cleanup is unconfirmed. Review the affected task or Autopilot; waiting or restarting does not clear unconfirmed cleanup."
 
   defp error(:replan_unavailable),
-    do: "Replanning requires a completed documentation batch with every executable task Done."
+    do: "Replanning requires a verified whole-brief delivery with every executable task Done."
 
   defp error(:brief_check_required),
     do:

@@ -65,8 +65,12 @@ defmodule Boss.Repo.Migrations.PinDocumentationStart do
     SELECT i.id AS intake_id, i.project_id FROM project_intakes i
     JOIN projects p ON p.id=i.project_id AND p.intake_mode='documentation'
     JOIN project_brief_tasks a ON a.intake_id=i.id
-    JOIN autopilots b ON b.id=i.batch_id AND b.status='completed'
+    JOIN tasks gate ON gate.id=a.task_id AND gate.state='done'
     WHERE i.status='finished' AND i.start_policy IS NOT NULL
+      AND EXISTS (SELECT 1 FROM deliveries d JOIN delivery_steps post ON post.delivery_id=d.id
+        WHERE d.project_id=i.project_id AND d.task_id=gate.id AND d.spec_revision_id=gate.spec_revision_id
+          AND d.status='done' AND d.cleanup='group_empty' AND post.kind='post_check' AND post.status='finished'
+          AND json_extract(post.receipt,'$.candidate_commit')=json_extract(d.integration_intent,'$.candidate_commit'))
       AND NOT EXISTS (SELECT 1 FROM project_intakes successor WHERE successor.status='finished'
         AND json_extract(successor.start_policy,'$.previous_intake_id')=i.id)
       AND NOT EXISTS (SELECT 1 FROM tasks t JOIN specs s ON s.id=t.spec_id
