@@ -378,6 +378,33 @@ defmodule Boss.AutopilotNativeTest do
     assert {message, 1} = System.cmd("python3", [oracle], cd: checkout, stderr_to_stdout: true)
     assert message =~ "['Ada Lovelace']"
     assert message =~ "['Ada', 'Lovelace']"
+
+    gate_task = Repo.get!(Tasks.Task, gate.task_id)
+    spec = Repo.get!(Projects.Spec, gate_task.spec_id)
+    pinned = Repo.get!(Projects.SpecRevision, gate_task.spec_revision_id)
+    "id:" <> id = spec.identity_key
+
+    {:ok, %{revision: proposed}} =
+      Projects.record_spec(c.project.id, %{
+        relative_path: spec.relative_path,
+        title: gate.title,
+        explicit_id: id,
+        original_text: pinned.original_text <> "\nProposed replacement.\n"
+      })
+
+    assert %{available?: false, reason: :brief_revision_pinned} =
+             Tasks.Revisions.status(gate_task, spec, pinned, proposed)
+
+    assert {:error, :brief_revision_pinned} =
+             Tasks.transition(gate_task.id, %{
+               action: "adopt_revision",
+               project_id: c.project.id,
+               spec_revision_id: proposed.id,
+               expected_version: gate_task.state_version,
+               command_id: Ecto.UUID.generate()
+             })
+
+    assert Repo.get!(Tasks.Task, gate_task.id).spec_revision_id == pinned.id
   end
 
   defp verify_changed_brief(c, checkout, target, old_gate, check, manager) do
