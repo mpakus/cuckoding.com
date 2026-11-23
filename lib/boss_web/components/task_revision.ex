@@ -124,7 +124,8 @@ defmodule BossWeb.TaskRevision do
         :busy,
         :integration_unresolved,
         :revision_unavailable,
-        :source_unavailable
+        :source_unavailable,
+        :brief_revision_pinned
       ]
 
   def resolved?(_), do: false
@@ -147,13 +148,17 @@ defmodule BossWeb.TaskRevision do
              :busy,
              :integration_unresolved,
              :revision_unavailable,
-             :source_unavailable
+             :source_unavailable,
+             :brief_revision_pinned
            ],
       do: reason(reason)
 
   def error(_),
     do:
       "The update outcome could not be confirmed. Retry the saved revision request before starting other work."
+
+  defp reason(:brief_revision_pinned),
+    do: "Whole-brief acceptance is pinned to its original intake."
 
   defp reason(:reference_only), do: "Reference documents keep their original task snapshots."
   defp reason(:task_unavailable), do: "This task cannot change its source in its current state."

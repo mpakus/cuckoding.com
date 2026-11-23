@@ -220,19 +220,39 @@ defmodule BossWeb.ProjectLiveTest do
     render_async(view, 2_000)
     refute has_element?(view, "#autopilot-content[hidden]")
 
+    assert has_element?(view, "#autopilot-command-help", "whole-brief acceptance")
+    view |> form("#autopilot-form", %{"command" => ""}) |> render_submit()
+    await_intake(fn -> has_element?(view, "#autopilot-error", "Enter a trusted CLI check") end)
+    assert Intake.latest(project.id) == nil
+    render_async(view, 2_000)
+
     view
-    |> form("#autopilot-form", %{"command" => "python3 check.py"})
+    |> form("#autopilot-form", %{"command" => "python3 check.py", "spec_loop" => "false"})
     |> render_submit()
 
     await_intake(fn -> File.exists?(Path.join(gates, "one-1.waiting")) end)
-    assert %{status: "finished", batch_id: batch} = Intake.latest(project.id)
+
+    assert %{
+             status: "finished",
+             batch_id: batch,
+             brief_task: %{id: brief_id},
+             start_policy: %{"spec_loop" => false, "parallel" => false}
+           } = Intake.latest(project.id)
+
+    assert Deliveries.Autopilot.loop_info(batch) == nil
     assert is_binary(batch)
     assert Repo.aggregate(Deliveries.Delivery, :count) == 1
 
-    assert Enum.sort(Enum.map(Projects.list_spec_entries(project.id), & &1.title)) == [
-             "one",
-             "two"
-           ]
+    tasks = Projects.list_spec_entries(project.id)
+    assert length(tasks) == 3
+
+    assert tasks |> Enum.reject(&(&1.task_id == brief_id)) |> Enum.map(& &1.title) |> Enum.sort() ==
+             ["one", "two"]
+
+    assert has_element?(
+             view,
+             "#autopilot-brief-status a[href='/projects/#{project.id}/tasks/#{brief_id}']"
+           )
 
     refute File.exists?(Path.join(gates, "two-1.waiting"))
 

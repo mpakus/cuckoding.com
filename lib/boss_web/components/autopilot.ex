@@ -140,11 +140,14 @@ defmodule BossWeb.Autopilot do
       when is_map(request),
       do: {:noreply, act(socket, request)}
 
-  def handle_event("start", params, socket) do
+  def handle_event(event, params, socket) when event in ["start", "replan"] do
     tasks = choices(socket.assigns) |> Enum.map(& &1.task_id)
     interrupted = interrupted_tasks(socket.assigns)
 
-    planning? = plans_from_docs?(socket.assigns)
+    replan_source = socket.assigns.intake && Map.get(socket.assigns.intake, :replan_source_id)
+    previous = params["previous_intake_id"]
+    replanning? = event == "replan" and is_binary(previous) and previous == replan_source
+    planning? = plans_from_docs?(socket.assigns) or replanning?
 
     explicit_reviewer =
       case Map.get(params, "reviewer") do
@@ -175,6 +178,9 @@ defmodule BossWeb.Autopilot do
       end
 
     cond do
+      event == "replan" and !replanning? ->
+        {:noreply, assign(socket, error: error(:replan_unavailable))}
+
       not Boss.Agents.Metadata.review_runner?(reviewer) ->
         {:noreply, assign(socket, error: "Choose an agent from the Independent reviewer list.")}
 
@@ -182,6 +188,7 @@ defmodule BossWeb.Autopilot do
           (planning? or length(tasks) in 1..256 or interrupted != []) ->
         request = %{
           kind: if(planning?, do: :intake_start, else: :start),
+          previous_intake_id: if(replanning?, do: previous),
           id: socket.assigns.command,
           tasks: tasks,
           auto_recover_interrupted: interrupted != [],
@@ -261,7 +268,18 @@ defmodule BossWeb.Autopilot do
           Documentation.convert(project, request.id)
 
         :intake_start ->
-          Intake.start(project, request.id, request.text, request.reviewer)
+          if previous = Map.get(request, :previous_intake_id) do
+            Intake.replan(
+              project,
+              request.id,
+              request.text,
+              request.reviewer,
+              request.spec_loop,
+              previous
+            )
+          else
+            Intake.start(project, request.id, request.text, request.reviewer, request.spec_loop)
+          end
 
         :intake_stop ->
           case Intake.stop(project, request.intake) do
@@ -487,7 +505,14 @@ defmodule BossWeb.Autopilot do
        do: assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
 
   defp confirm_intake(socket, intake) do
-    with %{kind: :intake_start, id: id, text: text, reviewer: reviewer} <- socket.assigns.pending,
+    with %{
+           kind: :intake_start,
+           id: id,
+           text: text,
+           reviewer: reviewer,
+           spec_loop: spec_loop,
+           previous_intake_id: previous
+         } <- socket.assigns.pending,
          %{id: project} <- socket.assigns.project,
          {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text),
          %{
@@ -495,7 +520,12 @@ defmodule BossWeb.Autopilot do
            project_id: ^project,
            check_config: ^config,
            config_hash: ^hash,
-           reviewer: ^reviewer
+           reviewer: ^reviewer,
+           start_policy: %{
+             "version" => 1,
+             "spec_loop" => ^spec_loop,
+             "previous_intake_id" => ^previous
+           }
          } <- intake do
       assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
     else
@@ -617,6 +647,13 @@ defmodule BossWeb.Autopilot do
     do:
       "Another execution is active, another Autopilot is running or paused, or previous process cleanup is unconfirmed. Review the affected task or Autopilot; waiting or restarting does not clear unconfirmed cleanup."
 
+  defp error(:replan_unavailable),
+    do: "Replanning requires a completed documentation batch with every executable task Done."
+
+  defp error(:brief_check_required),
+    do:
+      "Enter a trusted CLI check for the finished application before starting documentation planning."
+
   defp error(:task_queued), do: "A selected task is already queued. Review its saved request."
   defp error(:queue_full), do: "The workflow queue is full. Finish or cancel pending requests."
 
@@ -682,7 +719,9 @@ defmodule BossWeb.Autopilot do
         conversion_ready: conversion_ready?(assigns),
         ready: ready?(assigns),
         documentation: documentation?(assigns.project),
-        plans_from_docs: plans_from_docs?(assigns)
+        plans_from_docs:
+          plans_from_docs?(assigns) ||
+            !!(assigns.intake && Map.get(assigns.intake, :replan_source_id))
       )
 
     BossWeb.AutopilotPanel.panel(assigns)

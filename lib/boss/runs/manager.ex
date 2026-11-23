@@ -139,13 +139,32 @@ defmodule Boss.Runs.Manager do
       {:reply, Boss.Projects.Documentation.admit(project, command, map_size(state.active) > 0),
        state}
 
-  def handle_call({:project_intake_start, project, command, text, reviewer}, _from, state),
+  def handle_call({:project_intake_start, project, command, text, reviewer}, from, state),
     do:
-      launch(
-        Intake.admit(project, command, text, reviewer, map_size(state.active) > 0),
-        &Intake.execute/3,
+      handle_call(
+        {:project_intake_start, project, command, text, reviewer, nil, nil},
+        from,
         state
       )
+
+  def handle_call(
+        {:project_intake_start, project, command, text, reviewer, spec_loop, previous},
+        _from,
+        state
+      ) do
+    result =
+      Intake.admit(
+        project,
+        command,
+        text,
+        reviewer,
+        map_size(state.active) > 0,
+        spec_loop,
+        previous
+      )
+
+    launch(result, &Intake.execute/3, state)
+  end
 
   def handle_call({:autopilot_start, project, command, tasks, text, reviewer}, _from, state),
     do:

@@ -16,6 +16,15 @@ defmodule BossWeb.AutopilotPanel do
     assigns =
       assign(
         assigns,
+        :replan_source,
+        assigns.intake && Map.get(assigns.intake, :replan_source_id)
+      )
+
+    assigns = assign(assigns, :brief_task, assigns.intake && Map.get(assigns.intake, :brief_task))
+
+    assigns =
+      assign(
+        assigns,
         :form_visible,
         assigns.loaded && !match?(%{status: "planning"}, assigns.intake) &&
           (is_nil(assigns.batch) || assigns.batch.status in ["blocked", "completed", "cancelled"])
@@ -153,15 +162,27 @@ defmodule BossWeb.AutopilotPanel do
           Planning found no outstanding tasks.
         </p>
 
+        <p :if={@brief_task} id="autopilot-brief-status" role="status" class="text-xs text-muted">
+          Whole-brief acceptance
+          <.link patch={~p"/projects/#{@project.id}/tasks/#{@brief_task.id}"} class="underline">
+            {label(@brief_task.state)}
+          </.link>
+        </p>
         <form
           :if={@form_visible}
           id="autopilot-form"
           phx-target={@myself}
           phx-change="edit"
-          phx-submit="start"
+          phx-submit={if @replan_source, do: "replan", else: "start"}
           class="min-w-0 space-y-2.5"
         >
           <fieldset disabled={@pending != nil || !@supported} class="min-w-0 space-y-2.5">
+            <input
+              :if={@replan_source}
+              type="hidden"
+              name="previous_intake_id"
+              value={@replan_source}
+            />
             <legend class="sr-only">
               {if @plans_from_docs, do: "Project documentation", else: "Eligible unfinished tasks"}
             </legend>
@@ -184,7 +205,7 @@ defmodule BossWeb.AutopilotPanel do
                 }
                 aria-describedby="autopilot-authorization"
                 class="app-button-primary px-4 py-1.5 text-xs font-semibold"
-              >Start Autopilot</button>
+              >{if @replan_source, do: "Replan changed documentation", else: "Start Autopilot"}</button>
 
               <span
                 :if={!@plans_from_docs}
@@ -273,29 +294,41 @@ defmodule BossWeb.AutopilotPanel do
 
               <details
                 id="autopilot-check-disclosure"
-                open={@text != ""}
+                open={@plans_from_docs || @text != ""}
                 class="app-disclosure-pill"
               >
                 <summary>
-                  <span>CLI check {if @text != "", do: "• set", else: "(optional)"}</span>
+                  <span>CLI check {cond do
+                    @text != "" -> "• set"
+                    @plans_from_docs -> "(required)"
+                    true -> "(optional)"
+                  end}</span>
                 </summary>
                 <div class="mt-2 w-full max-w-md rounded-lg border border-line bg-paper p-2.5 text-xs">
                   <label for="autopilot-command" class="block font-medium text-body">
-                    Optional CLI check command
+                    {if @plans_from_docs,
+                      do: "Required executable check",
+                      else: "Optional CLI check command"}
                   </label>
                   <input
                     id="autopilot-command"
                     name="command"
                     type="text"
                     value={@text}
-                    placeholder="e.g. mix test (blank = Reviewer spec check)"
+                    placeholder={
+                      if @plans_from_docs, do: "e.g. python3 acceptance.py", else: "e.g. mix test"
+                    }
                     maxlength="4096"
                     autocomplete="off"
                     aria-describedby="autopilot-command-help"
                     class="app-field mt-1 w-full min-w-0 px-2.5 py-1 font-mono text-xs"
                   />
                   <p id="autopilot-command-help" class="mt-1 text-[11px] text-muted">
-                    Leave blank for Reviewer specification verification.
+                    <%= if @plans_from_docs do %>
+                      Enter a trusted command that exercises the application. It runs on task candidates and at whole-brief acceptance.
+                    <% else %>
+                      Leave blank for Reviewer specification verification.
+                    <% end %>
                   </p>
                 </div>
               </details>

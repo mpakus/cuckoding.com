@@ -228,7 +228,8 @@ defmodule Boss.Deliveries.Autopilot do
                    command,
                    config,
                    hash,
-                   reviewer
+                   reviewer,
+                   opts
                  ) or
                  Repo.exists?(from b in AutopilotBatch, where: b.status in ~w(running paused)) or
                  Repo.exists?(
