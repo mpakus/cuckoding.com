@@ -92,6 +92,19 @@ defmodule Boss.Projects.Intake do
       []
   end
 
+  def ensure_brief_selection!(project, tasks, hash, reviewer) do
+    if policy_schema?() and
+         Repo.exists?(
+           from b in "project_brief_tasks",
+             join: i in Request,
+             on: i.id == b.intake_id,
+             where:
+               i.project_id == ^project and b.task_id in ^tasks and
+                 (i.config_hash != ^hash or i.reviewer != ^reviewer)
+         ),
+       do: Repo.rollback(:brief_policy_mismatch)
+  end
+
   def attempts(id), do: Attempts.list(id)
   def begin_attempt(id), do: Attempts.begin(id)
   def finish_attempt(id, receipt), do: Attempts.finish(id, receipt)

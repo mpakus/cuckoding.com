@@ -23,6 +23,7 @@ defmodule BossWeb.Autopilot do
        text: "",
        reviewer: "codex",
        reviewer_edited: false,
+       brief_selection: nil,
        reviewers: Roles.reviewer_choices(),
        spec_loop: true,
        command: Ecto.UUID.generate(),
@@ -84,10 +85,12 @@ defmodule BossWeb.Autopilot do
         _ -> socket.assigns.spec_loop
       end
 
+    pin = Map.get(socket.assigns, :brief_selection)
+
     {:noreply,
      assign(socket,
-       text: value(params, "command", socket.assigns.text),
-       reviewer: next_reviewer,
+       text: if(pin, do: pin.check_text, else: value(params, "command", socket.assigns.text)),
+       reviewer: if(pin, do: pin.reviewer, else: next_reviewer),
        reviewer_edited: socket.assigns.reviewer_edited or explicit_reviewer?,
        spec_loop: spec_loop,
        error: nil
@@ -155,10 +158,16 @@ defmodule BossWeb.Autopilot do
         _ -> nil
       end
 
+    pin = Map.get(socket.assigns, :brief_selection)
+    text = value(params, "command", if(pin, do: pin.check_text, else: ""))
+
     reviewer =
       cond do
         is_binary(explicit_reviewer) ->
           explicit_reviewer
+
+        pin ->
+          pin.reviewer
 
         socket.assigns.reviewer_edited ->
           socket.assigns.reviewer
@@ -181,6 +190,9 @@ defmodule BossWeb.Autopilot do
       event == "replan" and !replanning? ->
         {:noreply, assign(socket, error: error(:replan_unavailable))}
 
+      pin && (pin.check_text != text || pin.reviewer != reviewer) ->
+        {:noreply, assign(socket, error: error(:brief_policy_mismatch))}
+
       not Boss.Agents.Metadata.review_runner?(reviewer) ->
         {:noreply, assign(socket, error: "Choose an agent from the Independent reviewer list.")}
 
@@ -193,7 +205,7 @@ defmodule BossWeb.Autopilot do
           tasks: tasks,
           auto_recover_interrupted: interrupted != [],
           spec_loop: spec_loop,
-          text: value(params, "command", ""),
+          text: text,
           reviewer: reviewer
         }
 
@@ -437,7 +449,21 @@ defmodule BossWeb.Autopilot do
 
     case selection do
       {:ok, ids} ->
-        assign(socket, eligible_task_ids: ids)
+        pin =
+          case intake do
+            %{brief_task: %{id: id, state: state}} ->
+              if id in ids or state == "interrupted",
+                do: Map.take(intake, [:check_text, :reviewer])
+
+            _ ->
+              nil
+          end
+
+        socket = assign(socket, eligible_task_ids: ids, brief_selection: pin)
+
+        if pin && is_nil(socket.assigns.pending),
+          do: assign(socket, text: pin.check_text, reviewer: pin.reviewer),
+          else: socket
 
       _ ->
         assign(socket,
@@ -650,6 +676,9 @@ defmodule BossWeb.Autopilot do
   defp error(:replan_unavailable),
     do: "Replanning requires a verified whole-brief delivery with every executable task Done."
 
+  defp error(:brief_policy_mismatch),
+    do: "Use the check command and reviewer saved with the original documentation Start."
+
   defp error(:brief_check_required),
     do:
       "Enter a trusted CLI check for the finished application before starting documentation planning."
@@ -697,7 +726,7 @@ defmodule BossWeb.Autopilot do
         else: 1
 
     reviewer_tag =
-      if assigns.project do
+      if assigns.project && !Map.get(assigns, :brief_selection) do
         get_in(Boss.Projects.RoleBindings.for_project(assigns.project.id), [
           "reviewer",
           :active,

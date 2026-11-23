@@ -219,6 +219,7 @@ defmodule Boss.Deliveries.Autopilot do
             if length(backlog) > 256, do: Repo.rollback(:backlog_too_large)
             if Enum.sort(backlog) != Enum.sort(tasks), do: Repo.rollback(:backlog_changed)
 
+            Boss.Projects.Intake.ensure_brief_selection!(project, tasks, hash, reviewer)
             release_unknown_cleanups!()
 
             if owned or Deliveries.busy?() or

@@ -1210,6 +1210,7 @@ defmodule BossWeb.ProjectLive do
       reason in [
         :busy,
         :queue_full,
+        :brief_policy_mismatch,
         :task_queued,
         :already_started,
         :request_finished,
@@ -1233,6 +1234,9 @@ defmodule BossWeb.ProjectLive do
 
   defp delivery_error({:error, :busy}),
     do: "Workflow capacity is occupied, an exclusive run is active, or cleanup needs attention."
+
+  defp delivery_error({:error, :brief_policy_mismatch}),
+    do: "Use the check command and reviewer saved with the original documentation Start."
 
   defp delivery_error({:error, :queue_full}),
     do: "The workflow queue is full. Try again after queued work finishes."
