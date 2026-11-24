@@ -52,6 +52,8 @@ The owner supplies an executable check for a new documentation Start. That comma
 - **Rework of task files.** Reviewer feedback becomes a derived database revision linked to the last observed file. The source file and its frontmatter remain intact. The importer still detects later edits and moves against that file observation.
 - **Blocked work.** When a failed prerequisite holds up the final task, Auto-loop can use its remaining pass to refine that prerequisite and requeue its waiting dependents. Single pass and exhausted repair budgets leave the project blocked. Provider failure, uncertain cleanup or a server restart can also require attention. [Autopilot controls](AUTOPILOT.md) · [Recovery](RECOVERY.md)
 
+The [Paradev engineering review](PARADEV.md) maps prompt context, workspace readiness and agent activity to these delivery stages.
+
 ## Acceptance evidence
 
 The native macOS test starts with exactly one committed file, `docs/product.md`. It specifies a greeting CLI with three observable behaviors: default greeting, a name containing a space, and an error for extra arguments. A trusted check outside the repository asserts exit status, stdout and stderr for all three. The test runs that check in a fresh checkout of the exact published SHA and inspects the independent review, postcheck and retained checkout.

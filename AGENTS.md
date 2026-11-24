@@ -323,6 +323,12 @@
 - Retain the selected implementer binding through integration repairs and explicit
   retries. Roll back a new admission if its binding cannot be stored. After a
   forced Stop, release worker capacity only upon the matching linked exit.
+- In Task Prompt, prioritize explicitly addressed tasks within the serialized board
+  context budget. Keep complete delivery evidence separate from board excerpts.
+  Derive pipeline status from saved delivery state; only published, postchecked
+  Done counts as completion. Reuse a resolved Git workspace within one preflight
+  and verify it again at each subsequent admission or publication boundary.
+  See [the Paradev comparison and regressions](docs/PARADEV.md).
 - Verify greenfield delivery with exactly one committed Markdown file in a source
   subdirectory, a finite CLI, a trusted executable assertion and a fresh checkout
   of the exact published SHA. Record per-task Done and whole-brief coverage

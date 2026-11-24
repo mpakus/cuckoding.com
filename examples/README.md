@@ -9,7 +9,9 @@ The checkouts are ignored by the parent repository; this guide and manifest are
 kept in version control. `.xerjignore` excludes these operational files from the
 source index; adding a root README to an existing multi-repository index otherwise
 caused ambiguous dataset assignment in xerj rc.98.
-Findings: [../docs/RESEARCH.md](../docs/RESEARCH.md).
+The Paradev checkout was supplied on 2026-11-23. Its production paths and tests
+are mapped to BOSS in the [Paradev engineering review](../docs/PARADEV.md).
+The broader [research log](../docs/RESEARCH.md) covers the other references.
 
 ## Search before implementation
 

@@ -1,5 +1,8 @@
 # BOSS — исследование референсов
 
+The [Paradev engineering review](PARADEV.md) traces agent launches, prompts, status and recovery from the pinned November 23 source.
+
+
 Дата: 2026-10-25. Область: чтение исходников, лицензий и CLI help; проверка xerj
 retrieval. Приложения конкурентов и их suites не запускались. Скриншоты не
 снимались. Это основания для собственных тестов BOSS, не доказательство
