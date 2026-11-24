@@ -290,6 +290,170 @@ defmodule Boss.TaskPromptTest do
     assert Repo.get!(Task, task_id).state == "new"
   end
 
+  test "invalid targets and empty queue cancellations leave later actions available", c do
+    attrs = %{relative_path: "target.md", title: "Target", original_text: "# Target"}
+    {:ok, %{task: task}} = Projects.record_spec(c.doc_project.id, attrs)
+    {:ok, %{task: other}} = Projects.record_spec(c.specs_project.id, attrs)
+
+    actions = [
+      %{"op" => "cancel_queued_workflow", "task_ref" => to_string(task.id)},
+      %{"op" => "add_task_note", "task_ref" => to_string(other.id), "reason" => "Wrong project"},
+      %{"op" => "add_task_note", "task_ref" => to_string(task.id), "reason" => "Correct project"}
+    ]
+
+    assert {:ok, %{results: [cancel, wrong_project, note]}} =
+             TaskPrompt.apply_report(c.doc_project.id, %{"actions" => actions})
+
+    assert %{status: :failed, task_id: id, detail: detail} = cancel
+    assert id == task.id
+    assert detail =~ "No queued or paused"
+    assert %{status: :failed, task_id: nil, detail: detail} = wrong_project
+    assert detail =~ "not found in this project"
+    assert %{status: :applied, task_id: ^id} = note
+  end
+
+  for change <- [:none, :edited, :imported, :adopted, :moved, :symlink_parent] do
+    @change change
+    test "spec updates compare the source seen by the prompt with #{change} working files", c do
+      dir = Path.join(c.specs, "features")
+      File.mkdir!(dir)
+      path = Path.join(dir, "target.md")
+      original = "---\nid: target\n---\n# Target\n"
+      edited = original <> "An owner's new requirement.\n"
+      File.write!(path, original)
+      assert {:ok, _} = SpecImporter.sync(c.specs_project.id)
+      [entry] = Projects.list_spec_entries(c.specs_project.id)
+
+      runner = fn _, _, _, _ ->
+        case @change do
+          :none ->
+            :ok
+
+          :edited ->
+            File.write!(path, edited)
+
+          :imported ->
+            File.write!(path, edited)
+            assert {:ok, _} = SpecImporter.sync(c.specs_project.id)
+
+          :adopted ->
+            File.write!(path, edited)
+            assert {:ok, _} = SpecImporter.sync(c.specs_project.id)
+
+            task = Repo.get!(Task, entry.task_id)
+            latest = List.last(Projects.list_spec_revisions(task.spec_id))
+
+            assert {:ok, _} =
+                     Tasks.transition(task.id, %{
+                       action: "adopt_revision",
+                       project_id: c.specs_project.id,
+                       spec_revision_id: latest.id,
+                       expected_version: task.state_version,
+                       command_id: Ecto.UUID.generate()
+                     })
+
+          :symlink_parent ->
+            retained = Path.join(c.root, "retained")
+            File.rename!(dir, retained)
+            File.ln_s!(retained, dir)
+
+          :moved ->
+            File.rename!(path, Path.join(c.specs, "moved.md"))
+            assert {:ok, _} = SpecImporter.sync(c.specs_project.id)
+        end
+
+        update = %{
+          "op" => "update_task_spec",
+          "task_ref" => "target",
+          "title" => "Updated",
+          "specification" => "New description.",
+          "acceptance" => ["Works"],
+          "depends_on" => []
+        }
+
+        %{
+          "status" => "finished",
+          "cleanup" => "group_empty",
+          "report" => %{"actions" => [update]}
+        }
+      end
+
+      assert {:ok, %{results: [result]}} =
+               TaskPrompt.run(
+                 c.specs_project.id,
+                 Ecto.UUID.generate(),
+                 %{agent: "codex", prompt: "Update target", reviewer: "codex"},
+                 runner: runner
+               )
+
+      if @change == :none do
+        assert result.status == :applied
+        assert File.read!(path) =~ "New description."
+        assert {:ok, %{revised: 0}} = SpecImporter.sync(c.specs_project.id)
+      else
+        assert result.status == :failed
+        assert result.detail =~ "source changed"
+
+        case @change do
+          :moved ->
+            refute File.exists?(path)
+            assert File.read!(Path.join(c.specs, "moved.md")) == original
+
+          :symlink_parent ->
+            assert File.read!(Path.join(c.root, "retained/target.md")) == original
+
+          _ ->
+            assert File.read!(path) == edited
+        end
+
+        refute Enum.any?(
+                 Projects.list_spec_revisions(Repo.get!(Task, entry.task_id).spec_id),
+                 &String.contains?(&1.original_text, "New description.")
+               )
+
+        assert Repo.get!(Task, entry.task_id).title == "Target"
+      end
+    end
+  end
+
+  test "a late numeric task cannot receive an update from an earlier prompt", %{
+    doc_project: project
+  } do
+    runner = fn _, _, _, _ ->
+      assert {:ok, %{task: task}} =
+               Projects.record_spec(project.id, %{
+                 title: "Later",
+                 relative_path: "later.md",
+                 original_text: "# Later"
+               })
+
+      update = %{
+        "op" => "update_task_spec",
+        "task_ref" => to_string(task.id),
+        "title" => "Wrong",
+        "specification" => "Replacement",
+        "acceptance" => ["Replacement"],
+        "depends_on" => []
+      }
+
+      %{"status" => "finished", "cleanup" => "group_empty", "report" => %{"actions" => [update]}}
+    end
+
+    assert {:ok, %{results: [%{status: :failed, detail: detail}]}} =
+             TaskPrompt.run(
+               project.id,
+               Ecto.UUID.generate(),
+               %{agent: "codex", prompt: "Update tasks"},
+               runner: runner
+             )
+
+    assert detail =~ "source changed"
+    assert [%{title: "Later", task_id: id}] = Projects.list_spec_entries(project.id)
+
+    assert [%{original_text: "# Later"}] =
+             Projects.list_spec_revisions(Repo.get!(Task, id).spec_id)
+  end
+
   test "enforces one active prompt per project and supports Stop cancellation", %{
     doc_project: project
   } do
@@ -345,13 +509,22 @@ defmodule Boss.TaskPromptTest do
   test "queues/cancels workflows and resumes/resets tasks using explicit check command", %{
     doc_project: project
   } do
+    # Keep this request queued while the prompt exercises cancellation.
+    {:ok, _} =
+      Projects.record_spec(project.id, %{
+        relative_path: "waiting.md",
+        explicit_id: "waiting",
+        title: "Waiting",
+        original_text: "# Waiting"
+      })
+
     {:ok, %{task: task}} =
       Projects.record_spec(project.id, %{
         relative_path: "prompts/ops-target.md",
         explicit_id: "ops-target",
         title: "Queue and state target",
         original_text:
-          "---\nid: \"ops-target\"\ndepends_on: []\n---\n# Queue and state target\n\nBody.\n"
+          "---\nid: \"ops-target\"\ndepends_on: [waiting]\n---\n# Queue and state target\n\nBody.\n"
       })
 
     # Malformed check_command override is rejected cleanly before queueing

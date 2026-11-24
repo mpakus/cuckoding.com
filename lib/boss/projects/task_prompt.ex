@@ -12,7 +12,17 @@ defmodule Boss.Projects.TaskPrompt do
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Agents.{Cursor, Metadata}
   alias Boss.Deliveries.{Delivery, Queue, Request, Worker}
-  alias Boss.Projects.{Documentation, Project, Repository, Spec, SpecDocument, SpecRevision}
+
+  alias Boss.Projects.{
+    Documentation,
+    Project,
+    Repository,
+    Spec,
+    SpecDocument,
+    SpecImporter,
+    SpecRevision
+  }
+
   alias Boss.Tasks.{Revisions, Task}
 
   @max_prompt_bytes 8_000
@@ -106,28 +116,31 @@ defmodule Boss.Projects.TaskPrompt do
   def apply_report(project_id, report, exec_opts \\ %{})
       when is_integer(project_id) and is_map(report) do
     with {:ok, project} <- fetch_project(project_id) do
-      snapshot = load_tasks_snapshot(project.id)
-      ref_map = build_ref_map(snapshot)
-      actions = Map.get(report, "actions", [])
-
-      {results, _ref_map, mutated?} =
-        Enum.reduce(actions, {[], ref_map, false}, fn action, {acc, refs, changed?} ->
-          {outcome, next_refs, did_change?} =
-            apply_action(project, action, refs, exec_opts)
-
-          {[outcome | acc], next_refs, changed? or did_change?}
-        end)
-
-      if mutated? do
-        Tasks.broadcast(project.id)
-      end
-
-      {:ok,
-       %{
-         summary: sanitize_multiline(Map.get(report, "summary", ""), 1_200),
-         results: Enum.reverse(results)
-       }}
+      apply_actions(project, report, exec_opts, load_tasks_snapshot(project.id))
     end
+  end
+
+  defp apply_actions(project, report, exec_opts, snapshot) do
+    ref_map = build_ref_map(snapshot)
+    actions = Map.get(report, "actions", [])
+
+    {results, _ref_map, mutated?} =
+      Enum.reduce(actions, {[], ref_map, false}, fn action, {acc, refs, changed?} ->
+        {outcome, next_refs, did_change?} =
+          apply_action(project, action, refs, exec_opts)
+
+        {[outcome | acc], next_refs, changed? or did_change?}
+      end)
+
+    if mutated? do
+      Tasks.broadcast(project.id)
+    end
+
+    {:ok,
+     %{
+       summary: sanitize_multiline(Map.get(report, "summary", ""), 1_200),
+       results: Enum.reverse(results)
+     }}
   end
 
   def message(:invalid_prompt),
@@ -235,13 +248,18 @@ defmodule Boss.Projects.TaskPrompt do
 
     case safe_invoke_runner(runner, agent, project.root_path, prompt_text, deadline) do
       %{"status" => "finished", "cleanup" => "group_empty", "report" => report} ->
-        apply_report(project.id, report, %{
-          check_command: check_text,
-          reviewer: reviewer,
-          agent: agent,
-          model_id: selection[:model_id],
-          server: Keyword.get(opts, :server, Boss.Runs.Manager)
-        })
+        apply_actions(
+          project,
+          report,
+          %{
+            check_command: check_text,
+            reviewer: reviewer,
+            agent: agent,
+            model_id: selection[:model_id],
+            server: Keyword.get(opts, :server, Boss.Runs.Manager)
+          },
+          snapshot
+        )
 
       %{"status" => "cancelled"} ->
         {:error, :cancelled}
@@ -705,14 +723,7 @@ defmodule Boss.Projects.TaskPrompt do
         action["specification"]
       )
 
-      next_refs =
-        refs
-        |> Map.put(id, %{task_id: saved.task.id, explicit_id: id, title: saved.task.title})
-        |> Map.put(Integer.to_string(saved.task.id), %{
-          task_id: saved.task.id,
-          explicit_id: id,
-          title: saved.task.title
-        })
+      next_refs = put_task_ref(refs, saved.task.id, id, saved.task.title, saved.revision.id)
 
       {result_entry(
          "create_task",
@@ -743,7 +754,14 @@ defmodule Boss.Projects.TaskPrompt do
              deps
            ),
          {:ok, outcome} <-
-           persist_updated_spec(project, target, action["title"], explicit_id, text) do
+           persist_updated_spec(
+             project,
+             target,
+             action["title"],
+             explicit_id,
+             text,
+             get_in(refs, [Integer.to_string(target.task.id), :revision_id])
+           ) do
       log_analytic_entry(
         project.id,
         outcome.task_id,
@@ -754,7 +772,7 @@ defmodule Boss.Projects.TaskPrompt do
       )
 
       {result_entry("update_task_spec", :applied, outcome.task_id, outcome.title, outcome.detail),
-       refs, true}
+       put_task_ref(refs, outcome.task_id, explicit_id, outcome.title, outcome.revision_id), true}
     else
       {:error, detail} ->
         {result_entry("update_task_spec", :failed, nil, action["task_ref"], detail), refs, false}
@@ -887,7 +905,7 @@ defmodule Boss.Projects.TaskPrompt do
 
   defp apply_action(project, %{"op" => "cancel_queued_workflow"} = action, refs, _opts) do
     with {:ok, target} <- resolve_target_task(project.id, action["task_ref"], refs),
-         request when not is_nil(request) <-
+         %Request{} = request <-
            find_queued_request(target.task.id) ||
              {:error, "No queued or paused workflow request exists for this task."},
          {:ok, _} <- Queue.cancel(project.id, request.id) do
@@ -977,7 +995,14 @@ defmodule Boss.Projects.TaskPrompt do
     end
   end
 
-  defp persist_updated_spec(project, %{task: task, spec: spec}, title, explicit_id, text) do
+  defp persist_updated_spec(
+         project,
+         %{task: task, spec: spec},
+         title,
+         explicit_id,
+         text,
+         expected_revision_id
+       ) do
     attrs =
       %{
         relative_path: spec.relative_path,
@@ -988,9 +1013,8 @@ defmodule Boss.Projects.TaskPrompt do
         if is_binary(explicit_id), do: Map.put(base, :explicit_id, explicit_id), else: base
       end)
 
-    with :ok <- maybe_write_updated_spec_file(project, spec, text),
-         {:ok, %{revision: revision, change: change}} <-
-           Projects.record_spec(project.id, attrs) |> map_record_error() do
+    with {:ok, %{revision: revision, change: change}} <-
+           record_current_spec(project, spec, expected_revision_id, attrs) do
       fresh_task = Repo.get!(Task, task.id)
       pinned = Repo.get!(SpecRevision, fresh_task.spec_revision_id)
 
@@ -999,6 +1023,7 @@ defmodule Boss.Projects.TaskPrompt do
           {:ok,
            %{
              task_id: fresh_task.id,
+             revision_id: revision.id,
              title: fresh_task.title,
              detail: "Specification is already up to date at revision #{revision.number}."
            }}
@@ -1017,6 +1042,7 @@ defmodule Boss.Projects.TaskPrompt do
               {:ok,
                %{
                  task_id: adopted.id,
+                 revision_id: revision.id,
                  title: adopted.title,
                  detail: "Saved and adopted revision #{revision.number}."
                }}
@@ -1025,6 +1051,7 @@ defmodule Boss.Projects.TaskPrompt do
               {:ok,
                %{
                  task_id: fresh_task.id,
+                 revision_id: revision.id,
                  title: fresh_task.title,
                  detail:
                    "Saved revision #{revision.number}; adopt it from the task drawer when idle."
@@ -1035,12 +1062,34 @@ defmodule Boss.Projects.TaskPrompt do
           {:ok,
            %{
              task_id: fresh_task.id,
+             revision_id: revision.id,
              title: fresh_task.title,
              detail:
                "Saved revision #{revision.number}; task kept snapshot #{pinned.number} while busy or completed."
            }}
       end
     end
+  end
+
+  defp record_current_spec(project, spec, expected_revision_id, attrs) do
+    Repo.transaction(
+      fn ->
+        with %SpecRevision{id: ^expected_revision_id} = latest <- SpecRevision.latest(spec.id),
+             {:ok, saved} <- Projects.record_spec(project.id, attrs) |> map_record_error(),
+             :ok <- maybe_write_updated_spec_file(project, spec, latest, attrs.original_text) do
+          saved
+        else
+          {:error, reason} ->
+            Repo.rollback(reason)
+
+          _ ->
+            Repo.rollback(
+              "The task source changed. Review the current specification and try again."
+            )
+        end
+      end,
+      mode: :immediate
+    )
   end
 
   defp map_record_error({:ok, _} = ok), do: ok
@@ -1073,23 +1122,46 @@ defmodule Boss.Projects.TaskPrompt do
     end
   end
 
-  defp maybe_write_updated_spec_file(
-         %{intake_mode: "specs"} = project,
-         %{missing: false} = spec,
-         text
-       ) do
-    with {:ok, specs_root} <- Repository.specs_directory(project.root_path, project.specs_path),
-         {:ok, file_path} <- verify_existing_spec_file(specs_root, spec.relative_path) do
-      case File.write(file_path, text) do
-        :ok -> :ok
-        {:error, _} -> {:error, "Could not update spec file on disk."}
+  defp maybe_write_updated_spec_file(%{intake_mode: "specs"} = project, spec, latest, text) do
+    observed = SpecRevision.file_source(latest)
+
+    with true <- not spec.missing and observed.relative_path == spec.relative_path,
+         {:ok, root} <- Repository.specs_directory(project.root_path, project.specs_path),
+         {:ok, path} <- verify_existing_spec_file(root, spec.relative_path),
+         {:ok, %{type: :regular, mode: mode}} <- File.lstat(path) do
+      temporary = Path.join(Path.dirname(path), ".boss-prompt-#{Ecto.UUID.generate()}")
+
+      case File.open(temporary, [:write, :exclusive, :binary], &IO.binwrite(&1, text)) do
+        {:ok, write_result} ->
+          try do
+            with :ok <- write_result,
+                 :ok <- File.chmod(temporary, Bitwise.band(mode, 0o777)),
+                 true <- SpecImporter.current_file?(project, observed),
+                 :ok <- File.rename(temporary, path) do
+              :ok
+            else
+              false ->
+                {:error,
+                 "The task source changed. Review the current specification and try again."}
+
+              _ ->
+                {:error, "Could not update spec file on disk."}
+            end
+          after
+            File.rm(temporary)
+          end
+
+        _ ->
+          {:error, "Could not prepare the updated spec file."}
       end
     else
-      _ -> {:error, "Existing spec file is unavailable or contains symlinks."}
+      _ ->
+        {:error,
+         "The task source changed or is unavailable. Review the current specification and try again."}
     end
   end
 
-  defp maybe_write_updated_spec_file(_, _, _), do: :ok
+  defp maybe_write_updated_spec_file(_, _, _, _), do: :ok
 
   defp ensure_real_subdir(parent, name) do
     dir = Path.join(parent, name)
@@ -1222,7 +1294,7 @@ defmodule Boss.Projects.TaskPrompt do
 
     with id when is_integer(id) and id > 0 <-
            task_id || {:error, "Task #{raw_ref} was not found."},
-         {task, spec} when not is_nil(task) <-
+         {%Task{} = task, %Spec{} = spec} <-
            Repo.one(
              from t in Task,
                join: s in Spec,
@@ -1400,6 +1472,7 @@ defmodule Boss.Projects.TaskPrompt do
             attention_reason: t.attention_reason,
             identity_key: s.identity_key,
             relative_path: s.relative_path,
+            revision_id: r.id,
             original_text: r.original_text,
             has_active_workflow:
               type(
@@ -1435,10 +1508,14 @@ defmodule Boss.Projects.TaskPrompt do
 
   defp build_ref_map(snapshot) do
     Enum.reduce(snapshot, %{}, fn row, acc ->
-      entry = %{task_id: row.task_id, explicit_id: row.explicit_id, title: row.title}
-      acc = Map.put(acc, Integer.to_string(row.task_id), entry)
-      if is_binary(row.explicit_id), do: Map.put(acc, row.explicit_id, entry), else: acc
+      put_task_ref(acc, row.task_id, row.explicit_id, row.title, row.revision_id)
     end)
+  end
+
+  defp put_task_ref(refs, task_id, explicit_id, title, revision_id) do
+    entry = %{task_id: task_id, explicit_id: explicit_id, title: title, revision_id: revision_id}
+    refs = Map.put(refs, Integer.to_string(task_id), entry)
+    if is_binary(explicit_id), do: Map.put(refs, explicit_id, entry), else: refs
   end
 
   defp extract_explicit_id("id:" <> id), do: id
