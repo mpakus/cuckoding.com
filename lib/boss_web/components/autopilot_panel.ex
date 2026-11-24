@@ -532,6 +532,25 @@ defmodule BossWeb.AutopilotPanel do
   end
 
   defp batch_body(assigns) do
+    items = Enum.map(assigns.batch.items, &flow_item(&1, assigns.project.id))
+    stages = flow_stages(assigns.batch, items)
+    counts = Enum.frequencies_by(items, & &1.state)
+
+    assigns =
+      assign(assigns,
+        items: items,
+        stages: stages,
+        counts: counts,
+        attention: Enum.find(items, &(&1.state == "failed")),
+        payload:
+          JSON.encode!(%{
+            status: assigns.batch.status,
+            reviewer: assigns.batch.reviewer,
+            stages: stages,
+            items: items
+          })
+      )
+
     ~H"""
     <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2 text-xs">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -546,20 +565,29 @@ defmodule BossWeb.AutopilotPanel do
           <% end %>
         </span>
       </div>
-      <div class="flex flex-wrap items-center gap-2.5 font-mono text-[11px] text-muted">
-        <span class="text-forest">active {batch_counts(@batch).active}</span>
-        <span>done {batch_counts(@batch).done}</span>
-        <span :if={batch_counts(@batch).failed > 0} class="text-warning">
-          attn {batch_counts(@batch).failed}
+      <div
+        id="autopilot-counts"
+        class="flex flex-wrap items-center gap-2.5 font-mono text-[11px] text-muted"
+      >
+        <span class="text-forest">active {@counts["current"] || 0}</span>
+        <span>done {@counts["done"] || 0}</span>
+        <span :if={@counts["ready"]}>awaiting integration {@counts["ready"]}</span>
+        <span :if={@attention} class="text-warning">
+          attention {@counts["failed"]} ·
+          <.link id="autopilot-attention-link" patch={@attention.href} class="underline">
+            {@attention.title} · {@attention.label}
+          </.link>
         </span>
-        <span>queued {batch_counts(@batch).waiting}</span>
+        <span>queued {@counts["waiting"] || 0}</span>
+        <span :if={@counts["paused"]}>paused {@counts["paused"]}</span>
+        <span :if={@counts["cancelled"]}>cancelled {@counts["cancelled"]}</span>
       </div>
     </div>
 
     <div
       id="autopilot-flow"
       phx-hook="AutopilotFlowCanvas"
-      data-flow={flow_payload(@batch, @project.id)}
+      data-flow={@payload}
       class="autopilot-dashboard space-y-2.5 rounded-lg border border-line bg-surface p-3"
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -570,6 +598,9 @@ defmodule BossWeb.AutopilotPanel do
           </span>
           <span class="inline-flex items-center gap-1">
             <span class="inline-block h-2 w-2 rounded-full border border-forest bg-sage"></span>Done
+          </span>
+          <span :if={@counts["ready"]} class="inline-flex items-center gap-1">
+            <span class="inline-block h-2 w-2 rounded-full border border-dashed border-muted"></span>Awaiting integration
           </span>
           <span class="inline-flex items-center gap-1">
             <span class="inline-block h-2 w-2 rounded-full bg-warning"></span>Attention
@@ -593,28 +624,36 @@ defmodule BossWeb.AutopilotPanel do
         data-flow-readout
         class="min-h-4 truncate font-mono text-xs text-body"
       >
-        {flow_summary(@batch)}
+        {flow_summary(@counts)}
       </p>
 
       <ol aria-label="Workflow stages" class="grid grid-cols-2 gap-1.5 sm:grid-cols-6">
         <li
-          :for={stage <- flow_stages(@batch)}
+          :for={stage <- @stages}
           data-state={stage.state}
           class="autopilot-node"
         >
           <span class="autopilot-node-mark" aria-hidden="true"></span>
           <span>{stage.label}</span>
+          <span class="sr-only">{if stage.state == "failed",
+            do: "Needs attention",
+            else: label(stage.state)}</span>
         </li>
       </ol>
 
       <div aria-label="Tasks in this run" class="flex flex-wrap gap-1.5">
         <.link
-          :for={item <- @batch.items}
+          :for={item <- @items}
           id={"autopilot-pixel-#{item.task_id}"}
-          patch={~p"/projects/#{@project.id}/tasks/#{item.task_id}"}
-          data-state={pixel_state(item.delivery_status || item.request_status)}
-          title={pixel_title(item)}
-          aria-label={"#{item.position + 1}. #{item.title}. #{pixel_title(item)}"}
+          patch={item.href}
+          data-state={item.state}
+          title={Enum.join(Enum.reject([item.label, item.note], &is_nil/1), ". ")}
+          aria-label={
+            Enum.join(
+              Enum.reject(["#{item.position + 1}. #{item.title}", item.label, item.note], &is_nil/1),
+              ". "
+            )
+          }
           class="autopilot-pixel"
         >
           {item.position + 1}
@@ -736,29 +775,13 @@ defmodule BossWeb.AutopilotPanel do
     {"publish", "Integrate"}
   ]
 
-  defp flow_stages(batch) do
-    items = Map.get(batch, :items, [])
-
-    current =
-      Enum.find(
-        items,
-        &(&1.delivery_status in ~w(planning implementing testing reviewing integrating))
-      )
-
-    marker = if current, do: status_stage(current.delivery_status), else: failed_stage(items)
-
-    index_map = Map.new(Enum.with_index(@flow), fn {{id, _}, idx} -> {id, idx} end)
-    active_index = Map.get(index_map, marker)
-
+  defp flow_stages(batch, items) do
     Enum.map(@flow, fn {id, label} ->
-      idx = Map.fetch!(index_map, id)
-
       state =
         cond do
-          marker == id and current -> "current"
-          marker == id -> "failed"
-          current != nil and is_integer(active_index) and idx < active_index -> "done"
-          batch.status == "completed" -> "done"
+          Enum.any?(items, &(&1.state == "failed" and &1.stage == id)) -> "failed"
+          Enum.any?(items, &(&1.state == "current" and &1.stage == id)) -> "current"
+          batch.items != [] and Enum.all?(batch.items, &stage_finished?(&1, id)) -> "done"
           true -> "waiting"
         end
 
@@ -766,113 +789,79 @@ defmodule BossWeb.AutopilotPanel do
     end)
   end
 
-  defp status_stage("planning"), do: "plan"
-  defp status_stage("implementing"), do: "implement"
-  defp status_stage("testing"), do: "check"
-  defp status_stage("reviewing"), do: "review"
-  defp status_stage("integrating"), do: "publish"
-  defp status_stage(_), do: nil
+  defp stage_finished?(item, "publish"), do: item.delivery_status == "done"
 
-  defp failed_stage(items) do
-    case Enum.find(items, &(&1.delivery_status == "failed")) do
-      nil ->
-        nil
+  defp stage_finished?(item, id) do
+    last = Enum.find(Enum.reverse(Map.get(item, :stages, [])), &(stage_group(&1.kind) == id))
 
-      item ->
-        item
-        |> Map.get(:stages, [])
-        |> Enum.reverse()
-        |> Enum.find(&(&1.status == "failed"))
-        |> case do
-          %{kind: kind} -> kind
-          _ -> "plan"
-        end
-    end
+    match?(%{status: "finished"}, last) and
+      (id != "check" or last.kind in ~w(check retry_check timeout_check checkpoint_check))
   end
 
-  defp flow_summary(batch) do
-    items = Map.get(batch, :items, [])
-    failed = Enum.count(items, &(&1.delivery_status == "failed"))
+  defp stage_group(kind) when kind in ~w(plan resolve implement check review publish), do: kind
+  defp stage_group(kind) when kind in ~w(merge merge_check merge_review post_check), do: "publish"
 
-    running =
-      Enum.count(
-        items,
-        &(&1.delivery_status in ~w(planning implementing testing reviewing integrating))
-      )
+  defp stage_group(kind)
+       when kind in ~w(snapshot retry_snapshot retry_check timeout_snapshot timeout_check checkpoint_snapshot checkpoint_check),
+       do: "check"
 
+  defp stage_group(_), do: nil
+
+  defp flow_summary(counts) do
     cond do
-      running > 0 -> "#{running} active workflow(s) in flight."
-      failed > 0 -> "#{failed} task(s) halted — select a node to inspect."
-      true -> "Select any task node to inspect stage telemetry."
+      counts["failed"] -> "Needs attention (#{counts["failed"]})"
+      counts["current"] -> "Active workflows (#{counts["current"]})"
+      counts["ready"] -> "Awaiting integration (#{counts["ready"]})"
+      true -> "Select a task to inspect its workflow."
     end
   end
 
   defp pixel_state(status) when status in ~w(planning implementing testing reviewing integrating),
     do: "current"
 
-  defp pixel_state(status) when status in ~w(failed needs_input blocked), do: "failed"
-  defp pixel_state(status) when status in ~w(done ready_to_merge), do: "done"
+  defp pixel_state(status) when status in ~w(failed needs_input blocked interrupted), do: "failed"
+  defp pixel_state("ready_to_merge"), do: "ready"
+  defp pixel_state(status) when status in ~w(done cancelled paused), do: status
   defp pixel_state(_), do: "waiting"
 
-  defp batch_counts(batch) do
-    items = Map.get(batch, :items, [])
-
-    Enum.reduce(items, %{active: 0, done: 0, failed: 0, waiting: 0}, fn item, acc ->
-      case pixel_state(item.delivery_status || item.request_status) do
-        "current" -> %{acc | active: acc.active + 1}
-        "done" -> %{acc | done: acc.done + 1}
-        "failed" -> %{acc | failed: acc.failed + 1}
-        _ -> %{acc | waiting: acc.waiting + 1}
-      end
-    end)
-  end
-
-  defp flow_payload(batch, project_id) do
-    stages = flow_stages(batch)
-
-    items =
-      for item <- Map.get(batch, :items, []) do
-        status = item.delivery_status || item.request_status
-
-        %{
-          task_id: item.task_id,
-          position: item.position,
-          title: item.title,
-          state: pixel_state(status),
-          stage: item_stage(item),
-          note: item_note(item),
-          href: "/projects/#{project_id}/tasks/#{item.task_id}"
-        }
-      end
-
-    JSON.encode!(%{
-      status: batch.status,
-      reviewer: batch.reviewer,
-      stages: stages,
-      items: items
-    })
-  end
-
-  defp item_stage(item) do
+  defp flow_item(item, project_id) do
     status = item.delivery_status || item.request_status
 
-    cond do
-      status in ~w(planning implementing testing reviewing integrating) ->
-        status_stage(status) || "plan"
+    %{
+      task_id: item.task_id,
+      position: item.position,
+      title: item.title,
+      label: label(status),
+      state: pixel_state(status),
+      stage: item_stage(item, status),
+      note: item_note(item),
+      href: ~p"/projects/#{project_id}/tasks/#{item.task_id}"
+    }
+  end
 
-      status in ~w(done ready_to_merge) ->
-        "publish"
+  defp item_stage(_, status) when status in ~w(ready_to_merge done integrating), do: "publish"
+
+  defp item_stage(item, status) do
+    last = List.last(Map.get(item, :stages, []))
+
+    cond do
+      last && (last.status == "running" or pixel_state(status) == "failed") ->
+        stage_group(last.kind)
+
+      status == "implementing" ->
+        "implement"
+
+      status == "testing" ->
+        "check"
+
+      status == "reviewing" ->
+        "review"
+
+      status == "planning" ->
+        "plan"
 
       true ->
-        item
-        |> Map.get(:stages, [])
-        |> Enum.reverse()
-        |> Enum.find(&(&1.status in ["failed", "interrupted"]))
-        |> case do
-          %{kind: kind} when kind in ~w(plan resolve implement check review publish) -> kind
-          %{kind: kind} when kind in ~w(merge merge_check merge_review post_check) -> "publish"
-          _ -> "plan"
-        end
+        nil
     end
   end
 
@@ -884,12 +873,6 @@ defmodule BossWeb.AutopilotPanel do
       text = Map.get(stage, :note)
       if is_binary(text) and String.trim(text) != "", do: String.trim(text)
     end)
-  end
-
-  defp pixel_title(item) do
-    [item.delivery_status || item.request_status, item_note(item)]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(". ")
   end
 
   defp agent_name(id) do
