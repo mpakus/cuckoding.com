@@ -560,12 +560,20 @@ defmodule Boss.Deliveries.Autopilot do
             )
           end
         else
-          start_next_loop_entry(batch, queued_entries, any_active?, preflight, cursor)
+          start_next_loop_entry(
+            batch,
+            cfg,
+            entries,
+            queued_entries,
+            any_active?,
+            preflight,
+            cursor
+          )
         end
     end
   end
 
-  defp start_next_loop_entry(batch, queued_entries, any_active?, preflight, cursor) do
+  defp start_next_loop_entry(batch, cfg, entries, queued_entries, any_active?, preflight, cursor) do
     release_unknown_cleanups!()
 
     cond do
@@ -632,8 +640,10 @@ defmodule Boss.Deliveries.Autopilot do
             if any_active? do
               :waiting
             else
-              block(
+              maybe_restart_spec_loop(
                 batch,
+                cfg,
+                entries,
                 "No remaining task is ready. Open tasks that need attention and resolve missing, unfinished or cyclic prerequisites, then start Autopilot again."
               )
             end
@@ -663,27 +673,35 @@ defmodule Boss.Deliveries.Autopilot do
     end
   end
 
-  defp maybe_restart_spec_loop(batch, %AutopilotLoopConfig{} = cfg, entries) do
+  defp maybe_restart_spec_loop(
+         batch,
+         %AutopilotLoopConfig{} = cfg,
+         entries,
+         blocked_reason \\ "All runnable tasks finished. Open the tasks that need attention for details."
+       ) do
     if cfg.spec_loop_enabled == 1 and cfg.loop_pass < cfg.max_passes do
       reworked = SpecRework.refine_settled_deliveries(batch.project_id, entries, cfg.loop_pass)
 
       if reworked == [] do
-        block(
-          batch,
-          "All runnable tasks finished. Open the tasks that need attention for details."
-        )
+        block(batch, blocked_reason)
       else
         next_pass = cfg.loop_pass + 1
 
         reason =
           "Reviewer refined #{length(reworked)} task specification(s) and returned them to Backlog — continuing Autopilot loop (pass #{next_pass}/#{cfg.max_passes})."
 
-        _closed = save(batch, "blocked", reason)
-
+        cancel_pending(batch.id)
         candidates = Queue.autopilot_candidates(batch.project_id, batch.routing_version)
+        waiting = for {_, %{status: "queued", task_id: task_id}, nil, _} <- entries, do: task_id
 
-        if length(candidates) in 1..256 do
-          text = check_text_from_config(batch.check_config)
+        if Enum.sort(candidates) == Enum.sort(reworked ++ waiting) do
+          save(batch, "blocked", reason)
+
+          text =
+            case Boss.Projects.Intake.loop_source(batch.id) do
+              %{check_text: original} -> original
+              nil -> check_text_from_config(batch.check_config)
+            end
 
           next_batch =
             Repo.insert!(%AutopilotBatch{
@@ -737,17 +755,18 @@ defmodule Boss.Deliveries.Autopilot do
             end
           end)
 
+          if cancelling?(batch.id), do: Repo.rollback(:cancelled)
           Tasks.broadcast(batch.project_id)
           {:restarted_loop, view(next_batch)}
         else
-          {:changed, view(Repo.get!(AutopilotBatch, batch.id))}
+          block(
+            batch,
+            "The remaining Backlog differs from the authorized loop tasks. Inspect the tasks before starting a fresh selection."
+          )
         end
       end
     else
-      block(
-        batch,
-        "All runnable tasks finished. Open the tasks that need attention for details."
-      )
+      block(batch, blocked_reason)
     end
   end
 

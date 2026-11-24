@@ -403,8 +403,44 @@ defmodule Boss.Projects.Intake do
 
   def initial_base(batch_id) do
     case Repo.get_by(Request, batch_id: batch_id) do
-      %Request{workspace: %{"base_commit" => sha}} -> sha
-      nil -> nil
+      %Request{workspace: %{"base_commit" => sha}} ->
+        sha
+
+      nil ->
+        case loop_source(batch_id) do
+          %{ancestor_published: false, base: base} -> base
+          _ -> nil
+        end
+    end
+  end
+
+  def loop_source(batch_id) do
+    if policy_schema?() do
+      # Follow only linked passes. The initial base holds until an ancestor publishes,
+      # while the trusted check text stays pinned throughout the loop.
+      case Repo.query!(
+             """
+             WITH RECURSIVE lineage(id,published) AS (
+               SELECT ?,0
+               UNION ALL
+               SELECT parent.autopilot_id,lineage.published OR EXISTS (
+                 SELECT 1 FROM autopilot_items i JOIN delivery_requests r ON r.id=i.request_id
+                 JOIN deliveries d ON d.id=r.delivery_id WHERE i.autopilot_id=parent.autopilot_id AND d.status='done'
+               ) FROM lineage JOIN autopilot_loop_configs child ON child.autopilot_id=lineage.id
+               JOIN autopilot_loop_configs parent ON parent.autopilot_id=child.parent_autopilot_id
+                 AND parent.next_autopilot_id=child.autopilot_id AND parent.loop_pass+1=child.loop_pass
+             )
+             SELECT json_extract(i.workspace,'$.base_commit'),i.check_text,lineage.published FROM lineage
+             JOIN project_intakes i ON i.batch_id=lineage.id WHERE i.start_policy IS NOT NULL LIMIT 1
+             """,
+             [batch_id]
+           ).rows do
+        [[base, text, published]] ->
+          %{base: base, check_text: text, ancestor_published: published == 1}
+
+        [] ->
+          nil
+      end
     end
   end
 
