@@ -301,8 +301,7 @@ defmodule Boss.Deliveries do
                 parent.model_catalog,
                 nil,
                 %{
-                  implementer: parent.implementer,
-                  analytic: parent.analytic
+                  parent: parent
                 }
               )
 
@@ -375,8 +374,7 @@ defmodule Boss.Deliveries do
                 parent.model_catalog,
                 source.implementation.id,
                 %{
-                  implementer: parent.implementer,
-                  analytic: parent.analytic
+                  parent: parent
                 }
               )
 
@@ -454,8 +452,7 @@ defmodule Boss.Deliveries do
                     if(Map.get(source, :source_kind) == :rate_limit, do: 1, else: 0),
                   retry_source_check_id: if(source.check, do: source.check.id),
                   implementation_network_version: 1,
-                  implementer: parent.implementer,
-                  analytic: parent.analytic
+                  parent: parent
                 }
               )
 
@@ -584,18 +581,17 @@ defmodule Boss.Deliveries do
         Repo.rollback(:task_unavailable)
     end
 
-    chosen_impl =
-      if is_nil(Map.get(recovery, :implementer)) and is_nil(retry_review_id) and
-           is_nil(retry_implementation_id) do
-        Boss.Projects.RoleBindings.pick_implementer_for_task(project, task.id)
+    {chosen_impl, implementer, analytic} =
+      case recovery[:parent] do
+        %Delivery{} = parent ->
+          {Boss.Projects.RoleBindings.pinned_implementer(parent), parent.implementer,
+           parent.analytic}
+
+        nil ->
+          chosen = Boss.Projects.RoleBindings.pick_implementer_for_task(project, task.id)
+          implementer = (chosen && chosen.agent_id) || Boss.Agents.Roles.implementer(project)
+          {chosen, implementer, Boss.Agents.Roles.analytic(implementer, project)}
       end
-
-    implementer =
-      Map.get(recovery, :implementer) ||
-        (chosen_impl && chosen_impl.agent_id) ||
-        Boss.Agents.Roles.implementer(project)
-
-    analytic = Map.get(recovery, :analytic) || Boss.Agents.Roles.analytic(implementer, project)
 
     delivery =
       Repo.insert!(%Delivery{

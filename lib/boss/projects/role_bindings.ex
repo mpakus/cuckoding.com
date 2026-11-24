@@ -70,8 +70,6 @@ defmodule Boss.Projects.RoleBindings do
     Repo.query!(
       "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='delivery_implementer_bindings')"
     ).rows == [[1]]
-  rescue
-    _ -> false
   end
 
   def for_project(project_id) when is_integer(project_id) and project_id > 0 do
@@ -296,6 +294,23 @@ defmodule Boss.Projects.RoleBindings do
   def pick_implementer_for_task(_, _), do: nil
 
   @doc false
+  def pinned_implementer(%Delivery{} = parent) do
+    if delivery_binding_table_ready?() do
+      case Repo.get(ImplementerBinding, parent.id) do
+        nil ->
+          nil
+
+        binding ->
+          unless binding.project_id == parent.project_id and binding.task_id == parent.task_id and
+                   binding.agent_id == parent.implementer,
+                 do: Repo.rollback(:storage_error)
+
+          Map.take(binding, [:member_id, :agent_id, :model_id, :reasoning_effort, :binding_tag])
+      end
+    end
+  end
+
+  @doc false
   def record_delivery_implementer!(%Delivery{} = delivery, %{agent_id: agent_id} = chosen) do
     if delivery_binding_table_ready?() do
       %ImplementerBinding{}
@@ -316,7 +331,11 @@ defmodule Boss.Projects.RoleBindings do
               chosen[:reasoning_effort]
             )
       })
-      |> Repo.insert!(on_conflict: :replace_all, conflict_target: :delivery_id)
+      |> Repo.insert()
+      |> case do
+        {:ok, _} -> :ok
+        {:error, _} -> Repo.rollback(:storage_error)
+      end
 
       if Map.get(chosen, :pool_size, 1) > 1 do
         Boss.Tasks.Entries.add_comment(delivery.project_id, delivery.task_id, %{
@@ -331,11 +350,7 @@ defmodule Boss.Projects.RoleBindings do
     end
 
     :ok
-  rescue
-    _ -> :ok
   end
-
-  def record_delivery_implementer!(_, _), do: :ok
 
   def implementer_agent_maybe(project_id) do
     case saved_pool_items(project_id) do
