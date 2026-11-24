@@ -198,14 +198,16 @@ defmodule Boss.Runs.Manager do
 
   def handle_call({:terminate_stalled_delivery, project_id, delivery_id}, _from, state) do
     case Map.get(state.active, delivery_id) do
-      {%Deliveries.Delivery{project_id: ^project_id} = run, worker} ->
-        Process.unlink(worker)
-        Process.exit(worker, :kill)
-
-        case finish(run, {:error, :owner_lost}, state) do
-          {:noreply, next_state} -> {:reply, {:ok, :terminated}, next_state}
-          {:stop, reason, next_state} -> {:stop, reason, {:error, :storage_error}, next_state}
+      {%Deliveries.Delivery{project_id: ^project_id}, worker} ->
+        if Enum.any?(Deliveries.steps(delivery_id), &(&1.status == "running")) do
+          # Give the owned stage the opportunity to return its native cleanup receipt.
+          send(worker, :stop)
+        else
+          Process.exit(worker, :kill)
         end
+
+        # Only the exact linked EXIT releases the slot and reconciles interrupted work.
+        {:reply, {:ok, :stopping}, state}
 
       nil ->
         result =

@@ -11,7 +11,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
     Repo.put_dynamic_repo(repo)
 
     result =
-      Boss.Projects.RoleBindings.with_project_scope(delivery.project_id, fn ->
+      Boss.Projects.RoleBindings.with_delivery_scope(delivery.project_id, delivery.id, fn ->
         try do
           perform(delivery)
         rescue

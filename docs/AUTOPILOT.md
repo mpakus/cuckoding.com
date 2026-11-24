@@ -87,7 +87,7 @@ old receipts remain immutable and Done tasks are excluded. Tasks with active wor
 unknown cleanup or unfinished integration are ineligible. The list must still
 match when saved; larger or changed selections are refused, never truncated.
 Historical routing-version-1 batches retain their original New-only snapshot.
-A saved batch retains its selection. A follow-on spec-rework pass selects the eligible Backlog again, which can include later imports.
+A follow-on spec-rework pass can carry refined tasks and waiting dependents from the saved selection. If the eligible Backlog has changed, the batch stops for a fresh Start.
 
 The saved batch pins each task's revision/version, check configuration, reviewer,
 workflow UUID and integration UUID before effects. A retry of an uncertain Start
@@ -117,7 +117,7 @@ The existing [delivery gates](MANAGED_DELIVERIES.md) remain mandatory. Ready is
 not Done: publication and postchecks must succeed for the exact reviewed commit.
 An advanced target requires a new merge candidate, checks and independent review.
 No scheduler action can declare a task Done directly. Completed tasks stay Done;
-eligible blocked or needs-input tasks can receive a bounded spec-rework pass. In specs mode rework creates a derived database revision linked to the underlying source. Newer working-file content is preserved. A failed prerequisite can leave dependent requests queued and stop the batch before rework. See [delivery architecture](ARCHITECTURE.md).
+eligible blocked or needs-input tasks can receive a bounded spec-rework pass. In specs mode rework creates a derived database revision linked to the underlying source. Newer working-file content is preserved. With Auto-loop enabled and a pass remaining, a failed prerequisite can be refined while its dependents wait. Single pass and exhausted budgets leave the batch blocked. See [delivery architecture](ARCHITECTURE.md).
 
 The target branch must be free of user checkouts. An early read-only preflight
 refuses a checked-out or unavailable target before any model call. Publication

@@ -119,14 +119,13 @@ def main(archive):
                         process.wait(timeout=5)
                         raise AssertionError("Release did not stop gracefully")
                 assert process.returncode == 0, "Release exited unsuccessfully"
-                process.stdout.close()
                 process = None
 
         def start():
             nonlocal process
             process = subprocess.Popen([executable, "start"], cwd=cwd, env=environment,
-                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                       text=True, start_new_session=True)
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                                       start_new_session=True)
             deadline = time.monotonic() + 20
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
             while True:

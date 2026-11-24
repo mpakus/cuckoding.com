@@ -1389,6 +1389,29 @@ defmodule Boss.DeliveryWorkerTest do
     assert Enum.map(Deliveries.steps(run.id), & &1.kind) == ~w(plan implement)
   end
 
+  test "an overdue Stop lets the running implementation return its native cleanup receipt", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "wait")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    eventually(fn -> File.exists?(Path.join(ctx.root, "waiting")) end)
+    {_, worker} = Map.fetch!(:sys.get_state(manager).active, run.id)
+    :erlang.suspend_process(worker)
+
+    try do
+      assert {:ok, :stopping} =
+               GenServer.call(manager, {:terminate_stalled_delivery, ctx.project.id, run.id})
+
+      assert [{_, _, ^worker}] = :ets.lookup(Boss.DeliveryTestsActive, run.id)
+      assert List.last(Deliveries.steps(run.id)).status == "running"
+    after
+      if Process.alive?(worker), do: :erlang.resume_process(worker)
+    end
+
+    assert %{status: "cancelled", cleanup: "group_empty"} = await_delivery(ctx, run.id)
+    step = List.last(Deliveries.steps(run.id))
+    assert step.kind == "implement" and step.receipt["cleanup"] == "group_empty"
+  end
+
   test "lost implementation intent prevents the effect and quarantines delivery", ctx do
     Repo.query!(
       "CREATE TRIGGER fixture_stop_implement BEFORE INSERT ON delivery_steps WHEN NEW.kind='implement' BEGIN SELECT RAISE(ABORT, 'fixture'); END"
