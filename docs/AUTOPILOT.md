@@ -7,15 +7,12 @@ this mode for a repository with a `docs/` folder. Choose another committed
 documentation directory with the folder picker if needed. Leaving the target
 blank creates a local BOSS publication branch at the current commit. The project
 page opens the Autopilot panel with that target. Confirm the project's Reviewer,
-enter an optional trusted CLI check and press **Start Autopilot**. Blank selects
-specification review. A command that exercises the program supplies runtime
-evidence on the candidate and after publication. A new repository can contain
+enter a trusted executable check and press **Start Autopilot**. The command
+runs on task candidates, whole-brief acceptance and after publication. Start
+without a command leaves the project idle. The selected **Single pass** or
+**Auto-loop** choice is saved before any planner starts. An implementer pool
+can enable parallel work under either choice. A new repository can contain
 just [one committed product brief](../README.md#start-with-one-markdown-file).
-
-On the first documentation Start, the implementer pool determines the batch
-settings. More than one implementer enables parallel work and up to two total
-passes, even with **Single pass** selected. With zero or one binding, this
-first batch runs a single pass. Later task-based Starts honor the selector.
 
 A read-only planner using your assigned **Analytic** agent (`Codex`, `Claude
 Code`, `Cursor Agent` or `OpenCode`) compares committed Markdown with the code
@@ -27,7 +24,7 @@ terminal receipts retain fixed validation codes, error classes and response
 size, never raw model output. The panel shows this attempt history. BOSS validates the source paths
 and dependency graph, then saves the generated task specifications and batch
 in one transaction. The same Start dispatches the first eligible task. An empty
-plan records that the planner found no outstanding work. Original Markdown stays
+plan still creates a final task to verify or repair the application against the whole brief. Original Markdown stays
 on disk and generated specifications are stored with their source paths and SHA.
 
 The whole response is limited to 32 KiB of UTF-8 JSON, with at most 4,000 bytes per
@@ -42,9 +39,14 @@ also stop further calls. Historical planning version 0 keeps its single attempt;
 failed historical requests remain immutable. Replaying a Start returns its saved
 request and does not launch another model. A fresh Start is a new request.
 
-Planning runs once per documentation project. Later Starts use remaining eligible
-unfinished cards. Existing task-spec projects keep their Markdown watcher and
-ordinary Start unless explicitly converted. A changed target, invalid plan or stopped planner prevents the
+Later task Starts use remaining eligible unfinished cards. After the project
+finishes, commit a revised brief on the publication branch and use **Replan
+changed documentation** for an explicitly authorized new intake. The dashboard
+links to the whole-brief acceptance task and its audit trail. A new task-based Start
+that includes a blocked final task restores its original check and reviewer.
+Queue and direct Start enforce the same saved values. The replan target must
+include the previous whole-brief publication. Existing task-spec projects keep
+their Markdown watcher and ordinary Start unless explicitly converted. A changed target, invalid plan or stopped planner prevents the
 handoff. After a coordinator restart, interrupted planning retains unknown cleanup
 and requires inspection. Planning has a Stop control.
 
@@ -113,7 +115,7 @@ The existing [delivery gates](MANAGED_DELIVERIES.md) remain mandatory. Ready is
 not Done: publication and postchecks must succeed for the exact reviewed commit.
 An advanced target requires a new merge candidate, checks and independent review.
 No scheduler action can declare a task Done directly. Completed tasks stay Done;
-eligible blocked or needs-input tasks can receive a bounded spec-rework pass. Specs-mode rework can rewrite the task Markdown from its pinned revision, overwriting newer edits. A failed prerequisite can leave dependent requests queued and stop the batch before rework. See [delivery architecture](ARCHITECTURE.md).
+eligible blocked or needs-input tasks can receive a bounded spec-rework pass. In specs mode rework creates a derived database revision linked to the underlying source. Newer working-file content is preserved. A failed prerequisite can leave dependent requests queued and stop the batch before rework. See [delivery architecture](ARCHITECTURE.md).
 
 The target branch must be free of user checkouts. An early read-only preflight
 refuses a checked-out or unavailable target before any model call. Publication

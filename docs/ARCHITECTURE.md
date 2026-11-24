@@ -15,8 +15,8 @@ BOSS is a local macOS coordinator. Phoenix LiveView accepts the owner's Start, S
 ```mermaid
 flowchart TD
     D["Committed documentation"] --> I["Analytic plans tasks from the pinned Git tree"]
-    I -->|Validated plan| B["Save tasks, dependencies and authorized batch"]
-    I -->|Empty plan| E["Finish intake with zero tasks"]
+    I -->|Validated or empty plan| G["Add final acceptance task depending on every planned task"]
+    G --> B["Save authorized batch and task dependencies"]
     S["Task files in specs mode"] --> T["Sync task revisions"]
     T -->|Owner starts selection| B
     B --> M["Manager admits a dependency-ready task"]
@@ -33,30 +33,32 @@ flowchart TD
 | Owner in the code | What it controls |
 | --- | --- |
 | [Projects](../lib/boss/projects.ex) and [Repository](../lib/boss/projects/repository.ex) | Validate the selected paths and Git base. Documentation registration can create a publication ref without switching the user's checkout. |
-| [Intake](../lib/boss/projects/intake.ex) and [Planner](../lib/boss/projects/intake/planner.ex) | Pin the source commit, validate source references and the dependency graph, then save generated revisions and their batch atomically. New intakes allow up to three planning attempts in 20 minutes and at most 32 tasks. A finished intake is consumed, including an empty plan. |
+| [Intake](../lib/boss/projects/intake.ex) and [Planner](../lib/boss/projects/intake/planner.ex) | Pin the source commit, validate source references and the dependency graph, then save generated revisions and their batch atomically. New intakes allow up to three planning attempts in 20 minutes and at most 32 tasks. New documentation Starts pin the loop choice and add a final acceptance task in the same transaction, including when the planner returns zero tasks. |
 | [Manager](../lib/boss/runs/manager.ex) and [Autopilot](../lib/boss/deliveries/autopilot.ex) | Own workers and admission. A prerequisite must reach Done. The parallel scheduler admits eligible independent work up to the available implementer pool and saved capacity. Integration is exclusive. |
 | [Delivery worker](../lib/boss/deliveries/worker.ex) and [check configuration](../lib/boss/checks/command.ex) | Pin task criteria, implementation workspace, check configuration and reviewer evidence. An explicit command runs against the candidate. A blank command selects `spec_only`, which verifies Git integrity and delegates criterion assessment to the reviewer. |
 | [Integration worker](../lib/boss/deliveries/integration_worker.ex) | Publish the approved SHA, or check and review a merge candidate if the target moved. Reapply the saved check policy after publication and verify the retained checkout before recording Done. A failed postcheck can leave a published commit requiring attention. |
 
-## Limits that affect unattended delivery
+## Whole-brief acceptance
 
-- **The first documentation Start ignores the loop selector.** The UI sends the check and reviewer to intake. At batch creation, intake enables parallel work and a possible second spec-rework pass for a pool larger than one. With zero or one binding it selects sequential, single-pass execution. A visible **Single pass** can therefore result in additional model calls with a multi-implementer pool. Subsequent task-based Starts pass the loop selection through. [UI handoff](../lib/boss_web/components/autopilot.ex) · [Intake batch creation](../lib/boss/projects/intake.ex)
-- **Done covers the tasks the planner produced.** A valid plan may omit a requirement or contain zero tasks. There is no final independent comparison of the published application with the entire original brief. Later edits to documentation do not trigger a second intake. Supply a trusted executable check when the result must demonstrably run. The command applies to each task and its postcheck, so it must make sense at intermediate commits too.
-- **A blocked prerequisite can end the batch.** When its dependents are queued and nothing else can run, the scheduler can stop before reaching the end-of-pass rework step. Provider failures, exhausted recovery and interrupted work can also require owner action. A server restart pauses unstarted work. [Autopilot controls](AUTOPILOT.md) · [Recovery](RECOVERY.md)
-- **Specs-mode rework can modify the source file.** It constructs text from the pinned revision and writes the file before recording and adopting the new revision. A newer edit at that path can be overwritten. Documentation-mode generated revisions stay in SQLite. [Spec rework](../lib/boss/deliveries/spec_rework.ex)
+The final task, **Verify the complete project brief**, depends on every task the planner produced. SQLite binds it to the intake, original source revision and committed documents. Every nonblank source line belongs to a stable range. A plan must retain all ranges. The reviewer receives the original Markdown, the cumulative diff from the intake commit, and actual check output for the candidate. Approval must cover every range, including when an advanced target requires a fresh merge review. Missing evidence can trigger the normal bounded repair cycle. The whole-brief result applies to the exact published SHA after its postcheck.
+
+On a replan the cumulative diff starts at the new intake commit. Features already present at that commit may have no diff. The check should exercise retained behavior too, especially for a reviewer that can only see supplied evidence.
+
+The owner supplies an executable check for a new documentation Start. That command also runs on intermediate candidates, so choose one that can verify the project incrementally. A broad brief can contain usability or deployment requirements beyond what local execution establishes. The reviewer must flag missing evidence. Ordinary specs-mode workflows still support specification-only review.
+
+- **First Start and replay.** BOSS saves the loop choice and parallel setting before planning. Single pass disables a second spec-rework pass. Multiple implementers affect concurrency. Replaying the same authorization keeps those choices.
+- **Later changes to the brief.** Once a versioned project finishes, commit revised documentation on its registered target and choose **Replan changed documentation**. The target must still contain the previous verified publication. The new intake keeps its own source, tasks and verification. Unchanged documents do not authorize a new planner call. Historical requests retain their saved behavior.
+- **Rework of task files.** Reviewer feedback becomes a derived database revision linked to the last observed file. The source file and its frontmatter remain intact. The importer still detects later edits and moves against that file observation.
+- **Blocked work.** A failed prerequisite can leave dependents queued until the owner resolves it. Provider failure, uncertain cleanup or a server restart can also require attention. [Autopilot controls](AUTOPILOT.md) · [Recovery](RECOVERY.md)
 
 ## Acceptance evidence
 
-The macOS greenfield fixture starts from exactly one committed file, `docs/product.md`. It invokes the public registration and documentation Start APIs with the current migration set. Its finite Codex substitute supplies a task, implementation and review. BOSS runs the native CLI transport, real Git operations, and a trusted Python output assertion. The test checks that both the candidate check and postcheck recorded the expected stdout digest and exact SHA. It verifies the completed batch, task state, target ref and retained checkout, then runs `hello.py` from a fresh checkout of that SHA. The original checkout remains clean at its starting commit.
+The native macOS test starts with exactly one committed file, `docs/product.md`. It specifies a greeting CLI with three observable behaviors: default greeting, a name containing a space, and an error for extra arguments. A trusted check outside the repository asserts exit status, stdout and stderr for all three. The test runs that check in a fresh checkout of the exact published SHA and inspects the independent review, postcheck and retained checkout.
+
+Companion scenarios cover an empty planner result and an implementation that passes a narrower task check while missing two requirements. The finite CLI supplies controlled model responses. Git, process supervision, Python execution, SQLite and the delivery gates are real.
 
 ```sh
 rtk proxy asdf exec mix test test/boss/autopilot_native_test.exs --only greenfield
 ```
 
-For the example brief “Running hello.py prints hello”, enter this as the check in the project panel (Python 3 must be on the host PATH):
-
-```text
-python3 -c "import subprocess,sys; out=subprocess.check_output([sys.executable,'hello.py']); sys.stdout.buffer.write(out); sys.exit(out.strip() != b'hello')"
-```
-
-This measures orchestration for a small executable. Live-model planning, completeness of a larger product brief, packaging, and Linux execution require separate evidence. The [Autopilot guide](AUTOPILOT.md) covers operator controls and recovery. The [product plan](../BOSS_PLAN.md) describes the intended system.
+See the [executable acceptance cases](../test/fixtures/greenfield_brief_check.py) and [native end-to-end test](../test/boss/autopilot_native_test.exs). Live-model quality and deployment require separate evidence.

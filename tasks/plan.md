@@ -680,3 +680,7 @@ through Done with finite fixtures before continuing the real task.
   3. Remote CI verification on final `rc.2` head and opt-in multi-task /
      documentation-intake / non-Codex live provider measurements.
   4. Linux native process guardian, release packager and desktop `zenity` smoke.
+
+## Greenfield documentation delivery
+
+A documentation Start authorizes a specific loop setting and executable check. The final acceptance task follows every planned task and verifies the original brief on the published commit. Specs-mode feedback preserves the owner’s Markdown. See the [architecture and executable acceptance cases](../docs/ARCHITECTURE.md#acceptance-evidence).

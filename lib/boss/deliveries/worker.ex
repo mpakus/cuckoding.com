@@ -415,7 +415,9 @@ defmodule Boss.Deliveries.Worker do
             intent["path"],
             prompt,
             &BriefAcceptance.decode_plan(&1, previous_plan, input),
-            profile, implementer: delivery.implementer)
+            profile,
+            implementer: delivery.implementer
+          )
 
         receipt = verify_agent(receipt, verify)
         {Map.put(receipt, "workspace", intent), receipt["report"]}

@@ -323,13 +323,14 @@
 - Verify greenfield delivery with exactly one committed Markdown file in a source
   subdirectory, a finite CLI, a trusted executable assertion and a fresh checkout
   of the exact published SHA. Record per-task Done and whole-brief coverage
-  separately. A blank check selects `spec_only`; it supplies no runtime test.
-  The first documentation Start derives spec-loop behavior from pool size;
-  the UI selection currently applies only to task-based Starts. Treat honoring
-  the first Start's choice as an open authorization defect. In specs mode,
-  rework can write the pinned source over a newer working file before adoption.
-  Check file preservation when changing that path. See
-  [the implemented architecture](docs/ARCHITECTURE.md).
+  separately. New documentation starts pin a trusted executable check, loop
+  choice and pool setting before effects. A final task depends on every generated
+  task, even when the plan is empty. Preserve its original revision, full source
+  coverage, cumulative diff, independent review and exact-SHA postcheck.
+  Explicitly replan committed changes only from an eligible finished source.
+  Specs-mode rework creates a derived revision without writing working files.
+  Compare later file observations with their underlying source revision.
+  See [the implemented architecture](docs/ARCHITECTURE.md).
 - Documentation projects use one explicit persisted intake before Autopilot.
   New planning_version1 retains at most three immutable model attempts under one
   absolute deadline. Save model/source intent before effects and sanitized receipt
@@ -593,8 +594,8 @@
   and, when `spec_loop_enabled = 1`, refines rejected/blocked specs with an
   immutable `SpecRevision` + `task_entries` log + `adopt_revision` (`new` in
   `Backlog`) for at most two bounded passes; direct `Autopilot.start/6` retains
-  sequential legacy behavior. Managed workflows, queues, intake and Autopilot
-  default to `spec_only` verification (`Boss.Checks.Command.parse_workflow/1`)
+  sequential legacy behavior. Specs-mode managed workflows and ordinary queues
+  allow `spec_only` verification (`Boss.Checks.Command.parse_workflow/1`)
   where the selected `Reviewer` verifies tasks directly against their
   specification unless an explicit CLI check command override is supplied;
   manual CLI checks (`Command.parse/1`) still require explicit argv.

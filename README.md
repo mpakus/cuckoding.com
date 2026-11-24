@@ -81,10 +81,10 @@ rtk proxy git commit -m "Add initial product brief"
 ```
 
 1. Choose the repository in the dashboard, select **Plan tasks from documentation**, and leave **Target branch** blank. BOSS creates a local `boss/autopilot/<UUID>` branch at this commit.
-2. On **Agents**, configure the CLI account and workflow roles. On the project, confirm **Roles & models**. Open **CLI check (optional)** and enter a trusted command if you need evidence the generated program runs. For a brief asking for a Python program that prints `hello`, the [greenfield acceptance example](docs/ARCHITECTURE.md#acceptance-evidence) exercises that output from a new checkout.
+2. On **Agents**, configure the CLI account and workflow roles. On the project, confirm **Roles & models**. Enter a trusted executable check that works on candidate checkouts and exercises the generated application. The [greenfield example](docs/ARCHITECTURE.md#acceptance-evidence) checks stdout, stderr and exit status.
 3. Press **Start Autopilot**. BOSS plans tasks and runs the eligible ones through review and local publication. Inspect the target shown on the project when the batch finishes. Your original checkout stays at its own commit.
 
-Documentation intake runs once. Use a brief with observable acceptance criteria. A finished intake with zero tasks produces no deliverable. See the [architecture and current autonomy limits](docs/ARCHITECTURE.md), including how the first Start handles the loop selector.
+Use a brief with observable acceptance criteria. Even an empty plan creates **Verify the complete project brief**. Open this task to inspect the independent review and the exact published commit. After completion, commit revised documentation to the project target and choose **Replan changed documentation**. [Architecture and acceptance evidence](docs/ARCHITECTURE.md)
 
 ### Register existing task specs
 
@@ -113,7 +113,7 @@ Its fixture results do not certify other adapters or detached process trees.
 
 B\*SS reads registered projects' `.md` files automatically, including subfolders.
 Open a specs-mode project to see imported tasks, the latest source revision and pinned task
-snapshot. **Sync specs** imports the current file contents into revision history. An Autopilot spec-rework pass can write a revised task file. Use Single pass in specs mode when editing those files yourself.
+snapshot. **Sync specs** imports the current file contents into revision history. An Autopilot spec-rework pass appends a database revision. You retain ownership of the file and its frontmatter.
 
 One background sweep starts with B\*SS and processes projects sequentially. The
 next sweep starts two seconds after the previous one finishes; new projects join
@@ -242,7 +242,7 @@ read-only planning pass using your assigned **Analytic** agent (Codex, Claude
 Code, Cursor Agent or OpenCode): at most three attempts under one 20-minute
 deadline. It saves up to 32 tasks with their validated dependencies, then dispatches
 eligible work. Original Markdown stays on disk. Later starts continue the
-remaining eligible cards and do not call the planner again. The same check,
+remaining eligible cards. Explicit replanning handles a changed committed brief after completion. The same check,
 independent review and exact-commit publication gates still decide Done.
 
 Each managed workflow pins its **Implementer**, **Analytic** and **Reviewer**
