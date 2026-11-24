@@ -280,7 +280,10 @@ defmodule Boss.AutopilotNativeTest do
       assert Intake.latest(c.project.id) == nil
 
       check = Path.expand("../fixtures/greenfield_brief_check.py", __DIR__)
-      batch = run_greenfield(c, ~s|python3 "#{check}"|, manager)
+      loop = unquote(mode) == :greenfield_empty
+      batch = run_greenfield(c, ~s|python3 "#{check}"|, manager, loop)
+      assert Intake.policy(Intake.latest(c.project.id).id).spec_loop == loop
+      if loop, do: assert(Autopilot.loop_info(batch.id).spec_loop_enabled == 1)
       assert batch.status == "completed"
       tasks = Projects.list_spec_entries(c.project.id)
       assert Enum.all?(tasks, &(&1.state == "done"))
@@ -492,9 +495,9 @@ defmodule Boss.AutopilotNativeTest do
     eventually(fn -> :sys.get_state(manager).active == %{} end)
   end
 
-  defp run_greenfield(c, check, manager) do
+  defp run_greenfield(c, check, manager, loop \\ false) do
     alias Boss.Projects.Intake
-    {:ok, _} = Intake.start(c.project.id, Ecto.UUID.generate(), check, "codex", false, manager)
+    {:ok, _} = Intake.start(c.project.id, Ecto.UUID.generate(), check, "codex", loop, manager)
     eventually(fn -> Intake.latest(c.project.id).status != "planning" end)
     assert %{status: "finished", batch_id: batch} = Intake.latest(c.project.id)
     assert is_binary(batch)
