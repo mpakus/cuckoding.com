@@ -16,6 +16,7 @@ const PALETTE = {
 const STATE_FILL = {
   current: PALETTE.forest,
   done: PALETTE.sage,
+  ready: PALETTE.surface,
   failed: PALETTE.peach,
   waiting: PALETTE.surface
 }
@@ -23,6 +24,7 @@ const STATE_FILL = {
 const STATE_BORDER = {
   current: PALETTE.ink,
   done: PALETTE.forest,
+  ready: PALETTE.muted,
   failed: PALETTE.warning,
   waiting: PALETTE.line
 }
@@ -85,7 +87,8 @@ export function layoutPipeline(payload, width = 760, height = 228) {
       position: item.position ?? idx,
       title: item.title || `Task ${idx + 1}`,
       state: item.state || "waiting",
-      stage: item.stage || "plan",
+      label: item.label,
+      stage: item.stage || null,
       note: item.note || "",
       href: item.href || null,
       x,
@@ -95,8 +98,9 @@ export function layoutPipeline(payload, width = 760, height = 228) {
   })
 
   const focus =
-    pixels.find(p => p.state === "current") ||
     pixels.find(p => p.state === "failed") ||
+    pixels.find(p => p.state === "current") ||
+    pixels.find(p => p.state === "ready") ||
     pixels[0] ||
     null
 
@@ -445,16 +449,9 @@ export const AutopilotFlowCanvas = {
       this.tooltip.textContent = "Select a task square to inspect its saved workflow and agent notes."
       return
     }
-    const status =
-      target.state === "current"
-        ? "active"
-        : target.state === "failed"
-          ? "needs attention"
-          : target.state === "done"
-            ? "done"
-            : "queued"
+    const status = [target.label, target.stage].filter(Boolean).join(" · ")
     const detail = target.note ? ` — ${target.note}` : ""
-    this.tooltip.textContent = `#${target.position + 1} ${target.title} (${status} · ${target.stage})${detail}`
+    this.tooltip.textContent = `#${target.position + 1} ${target.title} (${status})${detail}`
   },
 
   animateStep(t) {

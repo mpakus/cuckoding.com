@@ -349,6 +349,79 @@ defmodule BossWeb.AutopilotLiveTest do
     end
   end
 
+  test "Autopilot keeps an approved candidate awaiting integration until published Done", c do
+    dom = flow_fixture(c, [{"ready_to_merge", []}, {"done", []}])
+    assert LazyHTML.text(LazyHTML.query(dom, "#autopilot-counts")) =~ "done 1"
+    assert LazyHTML.text(LazyHTML.query(dom, "#autopilot-counts")) =~ "awaiting integration 1"
+
+    assert [%{"state" => "ready", "label" => "Awaiting integration"}, %{"state" => "done"}] =
+             flow_data(dom)["items"]
+
+    assert Enum.count(
+             LazyHTML.query(dom, "#autopilot-pixel-#{c.first.task.id}[data-state=ready]")
+           ) == 1
+  end
+
+  test "Autopilot links an attention task while a peer actively diagnoses its work", c do
+    for status <- ~w(needs_input blocked failed interrupted) do
+      dom =
+        flow_fixture(c, [
+          {"planning", [%{kind: "resolve", status: "running"}]},
+          {status, [%{kind: "review", status: "finished"}]}
+        ])
+
+      link = LazyHTML.query(dom, "#autopilot-attention-link")
+
+      assert LazyHTML.attribute(link, "href") == [
+               "/projects/#{c.project.id}/tasks/#{c.second.task.id}"
+             ]
+
+      stages = Map.new(flow_data(dom)["stages"], &{&1["id"], &1["state"]})
+      assert stages["resolve"] == "current"
+      assert stages["review"] == "failed"
+      assert stages["plan"] == "waiting"
+      assert LazyHTML.text(link) =~ c.second.task.title
+      assert LazyHTML.text(LazyHTML.query(dom, "#autopilot-counts")) =~ "active 1"
+
+      assert [
+               %{"stage" => "resolve", "state" => "current"},
+               %{"stage" => "review", "state" => "failed"}
+             ] =
+               flow_data(dom)["items"]
+    end
+  end
+
+  defp flow_fixture(c, statuses) do
+    {socket, _, batch} = uncertain_start(c)
+
+    items =
+      Enum.zip([c.first.task, c.second.task], statuses)
+      |> Enum.with_index()
+      |> Enum.map(fn {{task, {status, stages}}, index} ->
+        %{
+          position: index,
+          title: task.title,
+          task_id: task.id,
+          request_status: "started",
+          delivery_status: status,
+          stages: stages
+        }
+      end)
+
+    {:noreply, confirmed} =
+      Autopilot.handle_async({:load, 3}, {:ok, {:ok, %{batch | items: items}}}, socket)
+
+    render_component(&Autopilot.render/1, confirmed.assigns) |> LazyHTML.from_document()
+  end
+
+  defp flow_data(dom) do
+    dom
+    |> LazyHTML.query("#autopilot-flow")
+    |> LazyHTML.attribute("data-flow")
+    |> hd()
+    |> JSON.decode!()
+  end
+
   test "an eligible-selection read failure still confirms the saved Start and restores Stop", c do
     {socket, request, batch} = uncertain_start(c)
 

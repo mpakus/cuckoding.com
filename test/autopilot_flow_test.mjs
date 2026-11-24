@@ -33,3 +33,18 @@ test("layoutPipeline maps stages, active routing, and task pixels cleanly", () =
   assert.equal(hit?.taskId, 2)
   assert.equal(hitTestPixel(layout, 2, 2), null)
 })
+
+test("the default readout focuses the task needing attention ahead of an active peer", () => {
+  const items = [
+    {task_id: 4, state: "waiting", label: "Queued"},
+    {task_id: 3, state: "ready", label: "Awaiting integration", stage: "publish"},
+    {task_id: 1, state: "current", label: "Implementing", stage: "implement"},
+    {task_id: 2, state: "failed", label: "Needs input", stage: "review"}
+  ]
+  const layout = layoutPipeline({items})
+  assert.equal(layout.focus.taskId, 2)
+  assert.equal(layout.focus.label, "Needs input")
+  assert.equal(layout.pixels[1].label, "Awaiting integration")
+  assert.equal(layoutPipeline({items: items.slice(0, 3)}).focus.taskId, 1)
+  assert.equal(layoutPipeline({items: items.slice(0, 2)}).focus.taskId, 3)
+})

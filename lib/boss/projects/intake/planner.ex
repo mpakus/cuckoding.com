@@ -29,7 +29,7 @@ defmodule Boss.Projects.Intake.Planner do
       with :ok <- continue(deadline),
            {:ok, request} <- prepare_models(request),
            {:ok, workspace} <- Workspace.plan(project, request_id, opts),
-           :ok <- Integration.preflight(project, request_id, workspace.base_commit, opts),
+           :ok <- Integration.preflight_target(workspace, workspace.base_commit, opts),
            {:ok, docs} <- documents(project, workspace, opts),
            :ok <- Boss.Projects.BriefAcceptance.validate_replan(request_id, docs, workspace, opts),
            intent = Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end),
@@ -86,7 +86,7 @@ defmodule Boss.Projects.Intake.Planner do
            {:ok, workspace} <- Workspace.plan(project, id, opts),
            true <-
              intent == Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end),
-           :ok <- Integration.preflight(project, id, base, opts),
+           :ok <- Integration.preflight_target(workspace, base, opts),
            :ok <- continue(deadline) do
         :ok
       else

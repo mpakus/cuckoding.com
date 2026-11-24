@@ -143,19 +143,15 @@ defmodule Boss.Deliveries.Worker do
        do: throw({:halt, :opencode_unavailable})
 
     ok!(ExecutionRetry.verify(source))
-
-    intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
+    workspace = ok!(Workspace.plan(project, delivery.id))
 
     expected =
       Boss.Projects.Intake.expected_delivery_base(delivery) ||
         Boss.Projects.Intake.expected_delivery_base(source.parent)
 
-    if expected do
-      unless intent["base_commit"] == expected, do: throw({:halt, :target_changed})
-      ok!(Boss.Deliveries.Integration.preflight(project, delivery.id, expected))
-    end
+    if expected, do: ok!(Boss.Deliveries.Integration.preflight_target(workspace, expected))
 
-    intent = Map.put(intent, "base_commit", source.parent.intent["base_commit"])
+    intent = Map.put(string_keys(workspace), "base_commit", source.parent.intent["base_commit"])
 
     delivery = stored!(Deliveries.set_intent(delivery.id, intent))
     plan = source.plan.receipt["report"]

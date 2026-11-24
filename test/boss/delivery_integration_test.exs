@@ -56,6 +56,47 @@ defmodule Boss.Deliveries.IntegrationTest do
     }
   end
 
+  test "an intake boundary validates its pinned workspace with one set of Git probes", c do
+    git!(c.source, ["switch", "--detach"])
+    {:ok, workspace} = Workspace.plan(c.project, Ecto.UUID.generate())
+    intent = Map.new(workspace, fn {key, value} -> {Atom.to_string(key), value} end)
+    original_path = System.fetch_env!("PATH")
+    File.ln_s!(System.find_executable("git"), Path.join(c.root, "real-git"))
+    probe = Path.join(c.root, "git")
+
+    File.write!(probe, ~S"""
+    #!/bin/sh
+    printf '%s\n' "$*" >> "${0%/*}/git-commands"
+    exec "${0%/*}/real-git" "$@"
+    """)
+
+    File.chmod!(probe, 0o700)
+    System.put_env("PATH", c.root <> ":" <> original_path)
+
+    try do
+      assert :ok = Boss.Projects.Intake.Planner.validate_current(c.project, %{workspace: intent})
+
+      commands =
+        Path.join(c.root, "git-commands") |> File.read!() |> String.split("\n", trim: true)
+
+      assert length(commands) == 11
+      assert Enum.count(commands, &String.ends_with?(&1, "rev-parse --show-toplevel")) == 1
+
+      git!(c.source, ["switch", "main"])
+
+      assert {:error, :target_checked_out} =
+               Boss.Projects.Intake.Planner.validate_current(c.project, %{workspace: intent})
+
+      git!(c.source, ["switch", "--detach"])
+      git!(c.source, ["update-ref", "refs/heads/main", c.sha, c.base])
+
+      assert {:error, :target_changed} =
+               Boss.Projects.Intake.Planner.validate_current(c.project, %{workspace: intent})
+    after
+      System.put_env("PATH", original_path)
+    end
+  end
+
   test "exact publication reserves the target and preserves dirty user checkout and source index",
        c do
     git!(c.source, ["switch", "-c", "user-work"])
@@ -88,6 +129,25 @@ defmodule Boss.Deliveries.IntegrationTest do
     assert File.read!(Path.join(c.intent["path"], "tracked.txt")) == "reviewed"
     git!(c.source, ["worktree", "add", Path.join(c.root, "next-owner"), "main"])
     assert :ok = Integration.verify_published(c.intent, c.opts)
+  end
+
+  test "preflight rejects a target that moves after resolving the current workspace", c do
+    git!(c.source, ["switch", "--detach"])
+
+    runner = fn executable, args, opts ->
+      if "symbolic-ref" in args,
+        do: git!(c.source, ["update-ref", "refs/heads/main", c.sha, c.base])
+
+      Boss.Agents.Process.run(executable, args, opts)
+    end
+
+    assert {:error, :target_changed} =
+             Integration.preflight(
+               c.project,
+               Ecto.UUID.generate(),
+               c.base,
+               Keyword.put(c.opts, :runner, runner)
+             )
   end
 
   test "checked-out target is refused in the source or any other worktree", c do
