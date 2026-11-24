@@ -320,6 +320,9 @@
   cleanup and exact implementation workspace (including `model_profile: nil` on
   non-Codex implementers). Save capture intent before Git, then check, diagnose
   and implement before fresh review. Provider failure still stops dispatch.
+- Retain the selected implementer binding through integration repairs and explicit
+  retries. Roll back a new admission if its binding cannot be stored. After a
+  forced Stop, release worker capacity only upon the matching linked exit.
 - Verify greenfield delivery with exactly one committed Markdown file in a source
   subdirectory, a finite CLI, a trusted executable assertion and a fresh checkout
   of the exact published SHA. Record per-task Done and whole-brief coverage
@@ -552,7 +555,10 @@
   limits, apply task creation/spec updates (`prompts/<id>.md`, writing real
   regular files on `specs` projects so `SpecImporter` stays synchronized),
   collaborative task notes (`add_task_note`), and task/workflow controls
-  exclusively through `Projects.record_spec/2`, `Tasks.Entries`,
+  through the existing contexts. Bind a prompt update to the task revision
+  shown before inference and recheck observed file bytes before replacement.
+  Missing queue requests and foreign task IDs fail their own action. Use
+  `Projects.record_spec/2`, `Tasks.Entries`,
   `Tasks.transition/2`, `Deliveries` and `Deliveries.Queue`. Never infer check
   argv from model text or let a prompt bypass commit-bound `Ready`/`Done` gates.
   On `/projects/:id`, both `BossWeb.TaskPrompt` (`#open-task-prompt` /

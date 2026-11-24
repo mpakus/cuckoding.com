@@ -12,7 +12,11 @@ task control** (`Boss.Projects.TaskPrompt`) proposes bounded structured JSON
 actions (`priv/task_prompt_schema.json`) in read-only `:task_prompt` mode and
 applies them through `Projects.record_spec/2`, `Tasks.transition/2`,
 `Deliveries` and `Deliveries.Queue` without bypassing producer-owned gates or
-inferring check commands from model output.
+inferring check commands from model output. A spec update uses the revision shown
+to the agent before inference. In specs mode BOSS rechecks the observed Markdown
+bytes before replacing the file. If the revision or file changed, the action
+reports a conflict. A missing task or queue request reports a failure for that
+action and the remaining actions can proceed.
 
 ## Command contract
 
