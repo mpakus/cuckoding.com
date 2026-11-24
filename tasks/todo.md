@@ -1052,3 +1052,10 @@ See the [agent detection worklog](../.worklog/2026-11-11.md).
 - [ ] Measure greenfield delivery quality with a separately authorized live provider.
 
 Audit scope and local reproduction are in [the architecture guide](../docs/ARCHITECTURE.md) and [the verification log](../.worklog/2026-11-23.md).
+
+## Paradev engineering review
+
+- [x] Pin the upstream source and root license. Trace workspace creation, session recovery, prompt construction, status aggregation and dispatch against BOSS.
+- [x] Preserve addressed task context under the board's serialized byte budget and verify project-scoped lookup beyond the default 256-card selection.
+- [x] Count only verified Done, represent Ready separately and link the task needing attention beside an active peer.
+- [x] Remove duplicate Git workspace probes within one preflight while detecting an occupied or changed target.

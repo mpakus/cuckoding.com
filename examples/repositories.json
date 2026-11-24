@@ -50,6 +50,15 @@
       "license": "Apache-2.0",
       "license_file": "LICENSE",
       "study": "Native guardian, process groups, cgroups and teardown evidence"
+    },
+    {
+      "directory": "Paradev",
+      "url": "https://github.com/ParadevAI/Paradev",
+      "commit": "eadb98ca83a66236e88dc1c5ea96fd44d259ff97",
+      "license": "MIT",
+      "license_file": "LICENSE.md",
+      "recorded_on": "2026-11-23",
+      "study": "Workspace preflight, context budgets, agent activity, attention, and idempotent dispatch"
     }
   ]
 }
