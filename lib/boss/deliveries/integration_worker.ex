@@ -32,8 +32,9 @@ defmodule Boss.Deliveries.IntegrationWorker do
     check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
     plan = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
     ok!(continue())
-    target = ok!(Workspace.plan(project, delivery.id)).base_commit
-    ok!(Integration.preflight(project, delivery.id, target))
+    workspace = ok!(Workspace.plan(project, delivery.id))
+    target = workspace.base_commit
+    ok!(Integration.preflight_target(workspace, target))
     original = check.input["workspace"]
     approved = review.input["candidate_commit"]
     ok!(Candidate.verify(original, approved))

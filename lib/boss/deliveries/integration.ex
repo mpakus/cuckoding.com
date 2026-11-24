@@ -37,7 +37,12 @@ defmodule Boss.Deliveries.Integration do
   @doc false
   def preflight(project, delivery_id, expected, opts \\ []) do
     with {:ok, workspace} <- Workspace.plan(project, delivery_id, opts),
-         true <- workspace.base_commit == expected,
+         do: preflight_target(workspace, expected, opts)
+  end
+
+  @doc "Checks the target against a workspace resolved by Workspace.plan/3 in the current preflight."
+  def preflight_target(workspace, expected, opts \\ []) do
+    with true <- workspace.base_commit == expected,
          intent = %{
            "repo_path" => workspace.repo_path,
            "git_common_dir" => workspace.git_common_dir,

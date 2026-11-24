@@ -422,7 +422,7 @@ defmodule Boss.Deliveries.Autopilot do
               do: workspace.base_commit,
               else: Boss.Projects.Intake.initial_base(batch.id) || workspace.base_commit
 
-          Boss.Deliveries.Integration.preflight(project, batch.id, expected)
+          Boss.Deliveries.Integration.preflight_target(workspace, expected)
         end
 
       {batch.id, result}
