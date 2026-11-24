@@ -241,6 +241,62 @@ defmodule Boss.MergeIntegrationWorkerTest do
     end
   end
 
+  @tag timeout: 120_000
+  test "integration conflict repair uses the delivered Cursor model after a pool reorder", ctx do
+    Ecto.Migrator.run(Repo, Ecto.Migrator.migrations_path(Repo), :up, all: true, log: false)
+    pool = Boss.Projects.ImplementerPoolItem
+
+    saved =
+      Repo.insert!(
+        struct!(pool,
+          project_id: ctx.project.id,
+          agent_id: "cursor",
+          model_id: "pinned",
+          binding_tag: "pinned",
+          position: 1
+        )
+      )
+
+    agent = Path.join([ctx.root, "bin", "agent"])
+
+    File.write!(agent, ~S"""
+    #!/usr/bin/env python3
+    import json, os, sys
+    from pathlib import Path
+    args = sys.argv[1:]
+    data = json.loads(sys.stdin.read().split("BOSS delivery input (JSON):\n", 1)[1])
+    if "--force" in args:
+        model = args[args.index("--model") + 1]
+        with (Path(os.environ["BOSS_DELIVERY_FIXTURE"]) / "implementer-models").open("a") as f:
+            print(model, file=f)
+        Path("first-only.txt").write_text("retained first attempt\n")
+        Path("result.txt").write_text(f"candidate-{data['cycle']}\n")
+        report = {}
+    else:
+        report = {"summary": "Create the result", "steps": ["Write result.txt"],
+                  "acceptance": ["Create result.txt"], "file_scopes": None}
+    print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": json.dumps(report)}))
+    """)
+
+    File.chmod!(agent, 0o700)
+    {manager, delivery} = ready(ctx)
+    assert Repo.get!(Boss.Deliveries.ImplementerBinding, delivery.id).model_id == saved.model_id
+
+    Repo.insert!(
+      struct!(pool,
+        project_id: ctx.project.id,
+        agent_id: "cursor",
+        model_id: "new-first",
+        binding_tag: "new-first",
+        position: 0
+      )
+    )
+
+    advance(ctx, "result.txt", "conflicting target\n")
+    assert integrate(ctx, manager, delivery).status == "done"
+    assert File.read!(Path.join(ctx.root, "implementer-models")) == "pinned\npinned\n"
+  end
+
   test "conflicting target repairs from that target and publishes only the new review", ctx do
     {manager, delivery} = ready(ctx)
     original = step(delivery, "review")
