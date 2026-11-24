@@ -370,7 +370,9 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
                "true",
                "cursor",
                false,
-               nil, spec_loop: true)
+               nil,
+               spec_loop: true
+             )
 
     assert {:ok, {:launch, :deliver, first, _}} = Autopilot.advance()
 

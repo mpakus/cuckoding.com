@@ -327,6 +327,8 @@
   choice and pool setting before effects. A final task depends on every generated
   task, even when the plan is empty. Preserve its original revision, full source
   coverage, cumulative diff, independent review and exact-SHA postcheck.
+  A loop successor may carry reworked prerequisites and waiting dependents from
+  the authorized selection. Carry the initial base until the first verified Done.
   Explicitly replan committed changes only from an eligible finished source.
   Specs-mode rework creates a derived revision without writing working files.
   Compare later file observations with their underlying source revision.

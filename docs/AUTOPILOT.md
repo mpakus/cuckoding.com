@@ -11,7 +11,9 @@ enter a trusted executable check and press **Start Autopilot**. The command
 runs on task candidates, whole-brief acceptance and after publication. Start
 without a command leaves the project idle. The selected **Single pass** or
 **Auto-loop** choice is saved before any planner starts. An implementer pool
-can enable parallel work under either choice. A new repository can contain
+can enable parallel work under either choice. If a prerequisite needs a reviewer
+refinement, Auto-loop can carry its waiting dependents into the remaining pass
+with the original check, reviewer and task selection. A new repository can contain
 just [one committed product brief](../README.md#start-with-one-markdown-file).
 
 A read-only planner using your assigned **Analytic** agent (`Codex`, `Claude

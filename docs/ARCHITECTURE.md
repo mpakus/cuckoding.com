@@ -50,7 +50,7 @@ The owner supplies an executable check for a new documentation Start. That comma
 - **First Start and replay.** BOSS saves the loop choice and parallel setting before planning. Single pass disables a second spec-rework pass. Multiple implementers affect concurrency. Replaying the same authorization keeps those choices.
 - **Later changes to the brief.** Once a versioned project finishes, commit revised documentation on its registered target and choose **Replan changed documentation**. The target must still contain the previous verified publication. The new intake keeps its own source, tasks and verification. Unchanged documents do not authorize a new planner call. Historical requests retain their saved behavior.
 - **Rework of task files.** Reviewer feedback becomes a derived database revision linked to the last observed file. The source file and its frontmatter remain intact. The importer still detects later edits and moves against that file observation.
-- **Blocked work.** A failed prerequisite can leave dependents queued until the owner resolves it. Provider failure, uncertain cleanup or a server restart can also require attention. [Autopilot controls](AUTOPILOT.md) · [Recovery](RECOVERY.md)
+- **Blocked work.** When a failed prerequisite holds up the final task, Auto-loop can use its remaining pass to refine that prerequisite and requeue its waiting dependents. Single pass and exhausted repair budgets leave the project blocked. Provider failure, uncertain cleanup or a server restart can also require attention. [Autopilot controls](AUTOPILOT.md) · [Recovery](RECOVERY.md)
 
 ## Acceptance evidence
 
