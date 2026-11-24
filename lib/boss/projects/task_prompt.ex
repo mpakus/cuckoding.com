@@ -30,6 +30,7 @@ defmodule Boss.Projects.TaskPrompt do
   @max_report_bytes 32_768
   @max_actions 16
   @max_context_bytes 98_304
+  @snapshot_limit 256
   @timeout_ms 180_000
 
   @top_keys ~w(actions summary)
@@ -193,7 +194,7 @@ defmodule Boss.Projects.TaskPrompt do
   # --- Execution ---
 
   defp execute_prompt(project, params, opts) do
-    snapshot = load_tasks_snapshot(project.id)
+    snapshot = load_tasks_snapshot(project.id, addressed_task_ids(params.prompt))
     check_text = String.trim(Map.get(params, :check_command, "") || "")
 
     reviewer =
@@ -363,6 +364,8 @@ defmodule Boss.Projects.TaskPrompt do
        - `"stop_workflow"`: Stop an active running workflow (`has_active_workflow: true`). All fields except `op` and `task_ref` MUST be `null`.
     4. Never attempt to mark a task `done` or `approved` directly; BOSS requires commit-bound delivery and independent Reviewer verification via `start_workflow`, `queue_workflow`, or `Start Autopilot`.
 
+    The task snapshot covers up to #{@snapshot_limit} present, non-reference tasks. Omitted IDs count only rows from that snapshot. Treat missing details as unknown. A shortened excerpt is partial. Ground spec edits in the available source and identify any missing requirements.
+
     Documentation / specs directory index (#{project.specs_path}):
     #{docs_index}
 
@@ -463,49 +466,112 @@ defmodule Boss.Projects.TaskPrompt do
   end
 
   defp encode_tasks_context(snapshot, user_prompt) do
+    numeric_ids = MapSet.new(addressed_task_ids(user_prompt))
     lower_prompt = String.downcase(user_prompt)
-    count = length(snapshot)
-    default_excerpt = if count <= 24, do: 900, else: 280
 
-    {items, _bytes} =
-      Enum.reduce(snapshot, {[], 0}, fn row, {acc, used} ->
-        mentioned? = task_mentioned?(row, lower_prompt)
-        excerpt_limit = if mentioned?, do: 6_000, else: default_excerpt
-
-        item = %{
-          "task_id" => Integer.to_string(row.task_id),
-          "explicit_id" => row.explicit_id,
-          "title" => row.title,
-          "state" => row.state,
-          "recovery_state" => row.recovery_state,
-          "attention_reason" => row.attention_reason,
-          "depends_on" => row.depends_on,
-          "has_active_workflow" => row.has_active_workflow,
-          "has_queued_workflow" => row.has_queued_workflow,
-          "spec_excerpt" =>
-            if(used < @max_context_bytes,
-              do: Cursor.clip_utf8(row.original_text, excerpt_limit),
-              else: ""
-            )
-        }
-
-        encoded = JSON.encode!(item)
-        {[item | acc], used + byte_size(encoded)}
+    {targets, others} =
+      Enum.split_with(snapshot, fn row ->
+        MapSet.member?(numeric_ids, row.task_id) or named_task?(row.explicit_id, lower_prompt)
       end)
 
-    JSON.encode!(Enum.reverse(items))
+    count = length(snapshot)
+
+    # Reserve the envelope with every ID omitted and the widest possible counters.
+    envelope = %{
+      tasks: [],
+      omitted_task_ids: Enum.map(snapshot, &Integer.to_string(&1.task_id)),
+      omitted_task_count: count,
+      shortened_specifications: count
+    }
+
+    budget = @max_context_bytes - byte_size(JSON.encode!(envelope))
+
+    # Give addressed tasks their source first, then fit as many other board rows as possible.
+    ordered = Enum.map(targets, &{&1, 6_000}) ++ Enum.map(others, &{&1, 0})
+
+    {shown, omitted, budget} =
+      Enum.reduce(ordered, {[], [], budget}, fn {row, limit}, {shown, omitted, left} ->
+        item =
+          row
+          |> Map.take(
+            ~w(explicit_id title state recovery_state attention_reason depends_on has_active_workflow has_queued_workflow)a
+          )
+          |> Map.merge(%{
+            task_id: Integer.to_string(row.task_id),
+            spec_excerpt: "",
+            spec_excerpt_shortened: false
+          })
+
+        # Reserve the longer boolean and charge a comma even on the first row.
+        size = byte_size(JSON.encode!(item)) + 1
+
+        if size <= left do
+          {item, left} = add_excerpt(item, row.original_text, limit, left - size)
+          {[{item, row.original_text} | shown], omitted, left}
+        else
+          {shown, [item.task_id | omitted], left}
+        end
+      end)
+
+    # Use spare bytes for ordinary excerpts after preserving the available task IDs and states.
+    default_excerpt = if count <= 24, do: 900, else: 280
+
+    {items, _left} =
+      shown
+      |> Enum.reverse()
+      |> Enum.map_reduce(budget, fn {item, original}, left ->
+        {item, left} = add_excerpt(item, original, default_excerpt, left)
+        {%{item | spec_excerpt_shortened: item.spec_excerpt != original}, left}
+      end)
+
+    JSON.encode!(%{
+      envelope
+      | tasks: items,
+        omitted_task_ids: Enum.reverse(omitted),
+        omitted_task_count: length(omitted),
+        shortened_specifications: Enum.count(items, & &1.spec_excerpt_shortened)
+    })
   end
 
-  defp task_mentioned?(row, lower_prompt) do
-    id_match? =
-      Regex.match?(~r/(?:^|\D)#{row.task_id}(?:\D|$)/, lower_prompt)
-
-    explicit_match? =
-      is_binary(row.explicit_id) and
-        String.contains?(lower_prompt, String.downcase(row.explicit_id))
-
-    id_match? or explicit_match?
+  defp add_excerpt(%{spec_excerpt: ""} = item, source, limit, left) when limit > 0 and left > 0 do
+    excerpt = Cursor.clip_utf8(source, limit)
+    # The empty string's two quotes were already included with the metadata.
+    size = byte_size(JSON.encode!(excerpt)) - 2
+    if size <= left, do: {%{item | spec_excerpt: excerpt}, left - size}, else: {item, left}
   end
+
+  defp add_excerpt(item, _, _, left), do: {item, left}
+
+  defp addressed_task_ids(prompt) do
+    prompt = String.trim(prompt)
+
+    ids =
+      if Regex.match?(~r/\A[0-9]{1,19}\z/, prompt) do
+        [prompt]
+      else
+        Regex.scan(
+          ~r/(?<![\p{L}\p{N}_-])(?:\#|tasks?\s+)([0-9]{1,19})(?![\p{L}\p{N}_-])/iu,
+          prompt,
+          capture: :all_but_first
+        )
+        |> List.flatten()
+      end
+
+    ids
+    |> Enum.map(&String.to_integer/1)
+    |> Enum.filter(&(&1 > 0 and &1 <= 9_223_372_036_854_775_807))
+    |> Enum.uniq()
+    |> Enum.take(@snapshot_limit)
+  end
+
+  defp named_task?(id, prompt) when is_binary(id) and id != "" do
+    Regex.match?(
+      ~r/(?<![\p{L}\p{N}_-])#{Regex.escape(String.downcase(id))}(?![\p{L}\p{N}_-])/u,
+      prompt
+    )
+  end
+
+  defp named_task?(_, _), do: false
 
   # --- Strict JSON Decoding ---
 
@@ -1448,7 +1514,12 @@ defmodule Boss.Projects.TaskPrompt do
 
   # --- Snapshot & Reference Queries ---
 
-  defp load_tasks_snapshot(project_id) do
+  defp load_tasks_snapshot(project_id, addressed_ids \\ []) do
+    ordering =
+      if addressed_ids == [],
+        do: [asc: :id],
+        else: [desc: dynamic([t], t.id in ^addressed_ids), asc: :id]
+
     rows =
       Repo.all(
         from t in Task,
@@ -1462,8 +1533,8 @@ defmodule Boss.Projects.TaskPrompt do
                 "NOT EXISTS (SELECT 1 FROM project_documentation_sources refs WHERE refs.task_id=?)",
                 t.id
               ),
-          order_by: t.id,
-          limit: 256,
+          order_by: ^ordering,
+          limit: @snapshot_limit,
           select: %{
             task_id: t.id,
             title: t.title,

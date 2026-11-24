@@ -454,6 +454,154 @@ defmodule Boss.TaskPromptTest do
              Projects.list_spec_revisions(Repo.get!(Task, id).spec_id)
   end
 
+  test "a full board keeps named late tasks and bounds the escaped JSON", %{doc_project: project} do
+    context = context_rows(256)
+    prompt = TaskPrompt.build_prompt(project, context, "Review task-256 and #255", "", "codex")
+    json = context_json(prompt)
+    assert byte_size(json) <= 98_304
+
+    assert %{
+             "tasks" => rows,
+             "omitted_task_count" => omitted,
+             "omitted_task_ids" => ids,
+             "shortened_specifications" => shortened
+           } = JSON.decode!(json)
+
+    assert Enum.take(Enum.map(rows, & &1["task_id"]), 2) == ["255", "256"]
+
+    for target <- Enum.take(rows, 2) do
+      assert String.valid?(target["spec_excerpt"])
+      assert target["spec_excerpt_shortened"]
+
+      assert String.starts_with?(
+               target["spec_excerpt"],
+               "selected requirement #{target["task_id"]} "
+             )
+
+      assert byte_size(target["spec_excerpt"]) >= 5_990
+    end
+
+    assert omitted > 0
+    assert omitted == length(ids)
+
+    assert Enum.sort(Enum.map(ids ++ Enum.map(rows, & &1["task_id"]), &String.to_integer/1)) ==
+             Enum.to_list(1..256)
+
+    assert shortened ==
+             Enum.count(rows, fn r ->
+               Enum.at(context, String.to_integer(r["task_id"]) - 1).original_text !=
+                 r["spec_excerpt"]
+             end)
+  end
+
+  test "target matching respects identifier boundaries and explicitly named numeric tasks", %{
+    doc_project: project
+  } do
+    rows =
+      for {row, slug} <-
+            Enum.zip(context_rows(6), ["auth", "auth-ui", "api", "api-v2", "late task", "other"]),
+          do: %{row | explicit_id: slug}
+
+    json =
+      TaskPrompt.build_prompt(
+        project,
+        rows,
+        "Update auth-ui, API-v2, task 6 and `Late Task`. Version v1.2",
+        "",
+        "codex"
+      )
+      |> context_json()
+
+    %{"tasks" => items} = JSON.decode!(json)
+    assert Enum.map(items, & &1["task_id"]) == ["2", "4", "5", "6", "1", "3"]
+    assert Enum.all?(Enum.take(items, 4), &(byte_size(&1["spec_excerpt"]) > 900))
+    assert Enum.all?(Enum.drop(items, 4), &(byte_size(&1["spec_excerpt"]) <= 903))
+  end
+
+  test "run selects an explicitly addressed task beyond the first 256 eligible project rows", c do
+    tasks =
+      for index <- 1..258 do
+        attrs = %{
+          relative_path: "row-#{index}.md",
+          explicit_id: "row-#{index}",
+          title: "Board item #{index}",
+          original_text: "Detail #{index}"
+        }
+
+        {:ok, %{task: task}} = Projects.record_spec(c.doc_project.id, attrs)
+        task
+      end
+
+    {:ok, %{task: foreign}} =
+      Projects.record_spec(c.specs_project.id, %{
+        relative_path: "foreign.md",
+        title: "Foreign",
+        original_text: "Foreign detail"
+      })
+
+    [outside, target] = Enum.take(tasks, -2)
+
+    runner = fn _, _, prompt, _ ->
+      %{"tasks" => shown, "omitted_task_ids" => omitted, "shortened_specifications" => 0} =
+        prompt |> context_json() |> JSON.decode!()
+
+      assert omitted == []
+      assert length(shown) == 256
+      assert hd(shown)["task_id"] == to_string(target.id)
+      assert hd(shown)["spec_excerpt"] == "Detail 258"
+      refute Enum.any?(shown, &(&1["task_id"] in [to_string(foreign.id), to_string(outside.id)]))
+
+      %{
+        "status" => "finished",
+        "cleanup" => "group_empty",
+        "report" => %{
+          "summary" => "Noted",
+          "actions" => [
+            %{
+              "op" => "add_task_note",
+              "task_ref" => to_string(target.id),
+              "reason" => "Addressed task"
+            }
+          ]
+        }
+      }
+    end
+
+    prompt = "Check ##{target.id} and task #{foreign.id}. Release v1.#{outside.id}."
+
+    assert {:ok, %{results: [%{status: :applied, task_id: id}]}} =
+             TaskPrompt.run(
+               c.doc_project.id,
+               Ecto.UUID.generate(),
+               %{prompt: prompt, agent: "codex"},
+               runner: runner
+             )
+
+    assert id == target.id
+  end
+
+  defp context_rows(count) do
+    for id <- 1..count do
+      %{
+        task_id: id,
+        explicit_id: "task-#{id}",
+        title: "Task #{id}",
+        state: "new",
+        recovery_state: nil,
+        attention_reason: String.duplicate("☄\n\"", 22),
+        depends_on: [],
+        has_active_workflow: false,
+        has_queued_workflow: false,
+        original_text: "selected requirement #{id} " <> String.duplicate("🎉\n\"\\", 1350)
+      }
+    end
+  end
+
+  defp context_json(prompt) do
+    [_, rest] = String.split(prompt, "Current project tasks (non-reference):\n", parts: 2)
+    rest |> String.split("\n\nOwner prompt:", parts: 2) |> hd()
+  end
+
   test "enforces one active prompt per project and supports Stop cancellation", %{
     doc_project: project
   } do
