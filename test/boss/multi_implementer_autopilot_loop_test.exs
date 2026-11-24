@@ -290,6 +290,122 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
         1
       )
 
+  for {loop?, outcome} <- [{true, :restarted_loop}, {false, :changed}] do
+    @loop loop?
+    @outcome outcome
+    test "a blocked prerequisite with a queued dependent honors loop=#{loop?}", c do
+      {prerequisite, dependent} = dependency_pair(c.project)
+      ids = [prerequisite.id, dependent.id]
+
+      assert {:ok, batch} =
+               Autopilot.admit(
+                 c.project.id,
+                 Ecto.UUID.generate(),
+                 ids,
+                 "true",
+                 "cursor",
+                 false,
+                 nil,
+                 parallel: true,
+                 spec_loop: @loop
+               )
+
+      assert {:ok, {:launch, :deliver, first, _}} = Autopilot.advance()
+      assert first.task_id == prerequisite.id
+      assert {:ok, :waiting} = Autopilot.advance()
+
+      assert {:ok, _} =
+               Deliveries.complete(
+                 first.id,
+                 "blocked",
+                 "Reviewer requested a missing runtime assertion."
+               )
+
+      assert {:ok, {@outcome, result}} = Autopilot.advance()
+
+      original = Repo.get!(Deliveries.Request, List.last(batch.items).request_id)
+      assert original.status == "cancelled"
+      assert original.delivery_id == nil
+
+      if @loop do
+        assert result.task_ids == ids
+        assert result.check_config == batch.check_config
+        assert result.reviewer == batch.reviewer
+        assert Autopilot.loop_info(result.id).parent_autopilot_id == batch.id
+        assert List.last(result.items).request_id != original.id
+
+        assert {:error, {:dependencies_blocked, _}} =
+                 Tasks.Dependencies.check(c.project.id, dependent.id)
+
+        assert {:ok, {:launch, :deliver, second, next_batch_id}} = Autopilot.advance()
+        assert {second.task_id, next_batch_id} == {prerequisite.id, result.id}
+
+        assert {:ok, _} =
+                 Deliveries.complete(
+                   second.id,
+                   "blocked",
+                   "Reviewer still needs the runtime assertion."
+                 )
+
+        assert {:ok, {:changed, exhausted}} = Autopilot.advance()
+        assert exhausted.id == result.id and exhausted.status == "blocked"
+        assert exhausted.reason =~ "No remaining task is ready"
+        assert Repo.aggregate(AutopilotBatch, :count) == 2
+      else
+        assert result.id == batch.id and result.status == "blocked"
+        assert result.reason =~ "No remaining task is ready"
+        assert Repo.aggregate(AutopilotBatch, :count) == 1
+      end
+    end
+  end
+
+  test "a new arrival cannot enter an already authorized recovery pass", c do
+    {prerequisite, dependent} = dependency_pair(c.project)
+
+    assert {:ok, batch} =
+             Autopilot.admit(
+               c.project.id,
+               Ecto.UUID.generate(),
+               [prerequisite.id, dependent.id],
+               "true",
+               "cursor",
+               false,
+               nil, spec_loop: true)
+
+    assert {:ok, {:launch, :deliver, first, _}} = Autopilot.advance()
+
+    assert {:ok, %{task: later}} =
+             Projects.record_spec(c.project.id, %{
+               relative_path: "autopilot/later.md",
+               title: "Later",
+               original_text: "# Later"
+             })
+
+    assert {:ok, _} = Deliveries.complete(first.id, "blocked", "Reviewer requested an assertion.")
+    assert {:ok, {:changed, halted}} = Autopilot.advance()
+    assert halted.id == batch.id and halted.status == "blocked"
+    assert halted.reason =~ "differs from the authorized loop tasks"
+    assert Repo.aggregate(AutopilotBatch, :count) == 1
+    assert Deliveries.Queue.list(c.project.id, later.id) == []
+  end
+
+  defp dependency_pair(project) do
+    records =
+      for {id, dependencies} <- [{"setup", "[]"}, {"acceptance", "[setup]"}] do
+        assert {:ok, %{task: task}} =
+                 Projects.record_spec(project.id, %{
+                   explicit_id: id,
+                   relative_path: "autopilot/#{id}.md",
+                   title: id,
+                   original_text: "---\ndepends_on: #{dependencies}\n---\n# #{id}\n"
+                 })
+
+        task
+      end
+
+    List.to_tuple(records)
+  end
+
   test "TaskPrompt includes docs/ directory index and UI offers Multi-Implementer Pool, docs presets & animated board",
        c do
     {:ok, _} = Roles.add_binding("implementer", "cursor", %{"model_id" => "gemini-4-carbon"})
