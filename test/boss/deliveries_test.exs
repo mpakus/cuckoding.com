@@ -17,8 +17,17 @@ defmodule Boss.DeliveriesTest do
 
   test "explicit review retry pins source and replays before changed readiness", c do
     {parent, plan, check, rejected} = rejected(c)
+    # A pool added after the parent completed cannot supply historical model evidence.
+    Repo.insert!(%Boss.Projects.ImplementerPoolItem{
+      project_id: c.project.id,
+      agent_id: "cursor",
+      model_id: "later",
+      binding_tag: "later"
+    })
+
     command = Ecto.UUID.generate()
     assert {:ok, {:new, child}} = Deliveries.admit_retry(c.project.id, parent.id, command)
+    assert Repo.get(Boss.Deliveries.ImplementerBinding, child.id) == nil
     assert child.retry_review_id == rejected.id
     assert child.spec_revision_id == parent.spec_revision_id
     assert child.check_config == parent.check_config
@@ -53,6 +62,51 @@ defmodule Boss.DeliveriesTest do
 
     assert {:ok, {:existing, ^cancelled}} =
              Deliveries.admit_retry(c.project.id, parent.id, command)
+  end
+
+  test "explicit retry uses the original implementer binding after a pool change", c do
+    alias Boss.Deliveries.ImplementerBinding
+    alias Boss.Projects.{ImplementerPoolItem, RoleBindings}
+
+    pool =
+      Repo.insert!(%ImplementerPoolItem{
+        project_id: c.project.id,
+        agent_id: "cursor",
+        model_id: "initial",
+        binding_tag: "original",
+        position: 0
+      })
+
+    {parent, _, _, _} = rejected(c)
+    Repo.update!(Ecto.Changeset.change(pool, model_id: "replacement", binding_tag: "replacement"))
+    {:ok, {:new, retry}} = Deliveries.admit_retry(c.project.id, parent.id, Ecto.UUID.generate())
+
+    assert %{model_id: "initial", binding_tag: "original"} =
+             Repo.get(ImplementerBinding, retry.id)
+
+    assert %{model_id: "initial"} =
+             RoleBindings.with_delivery_scope(c.project.id, retry.id, fn ->
+               RoleBindings.selection_for(c.project.id, "implementer", "cursor")
+             end)
+  end
+
+  test "a failed implementer binding insert rolls back admission and its task event", c do
+    Repo.insert!(%Boss.Projects.ImplementerPoolItem{
+      project_id: c.project.id,
+      agent_id: "cursor",
+      model_id: "initial",
+      binding_tag: "original",
+      position: 0
+    })
+
+    Repo.query!(
+      "CREATE TRIGGER fail_binding BEFORE INSERT ON delivery_implementer_bindings BEGIN SELECT RAISE(ABORT, 'fixture'); END"
+    )
+
+    command = Ecto.UUID.generate()
+    assert {:error, :storage_error} = Deliveries.admit(c.project.id, c.task.id, command, "true")
+    assert Repo.get_by(Deliveries.Delivery, command_id: command) == nil
+    assert Tasks.get_task!(c.task.id).state_version == c.task.state_version
   end
 
   test "failed workflow retry pins an explicit seed and replays only the same commit", c do
