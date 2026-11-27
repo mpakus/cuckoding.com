@@ -19,6 +19,7 @@ defmodule Boss.Deliveries.Delivery do
     field :analytic, :string, default: "codex"
     field :autonomy_version, :integer, default: 0
     field :routing_version, :integer, default: 1
+    field :peer_review_version, :integer, load_in_query: false, writable: :insert
     field :model_catalog, :map, default: %{}
     field :failure_code, :string
     field :admitted_version, :integer

@@ -59,7 +59,8 @@ defmodule Boss.Deliveries.Queue do
         text,
         reviewer,
         autonomy_version,
-        routing_version
+        routing_version,
+        policy_source \\ :new
       ) do
     with true <-
            valid_id?(project) and valid_id?(task) and
@@ -144,19 +145,22 @@ defmodule Boss.Deliveries.Queue do
                  ),
                do: Repo.rollback(:queue_full)
 
-            Repo.insert!(%Request{
-              id: Ecto.UUID.generate(),
-              project_id: project,
-              task_id: task,
-              spec_revision_id: current.spec_revision_id,
-              admitted_version: current.state_version,
-              command_id: command,
-              check_config: config,
-              config_hash: hash,
-              reviewer: reviewer,
-              autonomy_version: autonomy_version,
-              routing_version: routing_version
-            })
+            Boss.Deliveries.PeerReview.insert!(
+              %Request{
+                id: Ecto.UUID.generate(),
+                project_id: project,
+                task_id: task,
+                spec_revision_id: current.spec_revision_id,
+                admitted_version: current.state_version,
+                command_id: command,
+                check_config: config,
+                config_hash: hash,
+                reviewer: reviewer,
+                autonomy_version: autonomy_version,
+                routing_version: routing_version
+              },
+              policy_source
+            )
         end
       end)
       |> broadcast_result()

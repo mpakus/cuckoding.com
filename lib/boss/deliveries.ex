@@ -123,6 +123,9 @@ defmodule Boss.Deliveries do
             do: [repair_model | excluded],
             else: excluded
 
+        excluded =
+          Boss.Deliveries.PeerReview.excluded_authors(d, kind, cycle, saved_steps) ++ excluded
+
         if d.routing_version == 1,
           do: ModelPolicy.select(preferred, excluded),
           else: ModelPolicy.select(preferred, excluded, d.model_catalog)
@@ -510,7 +513,10 @@ defmodule Boss.Deliveries do
               nil,
               nil,
               request.autonomy_version,
-              request.routing_version
+              request.routing_version,
+              %{},
+              nil,
+              %{request: request}
             )
 
           saved = Queue.save!(request, status: "started", delivery_id: delivery.id)
@@ -594,31 +600,34 @@ defmodule Boss.Deliveries do
       end
 
     delivery =
-      Repo.insert!(%Delivery{
-        id: Ecto.UUID.generate(),
-        project_id: project,
-        task_id: task.id,
-        spec_revision_id: task.spec_revision_id,
-        admitted_version: task.state_version,
-        task_version: task.state_version,
-        command_id: command,
-        retry_review_id: retry_review_id,
-        retry_implementation_id: retry_implementation_id,
-        checkpoint_recovery_version: Map.get(recovery, :checkpoint_recovery_version, 0),
-        provider_recovery_version: Map.get(recovery, :provider_recovery_version, 0),
-        retry_source_check_id: Map.get(recovery, :retry_source_check_id),
-        implementation_network_version: Map.get(recovery, :implementation_network_version, 0),
-        execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
-        retry_candidate_commit: retry_candidate_commit,
-        reviewer: reviewer,
-        implementer: implementer,
-        analytic: analytic,
-        autonomy_version: autonomy_version,
-        routing_version: routing_version,
-        model_catalog: model_catalog,
-        check_config: config,
-        config_hash: hash
-      })
+      Boss.Deliveries.PeerReview.insert!(
+        %Delivery{
+          id: Ecto.UUID.generate(),
+          project_id: project,
+          task_id: task.id,
+          spec_revision_id: task.spec_revision_id,
+          admitted_version: task.state_version,
+          task_version: task.state_version,
+          command_id: command,
+          retry_review_id: retry_review_id,
+          retry_implementation_id: retry_implementation_id,
+          checkpoint_recovery_version: Map.get(recovery, :checkpoint_recovery_version, 0),
+          provider_recovery_version: Map.get(recovery, :provider_recovery_version, 0),
+          retry_source_check_id: Map.get(recovery, :retry_source_check_id),
+          implementation_network_version: Map.get(recovery, :implementation_network_version, 0),
+          execution_recovery_version: if(retry_implementation_id, do: 1, else: 0),
+          retry_candidate_commit: retry_candidate_commit,
+          reviewer: reviewer,
+          implementer: implementer,
+          analytic: analytic,
+          autonomy_version: autonomy_version,
+          routing_version: routing_version,
+          model_catalog: model_catalog,
+          check_config: config,
+          config_hash: hash
+        },
+        recovery[:parent] || recovery[:request] || :new
+      )
       |> sync_task!("admit")
 
     if chosen_impl do

@@ -14,6 +14,7 @@ defmodule Boss.Projects.Intake.Request do
     field :reviewer, :string
     field :autonomy_version, :integer, default: 0
     field :routing_version, :integer, default: 1
+    field :peer_review_version, :integer, load_in_query: false, writable: :insert
     field :planning_version, :integer, default: 0
     field :accepted_attempt_id, :string
     field :model_catalog, :map, default: %{}

@@ -13,6 +13,7 @@ defmodule Boss.Deliveries.Request do
     field :reviewer, :string
     field :autonomy_version, :integer, default: 0
     field :routing_version, :integer, default: 1
+    field :peer_review_version, :integer, load_in_query: false, writable: :insert
     field :status, :string, default: "queued"
     field :reason, :string
     timestamps(type: :utc_datetime_usec)

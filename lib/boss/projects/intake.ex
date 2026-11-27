@@ -251,7 +251,7 @@ defmodule Boss.Projects.Intake do
             ensure_plannable!(project, previous_intake_id)
 
             {:new,
-             Repo.insert!(%Request{
+             Boss.Deliveries.PeerReview.insert!(%Request{
                id: Ecto.UUID.generate(),
                project_id: project,
                command_id: command,
