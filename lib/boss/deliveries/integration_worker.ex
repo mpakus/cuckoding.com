@@ -369,12 +369,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
   # known-clean drift still stops. Managed unknown-cleanup release lives in
   # Deliveries.release_cleanup/1 after worker exit.
   defp retargetable_drift?(delivery) do
-    drifts =
-      delivery.id
-      |> Deliveries.steps()
-      |> Enum.count(&drift_failure?/1)
-
-    drifts in 1..2
+    steps = Deliveries.steps(delivery.id)
+    drift_failure?(List.last(steps)) and Enum.count(steps, &drift_failure?/1) in 1..2
   end
 
   defp drift_failure?(%{kind: "merge_review", status: "failed", receipt: receipt})
@@ -389,7 +385,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
     try do
       {project, revision} = Deliveries.inputs(delivery)
       steps = Deliveries.steps(delivery.id)
-      review = Enum.find(steps, &(&1.kind == "review" and &1.status == "finished"))
+      drift = List.last(steps)
+      review = Enum.find(steps, &(&1.id == drift.input["original_review_step_id"]))
       check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
       plan = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
       target = ok!(Workspace.plan(project, delivery.id)).base_commit
