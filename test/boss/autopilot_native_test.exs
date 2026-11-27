@@ -348,6 +348,67 @@ defmodule Boss.AutopilotNativeTest do
   end
 
   @tag documentation: true, greenfield: true
+  test "one Start sends an incomplete whole brief through peer review and repair to Done", c do
+    System.put_env("BOSS_AUTOPILOT_MODE", "greenfield_peer_repair")
+    manager = start_manager(c.repo)
+
+    check =
+      ~s|python3 -c "import subprocess,sys; sys.exit(subprocess.check_output([sys.executable,'hello.py']).strip() != b'hello')"|
+
+    assert git(c.source, ["ls-tree", "-r", "--name-only", "HEAD"]) == "docs/product.md"
+    batch = run_greenfield(c, check, manager, true)
+    assert batch.status == "completed"
+    tasks = Projects.list_spec_entries(c.project.id)
+    assert Enum.all?(tasks, &(&1.state == "done"))
+    gate = Enum.find(tasks, &(&1.title == "Verify the complete project brief"))
+    delivery = Repo.get_by!(Deliveries.Delivery, task_id: gate.task_id)
+
+    [first, rejected, diagnosis, replacement, approved] =
+      Deliveries.steps(delivery.id) |> Enum.filter(&(&1.kind in ~w(implement review resolve)))
+
+    assert [first.kind, rejected.kind, diagnosis.kind, replacement.kind, approved.kind] ==
+             ~w(implement review resolve implement review)
+
+    assert rejected.receipt["report"]["verdict"] == "changes_requested"
+    assert diagnosis.input["source_step_id"] == rejected.id
+    assert replacement.input["resolution_step_id"] == diagnosis.id
+    assert approved.receipt["report"]["verdict"] == "approved"
+
+    for {writer, reviewer} <- [{first, rejected}, {replacement, approved}] do
+      writer_model = writer.input["model_profile"]["model"]
+      reviewer_model = reviewer.input["model_profile"]["model"]
+      assert is_binary(writer_model) and is_binary(reviewer_model)
+      refute writer_model == reviewer_model
+    end
+
+    calls =
+      File.read!(Path.join(c.root, "peer-calls"))
+      |> String.split("\n", trim: true)
+      |> Enum.map(&Jason.decode!/1)
+      |> Enum.filter(fn [kind, _model] -> kind in ["implement", "review_schema.json"] end)
+
+    assert Enum.map(calls, &List.last/1) ==
+             Enum.map(
+               [first, rejected, replacement, approved],
+               & &1.input["model_profile"]["model"]
+             )
+
+    states = Tasks.list_events(gate.task_id) |> Enum.map(& &1.to_state) |> Enum.dedup()
+
+    assert states ==
+             ~w(planning implementing testing reviewing planning implementing testing reviewing ready_to_merge integrating done)
+
+    target = git(c.source, ["rev-parse", c.project.base_branch])
+    assert target == approved.receipt["candidate_commit"]
+    refute rejected.receipt["candidate_commit"] == target
+    assert List.last(Deliveries.steps(delivery.id)).receipt["exit_code"] == 0
+    checkout = Path.join(c.root, "published")
+    git(c.source, ["worktree", "add", "--detach", checkout, target])
+    oracle = Path.expand("../fixtures/greenfield_brief_check.py", __DIR__)
+    assert {"3/3 brief requirements passed\n", 0} = System.cmd("python3", [oracle], cd: checkout)
+  end
+
+  @tag documentation: true, greenfield: true
   test "a passing task and a narrow executable check cannot cover missing brief requirements",
        c do
     System.put_env("BOSS_AUTOPILOT_MODE", "greenfield_omission")

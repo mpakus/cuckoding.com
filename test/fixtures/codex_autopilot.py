@@ -31,7 +31,7 @@ if mode.startswith("greenfield"):
         (root / "brief-base").write_text(data["base_commit"])
         criteria = [line[2:] for line in brief.splitlines() if line.startswith("- ")]
         assert len(criteria) == 3
-        if mode == "greenfield_omission":
+        if mode in ("greenfield_omission", "greenfield_peer_repair"):
             criteria = criteria[:1]
         task = {"id": "greeting", "title": "Greeting", "specification": "\n".join(criteria),
                 "sources": [docs_path], "depends_on": [], "acceptance": criteria}
@@ -41,6 +41,10 @@ if mode.startswith("greenfield"):
         gate = "Verify the complete project brief" in data["specification"]
         if gate:
             assert brief in data["specification"]
+            if mode == "greenfield_peer_repair":
+                kind = schema.name if schema else "implement"
+                with (root / "peer-calls").open("a") as log:
+                    log.write(json.dumps([kind, args[args.index("--model") + 1]]) + "\n")
         if schema and schema.name == "plan_schema.json":
             if gate:
                 assert data["brief_documents"] == {docs_path: brief}
@@ -53,9 +57,10 @@ if mode.startswith("greenfield"):
                       "acceptance": criteria, "file_scopes": None}
         elif schema and schema.name == "resolution_schema.json":
             assert gate and data["previous_feedback"]["report"]["verdict"] == "changes_requested"
+            external = None if mode == "greenfield_peer_repair" else "The fixture's replacement implementation is unavailable."
             report = {"summary": "The named greeting and argument limit need repair.",
                       "steps": ["Implement argument handling and rerun checks."], "assumptions": [],
-                      "external_action": "The fixture's replacement implementation is unavailable."}
+                      "external_action": external}
         elif schema:
             assert data["check_receipt"]["exit_code"] == 0
             source = data["diff"]
@@ -80,8 +85,15 @@ if mode.startswith("greenfield"):
                                for c in data["plan"]["acceptance"]]
             }
         else:
-            if not Path("hello.py").exists():
-                script = "print('hello')\n" if mode == "greenfield_omission" else """import sys
+            repairing = mode == "greenfield_peer_repair" and gate and data["cycle"] == 2
+            if repairing:
+                feedback = data["previous_feedback"]
+                assert {issue["criterion"] for issue in feedback["report"]["issues"]} == {"S1:L6", "S1:L7"}
+                assert "Implement argument handling and rerun checks." in feedback["resolution"]["steps"]
+                assert Path("hello.py").read_text() == "print('hello')\n"
+            if repairing or not Path("hello.py").exists():
+                omit = mode in ("greenfield_omission", "greenfield_peer_repair") and not repairing
+                script = "print('hello')\n" if omit else """import sys
 
 if len(sys.argv) > 2:
     print("usage: hello.py [name]", file=sys.stderr)
