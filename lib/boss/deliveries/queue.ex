@@ -2,7 +2,7 @@ defmodule Boss.Deliveries.Queue do
   @moduledoc "Durable explicit workflow requests; restart requires explicit resume."
   import Ecto.Query
   alias Boss.{Deliveries, Repo, Runs, Tasks}
-  alias Boss.Deliveries.{Delivery, Request}
+  alias Boss.Deliveries.{AutopilotBatch, AutopilotItem, Delivery, Request}
   alias Boss.Projects.Spec
   @pending ~w(queued paused)
 
@@ -59,16 +59,71 @@ defmodule Boss.Deliveries.Queue do
         text,
         reviewer,
         autonomy_version,
-        routing_version,
-        policy_source \\ :new
+        routing_version
       ) do
+    admit_request(
+      project,
+      task,
+      command,
+      Boss.Checks.Command.parse_workflow(text),
+      reviewer,
+      autonomy_version,
+      routing_version,
+      :new
+    )
+  end
+
+  # The batch, requests and links must commit together. Reload the persisted
+  # selection so a successor uses the exact authorized argv and hash.
+  @doc false
+  def admit_autopilot_items!(batch_id) do
+    unless Repo.in_transaction?(), do: raise("batch requests require the admission transaction")
+    batch = Repo.get_by!(AutopilotBatch, id: batch_id, status: "running")
+
+    batch.task_ids
+    |> Enum.with_index()
+    |> Enum.each(fn {task, position} ->
+      case admit_request(
+             batch.project_id,
+             task,
+             Ecto.UUID.generate(),
+             {:ok, batch.check_config, batch.config_hash},
+             batch.reviewer,
+             batch.autonomy_version,
+             batch.routing_version,
+             batch
+           ) do
+        {:ok, request} ->
+          Repo.insert!(%AutopilotItem{
+            request_id: request.id,
+            autopilot_id: batch.id,
+            position: position,
+            integration_command_id: Ecto.UUID.generate()
+          })
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp admit_request(
+         project,
+         task,
+         command,
+         check,
+         reviewer,
+         autonomy_version,
+         routing_version,
+         policy_source
+       ) do
     with true <-
            valid_id?(project) and valid_id?(task) and
              Boss.Agents.Metadata.review_runner?(reviewer),
          true <- autonomy_version in [0, 1],
          true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),
-         {:ok, config, hash} <- Boss.Checks.Command.parse_workflow(text) do
+         {:ok, config, hash} <- check do
       transaction(fn ->
         case Repo.get_by(Request, task_id: task, command_id: command) do
           %Request{
