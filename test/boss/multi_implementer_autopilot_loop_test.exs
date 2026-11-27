@@ -296,13 +296,14 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
     test "a blocked prerequisite with a queued dependent honors loop=#{loop?}", c do
       {prerequisite, dependent} = dependency_pair(c.project)
       ids = [prerequisite.id, dependent.id]
+      check = ~S(true "" "argument with spaces" final)
 
       assert {:ok, batch} =
                Autopilot.admit(
                  c.project.id,
                  Ecto.UUID.generate(),
                  ids,
-                 "true",
+                 check,
                  "cursor",
                  false,
                  nil,
@@ -312,6 +313,7 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
 
       assert {:ok, {:launch, :deliver, first, _}} = Autopilot.advance()
       assert first.task_id == prerequisite.id
+      assert first.check_config["argv"] == ["true", "", "argument with spaces", "final"]
       assert {:ok, :waiting} = Autopilot.advance()
 
       assert {:ok, _} =
@@ -330,6 +332,14 @@ defmodule Boss.MultiImplementerAutopilotLoopTest do
       if @loop do
         assert result.task_ids == ids
         assert result.check_config == batch.check_config
+        assert result.config_hash == batch.config_hash
+
+        for item <- result.items do
+          request = Repo.get!(Deliveries.Request, item.request_id)
+          assert request.check_config == first.check_config
+          assert request.config_hash == first.config_hash
+        end
+
         assert result.reviewer == batch.reviewer
         assert Autopilot.loop_info(result.id).parent_autopilot_id == batch.id
         assert List.last(result.items).request_id != original.id

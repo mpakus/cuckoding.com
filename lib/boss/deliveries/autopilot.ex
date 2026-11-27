@@ -256,30 +256,7 @@ defmodule Boss.Deliveries.Autopilot do
 
             maybe_insert_loop_config!(batch, opts)
 
-            Enum.with_index(tasks)
-            |> Enum.each(fn {task, position} ->
-              case Queue.admit(
-                     project,
-                     task,
-                     Ecto.UUID.generate(),
-                     text,
-                     reviewer,
-                     batch.autonomy_version,
-                     batch.routing_version
-                   ) do
-                {:ok, request} ->
-                  Repo.insert!(%AutopilotItem{
-                    request_id: request.id,
-                    autopilot_id: batch.id,
-                    position: position,
-                    integration_command_id: Ecto.UUID.generate()
-                  })
-
-                {:error, reason} ->
-                  Repo.rollback(reason)
-              end
-            end)
-
+            Queue.admit_autopilot_items!(batch.id)
             view(batch)
         end
       end)
@@ -697,12 +674,6 @@ defmodule Boss.Deliveries.Autopilot do
         if Enum.sort(candidates) == Enum.sort(reworked ++ waiting) do
           save(batch, "blocked", reason)
 
-          text =
-            case Boss.Projects.Intake.loop_source(batch.id) do
-              %{check_text: original} -> original
-              nil -> check_text_from_config(batch.check_config)
-            end
-
           next_batch =
             Repo.insert!(%AutopilotBatch{
               id: Ecto.UUID.generate(),
@@ -731,29 +702,7 @@ defmodule Boss.Deliveries.Autopilot do
           })
           |> Repo.update!()
 
-          Enum.with_index(candidates)
-          |> Enum.each(fn {task_id, position} ->
-            case Queue.admit(
-                   batch.project_id,
-                   task_id,
-                   Ecto.UUID.generate(),
-                   text,
-                   batch.reviewer,
-                   next_batch.autonomy_version,
-                   next_batch.routing_version
-                 ) do
-              {:ok, request} ->
-                Repo.insert!(%AutopilotItem{
-                  request_id: request.id,
-                  autopilot_id: next_batch.id,
-                  position: position,
-                  integration_command_id: Ecto.UUID.generate()
-                })
-
-              {:error, err} ->
-                Repo.rollback(err)
-            end
-          end)
+          Queue.admit_autopilot_items!(next_batch.id)
 
           if cancelling?(batch.id), do: Repo.rollback(:cancelled)
           Tasks.broadcast(batch.project_id)
@@ -1171,23 +1120,6 @@ defmodule Boss.Deliveries.Autopilot do
   end
 
   defp maybe_insert_loop_config!(_, _), do: :ok
-
-  defp check_text_from_config(config) when is_map(config) do
-    if Boss.Checks.Command.spec_only?(config) do
-      ""
-    else
-      (config["argv"] || [])
-      |> Enum.map_join(" ", fn arg ->
-        if String.contains?(arg, [" ", "\"", "'"]) do
-          "\"" <> String.replace(arg, "\"", "\\\"") <> "\""
-        else
-          arg
-        end
-      end)
-    end
-  end
-
-  defp check_text_from_config(_), do: ""
 
   defp complete?(batch),
     do:
