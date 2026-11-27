@@ -35,11 +35,16 @@ of account entitlement or a successful inference.
 
 | Work | Routing version 2 |
 | --- | --- |
-| Planning and Codex review | Saved primary; prefer Sol and high reasoning when supported |
+| Planning | Saved primary, with Sol and high reasoning preferred when supported |
+| Codex review and merge review | Prefer the saved primary. With peer review enabled, select a different available model when the candidate was implemented by Codex. |
 | First implementation, explicitly small plan | Available Luna, medium when supported; otherwise primary |
 | First implementation, ordinary plan | Primary coding model |
 | Diagnosis / second opinion | Distinct strong model; prefer Astra or Terra and xhigh when supported |
 | Subsequent implementations | Alternate the saved resolver and primary strong model |
+
+New routing-version-2 admissions also pin `peer_review_version: 1`. When Codex implements and reviews a candidate, both ordinary review and review after a merge exclude the model that implemented that cycle. The remaining eligible model comes from the saved catalog. If none qualifies, the delivery stops for model availability. A replacement implementation gets its own fresh review. Each stage records the selected profile before invoking the CLI.
+
+The policy follows a documentation intake into its batch, queued requests and deliveries. A second Auto-loop pass or explicit retry inherits its originating policy. Historical admissions use version 0 and retain their original reviewer selection. Configured Claude, Cursor and OpenCode roles keep their chosen runners and model settings.
 
 Supported identities are `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-luna`,
 `gpt-5.6-sol`, `gpt-5.6-terra` and `gpt-5.6-luna`. Requested 6-series roles are
@@ -108,6 +113,8 @@ The original documents and fixed failure diagnosis guide the replacement plan.
 The latest valid plan hash binds task creation; historical planning version 0 and
 failed requests are unchanged. Stop, unknown cleanup, drift and shared provider
 failures halt this bounded loop. See [Autopilot](AUTOPILOT.md).
+
+If a task needed an ordinary review repair, later integration follows the saved approval for the repaired candidate. After target drift, the new merge uses the original review named by the interrupted merge review. A failed postcheck follows the publication back to its approving review and plan. Earlier rejected reviews remain available in history.
 
 A merge conflict on an autonomy version 1 delivery keeps the original approval.
 Another model repairs from the current target in a fresh worktree. A fresh

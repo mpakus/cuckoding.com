@@ -45,7 +45,7 @@ defmodule Boss.MergeIntegrationWorkerTest do
     {20_261_110_280_000, Boss.Repo.Migrations.AllowOpenCodeRunner}
   ]
 
-  setup do
+  setup context do
     root = Path.join(System.tmp_dir!(), "boss-merge-integration-#{Ecto.UUID.generate()}")
     File.mkdir!(root)
     on_exit(fn -> File.rm_rf!(root) end)
@@ -64,7 +64,11 @@ defmodule Boss.MergeIntegrationWorkerTest do
 
     repo = start_repo(opts)
     Repo.put_dynamic_repo(repo)
-    Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
+
+    migrations =
+      if context[:peer_review], do: Ecto.Migrator.migrations_path(Repo), else: @migrations
+
+    Ecto.Migrator.run(Repo, migrations, :up, all: true, log: false)
     source = Path.join(root, "source")
     File.mkdir!(source)
     {physical, 0} = System.cmd("/bin/pwd", ["-P"], cd: source)
@@ -535,7 +539,7 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert checkout(ctx) == user
   end
 
-  @tag timeout: 180_000
+  @tag timeout: 180_000, peer_review: true
   test "a second target advance during fresh review is merged again and published", ctx do
     System.put_env("BOSS_DELIVERY_MODE", "reject_once")
     {manager, delivery, _target, user, command, pid} = waiting_review(ctx)
@@ -568,6 +572,16 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert hd(reviews).status == "failed"
     assert hd(reviews).receipt["outcome"] == "target_changed"
     assert List.last(reviews).receipt["report"]["verdict"] == "approved"
+    [_, repair] = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "implement"))
+    author_model = repair.input["model_profile"]["model"]
+    assert is_binary(author_model)
+
+    for review <- [approved | reviews] do
+      reviewer_model = review.input["model_profile"]["model"]
+      assert is_binary(reviewer_model)
+      refute author_model == reviewer_model
+    end
+
     [first, retarget] = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "merge"))
 
     for merge <- [first, retarget] do

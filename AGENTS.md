@@ -329,6 +329,12 @@
   Done counts as completion. Reuse a resolved Git workspace within one preflight
   and verify it again at each subsequent admission or publication boundary.
   See [the Paradev comparison and regressions](docs/PARADEV.md).
+- For new managed work, pin peer-review policy at authorization and inherit it
+  across batch passes, queue claims and explicit retries. When Codex fills both
+  roles, ordinary and merge reviewers must differ from the implementing model
+  for that cycle. Preserve the original policy on historical work.
+  Carry terminal reviewer criteria and evidence into rework, honor confirmed
+  external action, and reuse the saved check argv and hash on every pass.
 - Verify greenfield delivery with exactly one committed Markdown file in a source
   subdirectory, a finite CLI, a trusted executable assertion and a fresh checkout
   of the exact published SHA. Record per-task Done and whole-brief coverage

@@ -686,3 +686,7 @@ through Done with finite fixtures before continuing the real task.
 A documentation Start authorizes a specific loop setting and executable check. The final acceptance task follows every planned task and verifies the original brief on the published commit. Specs-mode feedback preserves the owner’s Markdown. See the [architecture and executable acceptance cases](../docs/ARCHITECTURE.md#acceptance-evidence).
 
 The [Paradev comparison](../docs/PARADEV.md) records the measured Git preflight and Task Prompt changes, plus how Autopilot distinguishes attention, approval and publication.
+
+## Autonomous peer review and repair
+
+Carry a rejected criterion from the reviewed commit through diagnosis, replacement implementation and fresh review. Verify the saved check and the completed brief against the publication. Preserve the selected runners, historical model policy and finite repair budget.

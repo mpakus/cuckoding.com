@@ -1059,3 +1059,11 @@ Audit scope and local reproduction are in [the architecture guide](../docs/ARCHI
 - [x] Preserve addressed task context under the board's serialized byte budget and verify project-scoped lookup beyond the default 256-card selection.
 - [x] Count only verified Done, represent Ready separately and link the task needing attention beside an active peer.
 - [x] Remove duplicate Git workspace probes within one preflight while detecting an occupied or changed target.
+
+## Autonomous peer review and rework — 2026-11-27
+
+- [x] Pin peer review at admission and keep historical requests, loop passes and explicit retries on their saved policy.
+- [x] Verify that the implementation and review model differ on both sides of a repair and that the published application meets the whole brief.
+- [x] Carry failed and unclear criteria, evidence and issues into an authorized rework pass. Preserve confirmed external-action stops.
+- [x] Preserve the exact saved check argv and hash when a prerequisite and its dependents enter the next pass.
+- [x] Publish the approved replacement after target drift and use its linked plan for postcheck repair. Verify Stop and drift budgets.

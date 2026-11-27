@@ -23,8 +23,9 @@ flowchart TD
     M --> W["Implementer plans and writes in an isolated worktree"]
     W --> C["Snapshot candidate and apply saved check policy"]
     C --> R["Reviewer checks diff and task acceptance criteria"]
-    R -->|Recoverable finding| F["Diagnose and repair within saved budget"]
-    F --> W
+    R -->|Failed or unclear criterion| F["Analytic diagnoses the reviewed candidate"]
+    F -->|Actionable steps| W
+    F -->|Confirmed external action required| H["Needs input"]
     R -->|Approved| P["Integrate on the local target"]
     P --> V["Apply postcheck and verify retained checkout"]
     V -->|Passed at published SHA| Z["Record Done and release dependent tasks"]
@@ -52,13 +53,15 @@ The owner supplies an executable check for a new documentation Start. That comma
 - **Rework of task files.** Reviewer feedback becomes a derived database revision linked to the last observed file. The source file and its frontmatter remain intact. The importer still detects later edits and moves against that file observation.
 - **Blocked work.** When a failed prerequisite holds up the final task, Auto-loop can use its remaining pass to refine that prerequisite and requeue its waiting dependents. Single pass and exhausted repair budgets leave the project blocked. Provider failure, uncertain cleanup or a server restart can also require attention. [Autopilot controls](AUTOPILOT.md) · [Recovery](RECOVERY.md)
 
+When both coding and review use Codex on a new request, BOSS selects a reviewer from the saved catalog that differs from the model that wrote the checked candidate. After rejection, the Analytic receives the findings and check evidence. A replacement implementer works from the rejected candidate, then BOSS runs the check and a fresh review. The task history records the return from Review to Planning and Implementation. See [model selection and historical policies](AUTONOMY.md).
+
 The [Paradev engineering review](PARADEV.md) maps prompt context, workspace readiness and agent activity to these delivery stages.
 
 ## Acceptance evidence
 
 The native macOS test starts with exactly one committed file, `docs/product.md`. It specifies a greeting CLI with three observable behaviors: default greeting, a name containing a space, and an error for extra arguments. A trusted check outside the repository asserts exit status, stdout and stderr for all three. The test runs that check in a fresh checkout of the exact published SHA and inspects the independent review, postcheck and retained checkout.
 
-Companion scenarios cover an empty planner result and an implementation that passes a narrower task check while missing two requirements. The finite CLI supplies controlled model responses. Git, process supervision, Python execution, SQLite and the delivery gates are real.
+Companion scenarios cover an empty plan and a CLI that passes a narrow check while missing two requirements. In one case an external action is needed and the project stays blocked. In another the reviewer identifies both missing behaviors, the Analytic returns repair steps, and the replacement implements them. The test checks model IDs at the CLI boundary, the task's backward and forward transitions, and all three behaviors in a detached checkout of the published commit. The finite CLI supplies controlled model responses. Git, process supervision, Python execution, SQLite and the delivery gates are real.
 
 ```sh
 rtk proxy asdf exec mix test test/boss/autopilot_native_test.exs --only greenfield

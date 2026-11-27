@@ -363,10 +363,11 @@ defmodule Boss.AutopilotNativeTest do
     gate = Enum.find(tasks, &(&1.title == "Verify the complete project brief"))
     delivery = Repo.get_by!(Deliveries.Delivery, task_id: gate.task_id)
 
-    [first, rejected, diagnosis, replacement, approved] =
-      Deliveries.steps(delivery.id) |> Enum.filter(&(&1.kind in ~w(implement review resolve)))
+    steps = Deliveries.steps(delivery.id)
+    handoffs = Enum.filter(steps, &(&1.kind in ~w(implement review resolve)))
+    [first, rejected, diagnosis, replacement, approved] = handoffs
 
-    assert [first.kind, rejected.kind, diagnosis.kind, replacement.kind, approved.kind] ==
+    assert Enum.map(handoffs, & &1.kind) ==
              ~w(implement review resolve implement review)
 
     assert rejected.receipt["report"]["verdict"] == "changes_requested"
@@ -381,17 +382,16 @@ defmodule Boss.AutopilotNativeTest do
       refute writer_model == reviewer_model
     end
 
+    refute first.input["model_profile"]["model"] == replacement.input["model_profile"]["model"]
+
     calls =
       File.read!(Path.join(c.root, "peer-calls"))
       |> String.split("\n", trim: true)
       |> Enum.map(&Jason.decode!/1)
-      |> Enum.filter(fn [kind, _model] -> kind in ["implement", "review_schema.json"] end)
+      |> Enum.reject(fn [kind, _model] -> kind == "plan_schema.json" end)
 
     assert Enum.map(calls, &List.last/1) ==
-             Enum.map(
-               [first, rejected, replacement, approved],
-               & &1.input["model_profile"]["model"]
-             )
+             Enum.map(handoffs, & &1.input["model_profile"]["model"])
 
     states = Tasks.list_events(gate.task_id) |> Enum.map(& &1.to_state) |> Enum.dedup()
 
@@ -401,7 +401,13 @@ defmodule Boss.AutopilotNativeTest do
     target = git(c.source, ["rev-parse", c.project.base_branch])
     assert target == approved.receipt["candidate_commit"]
     refute rejected.receipt["candidate_commit"] == target
-    assert List.last(Deliveries.steps(delivery.id)).receipt["exit_code"] == 0
+
+    assert %{
+             kind: "post_check",
+             status: "finished",
+             receipt: %{"candidate_commit" => ^target, "exit_code" => 0}
+           } = List.last(steps)
+
     checkout = Path.join(c.root, "published")
     git(c.source, ["worktree", "add", "--detach", checkout, target])
     oracle = Path.expand("../fixtures/greenfield_brief_check.py", __DIR__)

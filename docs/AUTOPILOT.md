@@ -119,6 +119,8 @@ An advanced target requires a new merge candidate, checks and independent review
 No scheduler action can declare a task Done directly. Completed tasks stay Done;
 eligible blocked or needs-input tasks can receive a bounded spec-rework pass. In specs mode rework creates a derived database revision linked to the underlying source. Newer working-file content is preserved. With Auto-loop enabled and a pass remaining, a failed prerequisite can be refined while its dependents wait. Single pass and exhausted budgets leave the batch blocked. See [delivery architecture](ARCHITECTURE.md).
 
+On a rework pass, each failed or unclear criterion travels with its reviewer evidence and associated issues. The successor requests reuse the saved executable argument list and configuration hash, including empty arguments. If the complete refinement exceeds the 24,000-byte specification limit, the original task stays blocked with its review available. A terminal resolver decision requiring external action stays in Needs input.
+
 The target branch must be free of user checkouts. An early read-only preflight
 refuses a checked-out or unavailable target before any model call. Publication
 checks that condition again. BOSS does not switch your checkout automatically.
