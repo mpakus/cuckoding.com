@@ -53,6 +53,34 @@ defmodule Boss.Deliveries do
     do: Repo.all(from s in Step, where: s.delivery_id == ^id, order_by: s.number, limit: 48)
 
   @doc false
+  def postcheck_plan(%Step{kind: "post_check", delivery_id: delivery_id} = post) do
+    published = post.receipt["candidate_commit"]
+
+    with %Step{
+           kind: "publish",
+           status: "finished",
+           delivery_id: ^delivery_id,
+           receipt: %{"candidate_commit" => ^published}
+         } = publication <-
+           saved_step(post.input["publish_step_id"]),
+         %Step{
+           kind: kind,
+           status: "finished",
+           delivery_id: ^delivery_id,
+           input: %{"candidate_commit" => ^published},
+           receipt: %{"report" => %{"verdict" => "approved"}}
+         } = review
+         when kind in ["review", "merge_review"] <-
+           saved_step(publication.input["review_step_id"]),
+         %Step{kind: "plan", status: "finished", delivery_id: ^delivery_id} = plan <-
+           saved_step(review.input["plan_step_id"]) do
+      {:ok, plan}
+    else
+      _ -> {:error, :missing_evidence}
+    end
+  end
+
+  @doc false
   def model_profile(delivery, kind, cycle, plan_step_id \\ nil) do
     d = Repo.get!(Delivery, delivery.id)
     kind = to_string(kind)
@@ -1807,12 +1835,12 @@ defmodule Boss.Deliveries do
             fresh_repair_workspace?(d, source.input["candidate_commit"], previous, i)
 
         "post_check" ->
-          plan = Enum.find(steps(d.id), &(&1.kind == "plan" and &1.status == "finished"))
+          plan_id = i["plan_step_id"]
 
           source.status == "failed" and source.receipt["outcome"] == "checks_failed" and
             source.receipt["output_complete"] == true and
             source.receipt["cleanup"] == "group_empty" and
-            plan != nil and i["plan_step_id"] == plan.id and
+            match?({:ok, %Step{id: ^plan_id}}, postcheck_plan(source)) and
             i["candidate_commit"] == source.receipt["candidate_commit"] and
             fresh_repair_workspace?(d, source.receipt["candidate_commit"], previous, i)
 
@@ -2128,7 +2156,8 @@ defmodule Boss.Deliveries do
     all = steps(d.id)
 
     original =
-      Enum.find(all, &(&1.kind == "review")) || Repo.rollback(:missing_evidence)
+      Enum.find(all, &(&1.id == merge.input["original_review_step_id"])) ||
+        Repo.rollback(:missing_evidence)
 
     review =
       Enum.find(Enum.reverse(all), &(&1.kind == "review" and &1.number > merge.number)) ||
@@ -2251,14 +2280,19 @@ defmodule Boss.Deliveries do
   end
 
   defp rejected_merge_publication(d, all) do
-    with %Step{status: "finished"} = merge <- Enum.find(all, &(&1.kind == "merge")),
-         %Step{status: "finished", receipt: %{"report" => %{"verdict" => "changes_requested"}}} =
+    with %Step{status: "finished", receipt: %{"report" => %{"verdict" => "changes_requested"}}} =
            rejected <- Enum.find(Enum.reverse(all), &(&1.kind == "merge_review")),
+         %Step{kind: "merge", status: "finished"} = merge <-
+           Enum.find(all, &(&1.id == rejected.input["merge_step_id"])),
          %Step{} = review <-
            Enum.find(Enum.reverse(all), &(&1.kind == "review" and &1.number > rejected.number)) do
       check = Enum.find(all, &(&1.id == review.input["check_step_id"]))
       plan = Enum.find(all, &(&1.id == review.input["plan_step_id"]))
-      original = Enum.find(all, &(&1.kind == "review"))
+
+      original =
+        Enum.find(all, &(&1.id == merge.input["original_review_step_id"])) ||
+          Repo.rollback(:missing_evidence)
+
       report = decoded_review!(review.receipt["report"])
       criteria = Enum.map(report["acceptance"], & &1["criterion"])
       merged = merge.receipt["candidate_commit"]

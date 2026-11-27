@@ -298,9 +298,11 @@ defmodule Boss.MergeIntegrationWorkerTest do
   end
 
   test "conflicting target repairs from that target and publishes only the new review", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "reject_once")
     {manager, delivery} = ready(ctx)
-    original = step(delivery, "review")
-    original_sha = candidate(delivery)
+    [rejected, original] = Enum.filter(Deliveries.steps(delivery.id), &(&1.kind == "review"))
+    assert rejected.receipt["report"]["verdict"] == "changes_requested"
+    original_sha = original.input["candidate_commit"]
     target = advance(ctx, "result.txt", "conflicting target\n")
     user = preserve_checkout(ctx)
     saved = integrate(ctx, manager, delivery)
@@ -326,8 +328,8 @@ defmodule Boss.MergeIntegrationWorkerTest do
     refute step(saved, "merge_check")
     refute step(saved, "merge_review")
     reviews = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "review"))
-    assert hd(reviews) == original
-    repair = List.last(reviews)
+    assert [^rejected, ^original, repair] = reviews
+    assert merge.input["original_review_step_id"] == original.id
     assert repair.id != original.id
     assert repair.receipt["report"]["verdict"] == "approved"
     assert repair.input["publication_base"] == target
@@ -340,12 +342,12 @@ defmodule Boss.MergeIntegrationWorkerTest do
              "#{published} #{target}"
 
     assert File.read!(Path.join(saved.integration_intent["path"], "result.txt")) ==
-             "candidate-2\n"
+             "candidate-3\n"
 
-    assert :ok = Candidate.verify(step(saved, "check").input["workspace"], original_sha)
+    assert :ok = Candidate.verify(original.input["workspace"], original_sha)
     assert checkout(ctx) == user
     assert Enum.any?(calls(ctx, "calls"), &(&1["kind"] == "resolve"))
-    assert Enum.count(calls(ctx, "calls"), &(&1["kind"] == "implement")) == 2
+    assert Enum.count(calls(ctx, "calls"), &(&1["kind"] == "implement")) == 3
     refute inspect(Deliveries.steps(saved.id), limit: :infinity) =~ "SECRET_SENTINEL"
   end
 
@@ -411,8 +413,10 @@ defmodule Boss.MergeIntegrationWorkerTest do
   @tag timeout: 120_000
   test "integration review changes are repaired from the merge and only the new commit publishes",
        ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "reject_once")
     {manager, delivery} = ready(ctx)
-    original = step(delivery, "review")
+    [rejected, original] = Enum.filter(Deliveries.steps(delivery.id), &(&1.kind == "review"))
+    assert rejected.receipt["report"]["verdict"] == "changes_requested"
     target = advance(ctx)
     user = preserve_checkout(ctx)
     System.put_env("BOSS_DELIVERY_MODE", "merge_repair")
@@ -429,6 +433,7 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert saved.status == "done" and saved.cleanup == "group_empty", inspect(saved.reason)
     assert step(saved, "merge_review").receipt["report"]["verdict"] == "changes_requested"
     repair = Deliveries.steps(saved.id) |> Enum.filter(&(&1.kind == "review")) |> List.last()
+    assert step(saved, "merge_review").input["original_review_step_id"] == original.id
     assert repair.id != original.id
     assert repair.receipt["report"]["verdict"] == "approved"
     published = saved.integration_intent["candidate_commit"]
@@ -436,7 +441,7 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert git(ctx.source, ["merge-base", "--is-ancestor", target, published]) == ""
 
     assert File.read!(Path.join(saved.integration_intent["path"], "result.txt")) ==
-             "candidate-2\n"
+             "candidate-3\n"
 
     assert checkout(ctx) == user
     assert Enum.any?(calls(ctx, "calls"), &(&1["kind"] == "resolve"))
@@ -478,7 +483,10 @@ defmodule Boss.MergeIntegrationWorkerTest do
 
   @tag timeout: 180_000
   test "a failed post-check is repaired on top of the published commit", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_plan")
     {manager, delivery} = ready(ctx)
+    [question, plan] = Enum.filter(Deliveries.steps(delivery.id), &(&1.kind == "plan"))
+    assert is_binary(question.receipt["report"]["clarification"])
     published = candidate(delivery)
     git(ctx.source, ["switch", "--detach"])
     user = preserve_checkout(ctx)
@@ -490,6 +498,11 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert main != published
     assert git(ctx.source, ["rev-list", "--parents", "-n", "1", main]) == "#{main} #{published}"
     posts = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "post_check"))
+
+    resolver =
+      Enum.find(Deliveries.steps(saved.id), &(&1.input["source_step_id"] == hd(posts).id))
+
+    assert resolver.input["plan_step_id"] == plan.id
     assert hd(posts).status == "failed"
     assert List.last(posts).status == "finished"
 
@@ -524,7 +537,11 @@ defmodule Boss.MergeIntegrationWorkerTest do
 
   @tag timeout: 180_000
   test "a second target advance during fresh review is merged again and published", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "reject_once")
     {manager, delivery, _target, user, command, pid} = waiting_review(ctx)
+    [rejected, approved] = Enum.filter(Deliveries.steps(delivery.id), &(&1.kind == "review"))
+    assert rejected.receipt["report"]["verdict"] == "changes_requested"
+    assert approved.receipt["report"]["verdict"] == "approved"
     target = git(ctx.source, ["rev-parse", "main"])
     tree = git(ctx.source, ["rev-parse", "#{target}^{tree}"])
     changed = git(ctx.source, ["commit-tree", tree, "-p", target, "-m", "advanced during review"])
@@ -551,6 +568,13 @@ defmodule Boss.MergeIntegrationWorkerTest do
     assert hd(reviews).status == "failed"
     assert hd(reviews).receipt["outcome"] == "target_changed"
     assert List.last(reviews).receipt["report"]["verdict"] == "approved"
+    [first, retarget] = Enum.filter(Deliveries.steps(saved.id), &(&1.kind == "merge"))
+
+    for merge <- [first, retarget] do
+      assert merge.input["original_review_step_id"] == approved.id
+      assert merge.input["original_candidate"] == approved.input["candidate_commit"]
+    end
+
     published = git(ctx.source, ["rev-parse", "main"])
     assert published == saved.integration_intent["candidate_commit"]
     assert git(ctx.source, ["merge-base", "--is-ancestor", changed, published]) == ""
@@ -558,7 +582,9 @@ defmodule Boss.MergeIntegrationWorkerTest do
     process_gone(pid)
     wait_idle(manager)
     assert {:ok, ^saved} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
-    assert length(calls(ctx, "calls")) == 5
+
+    assert Enum.map(calls(ctx, "calls"), & &1["kind"]) ==
+             ~w(plan implement review resolve implement review review review)
   end
 
   @tag timeout: 240_000

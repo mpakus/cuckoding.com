@@ -756,8 +756,7 @@ defmodule Boss.Deliveries.Worker do
     {project, revision} = Deliveries.inputs(delivery)
     steps = Deliveries.steps(delivery.id)
     post = Enum.find(Enum.reverse(steps), &(&1.kind == "post_check" and &1.status == "failed"))
-    review = Enum.find(steps, &(&1.kind == "review" and &1.status == "finished"))
-    plan_step = Enum.find(steps, &(&1.id == review.input["plan_step_id"]))
+    plan_step = ok!(Deliveries.postcheck_plan(post))
     source = revision.original_text
     plan = plan_step.receipt["report"]
     workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
