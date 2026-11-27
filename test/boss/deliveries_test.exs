@@ -15,6 +15,118 @@ defmodule Boss.DeliveriesTest do
     ]
   }
 
+  for {verdict, status} <- [{"changes_requested", "failed"}, {"needs_spec_revision", "unclear"}] do
+    @tag intake_mode: "documentation"
+    test "spec rework carries every issue and the #{status} criterion's evidence to Backlog", c do
+      {d, plan, check} = checked(c)
+      messages = Enum.map(1..10, &"Repair item #{&1}.")
+
+      report = %{
+        "verdict" => unquote(verdict),
+        "summary" => "Revise this behavior",
+        "acceptance" => [
+          %{
+            "criterion" => "Saved criterion",
+            "status" => unquote(status),
+            "evidence" => "Observed the wrong result."
+          }
+        ],
+        "issues" => Enum.map(messages, &%{"criterion" => "Saved criterion", "message" => &1})
+      }
+
+      assert {:ok, ^report} =
+               Deliveries.Protocol.review(JSON.encode!(report), plan.receipt["report"])
+
+      stage(d, "review", 1, review_input(d, plan, check), %{
+        "candidate_commit" => @candidate,
+        "report" => report
+      })
+
+      {:ok, blocked} = Deliveries.complete(d.id, "blocked", "Review repair budget exhausted")
+
+      assert [task_id] =
+               Deliveries.SpecRework.refine_settled_deliveries(
+                 c.project.id,
+                 [{nil, nil, blocked, nil}],
+                 1
+               )
+
+      assert %{state: "new", spec_revision_id: revision_id} = Tasks.get_task!(task_id)
+      assert [original, refined] = Projects.list_spec_revisions(c.task.spec_id)
+      assert original.id == d.spec_revision_id and refined.id == revision_id
+      assert String.starts_with?(refined.original_text, original.original_text)
+      assert refined.original_text =~ "#{unquote(status)}: Saved criterion"
+      assert refined.original_text =~ "Observed the wrong result."
+      for message <- messages, do: assert(refined.original_text =~ message)
+    end
+  end
+
+  @tag intake_mode: "documentation"
+  test "oversized review feedback stays intact on the blocked delivery", c do
+    messages = Enum.map(1..14, &("#{&1}. " <> String.duplicate("項", 600)))
+    {d, _plan, _check, review} = rejected(Map.put(c, :review_messages, messages))
+
+    assert byte_size(JSON.encode!(review.receipt["report"])) > 24_000
+
+    assert [] =
+             Deliveries.SpecRework.refine_settled_deliveries(
+               c.project.id,
+               [{nil, nil, d, nil}],
+               1
+             )
+
+    assert %{state: "blocked", spec_revision_id: pin} = Tasks.get_task!(c.task.id)
+    assert pin == d.spec_revision_id
+    assert [_] = Projects.list_spec_revisions(c.task.spec_id)
+    [latest] = Enum.filter(Deliveries.steps(d.id), &(&1.id == review.id))
+    assert Enum.map(latest.receipt["report"]["issues"], & &1["message"]) == messages
+  end
+
+  @tag intake_mode: "documentation"
+  test "a later owner-only resolver decision keeps a rejected task in Needs input", c do
+    {d, plan, check, rejected} = rejected(c, false)
+    action = "Owner must choose which account to use."
+
+    report = %{
+      "summary" => "Needs an owner decision",
+      "assumptions" => [],
+      "steps" => ["Wait for the account choice."],
+      "external_action" => action
+    }
+
+    input = %{
+      "plan_step_id" => plan.id,
+      "candidate_commit" => @candidate,
+      "source_step_id" => rejected.id,
+      "workspace" => check.input["workspace"],
+      "input_hash" => @hash,
+      "feedback_hash" => @hash
+    }
+
+    Enum.reduce(1..2, rejected, fn attempt, previous ->
+      stage(
+        d,
+        "resolve",
+        1,
+        Map.merge(input, %{"resolution_attempt" => attempt, "parent_step_id" => previous.id}),
+        %{"candidate_commit" => @candidate, "report" => report}
+      )
+    end)
+
+    {:ok, blocked} = Deliveries.complete(d.id, "needs_input", action)
+
+    assert [] =
+             Deliveries.SpecRework.refine_settled_deliveries(
+               c.project.id,
+               [{nil, nil, blocked, nil}],
+               1
+             )
+
+    assert %{state: "needs_input", spec_revision_id: pin} = Tasks.get_task!(c.task.id)
+    assert pin == d.spec_revision_id
+    assert [_] = Projects.list_spec_revisions(c.task.spec_id)
+  end
+
   test "explicit review retry pins source and replays before changed readiness", c do
     {parent, plan, check, rejected} = rejected(c)
     # A pool added after the parent completed cannot supply historical model evidence.
@@ -243,14 +355,15 @@ defmodule Boss.DeliveriesTest do
              ])
   end
 
-  setup do
+  setup context do
     project =
       Repo.insert!(%Projects.Project{
         name: "Delivery",
         root_path: "/delivery",
         git_common_dir: "/delivery/.git",
         specs_path: "/delivery/specs",
-        base_branch: "main"
+        base_branch: "main",
+        intake_mode: Map.get(context, :intake_mode, "specs")
       })
 
     {:ok, record} =
@@ -909,9 +1022,11 @@ defmodule Boss.DeliveriesTest do
               "evidence" => "Still missing"
             }
           ],
-          "issues" => [
-            %{"criterion" => "Saved criterion", "message" => "Fix the missing behavior"}
-          ]
+          "issues" =>
+            Enum.map(
+              Map.get(c, :review_messages, ["Fix the missing behavior"]),
+              &%{"criterion" => "Saved criterion", "message" => &1}
+            )
         }
       })
 
@@ -1108,6 +1223,7 @@ defmodule Boss.DeliveriesTest do
     do: %{
       "plan_step_id" => plan.id,
       "check_step_id" => check.id,
+      "workspace" => check.input["workspace"],
       "candidate_commit" => @candidate,
       "config_hash" => d.config_hash,
       "original_base" => @base,
