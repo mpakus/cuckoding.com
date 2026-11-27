@@ -27,15 +27,22 @@ defmodule Boss.Deliveries.PeerReview do
       )
       when kind in ["review", "merge_review"] do
     if installed?() and version(d) == 1 do
-      for s <- steps,
-          s.kind == "implement" and s.status == "finished" and s.cycle == cycle,
-          do: s.input["model_profile"]["model"]
+      case Enum.find(
+             steps,
+             &(&1.kind == "implement" and &1.status == "finished" and &1.cycle == cycle)
+           ) do
+        %{input: %{"model_profile" => %{"model" => model}}} when is_binary(model) ->
+          {:ok, [model]}
+
+        _ ->
+          {:error, :missing_evidence}
+      end
     else
-      []
+      {:ok, []}
     end
   end
 
-  def excluded_authors(_, _, _, _), do: []
+  def excluded_authors(_, _, _, _), do: {:ok, []}
 
   defp version(:new), do: 1
   defp version(%schema{id: id}), do: version({schema, id})

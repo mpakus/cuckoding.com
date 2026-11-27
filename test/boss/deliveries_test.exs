@@ -34,6 +34,20 @@ defmodule Boss.DeliveriesTest do
     assert {:error, :invalid_step} = Deliveries.begin_step(delivery.id, "review", 1, forged)
     assert {:error, error} = raw_stage(delivery, "review", forged, 1)
     assert Exception.message(error) =~ "pinned catalog"
+    other_model = Map.put(forged, "model_profile", @catalog["resolver"])
+    assert {:error, error} = raw_stage(delivery, "review", other_model, 2)
+    assert Exception.message(error) =~ "pinned catalog"
+
+    assert {:error, error} =
+             raw_stage(delivery, "review", Map.put(other_model, "check_step_id", plan.id), 1)
+
+    assert Exception.message(error) =~ "pinned catalog"
+
+    assert {:error, error} =
+             raw_stage(delivery, "review", Map.put(other_model, "candidate_commit", @base), 1)
+
+    assert Exception.message(error) =~ "pinned catalog"
+
     review = review(delivery, plan, check)
     assert review.input["model_profile"] == @catalog["resolver"]
 
@@ -111,7 +125,9 @@ defmodule Boss.DeliveriesTest do
         "true",
         "codex",
         false,
-        nil, spec_loop: true)
+        nil,
+        spec_loop: true
+      )
 
     assert Repo.query!("SELECT peer_review_version FROM autopilots WHERE id=?", [batch.id]).rows ==
              [[1]]

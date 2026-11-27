@@ -3,13 +3,26 @@ defmodule Boss.Repo.Migrations.PinPeerReviewPolicy do
 
   @tables ~w(project_intakes autopilots delivery_requests deliveries)
   @order "ORDER BY priority LIMIT 1"
+  # Selecting a route also verifies that this review names the writer of the checked
+  # snapshot. Merge review follows the original candidate's approved review.
   @filter """
-  AND NOT (NEW.kind IN ('review','merge_review') AND d.peer_review_version=1
-    AND d.implementer='codex' AND d.reviewer='codex'
-    AND EXISTS (SELECT 1 FROM delivery_steps author
-      WHERE author.delivery_id=d.id AND author.kind='implement'
-        AND author.status='finished' AND author.cycle=NEW.cycle
-        AND json_extract(author.input,'$.model_profile.model')=json_extract(routes.profile,'$.model')))
+  AND (NEW.kind NOT IN ('review','merge_review') OR d.peer_review_version=0
+    OR d.implementer!='codex' OR d.reviewer!='codex' OR EXISTS (
+      SELECT 1 FROM delivery_steps chk
+      JOIN delivery_steps snap ON snap.id=json_extract(chk.input,'$.snapshot_step_id')
+      JOIN delivery_steps author ON author.id=json_extract(snap.input,'$.implementation_step_id')
+      WHERE chk.id=CASE WHEN NEW.kind='review' THEN json_extract(NEW.input,'$.check_step_id')
+        ELSE (SELECT json_extract(original.input,'$.check_step_id') FROM delivery_steps original
+          WHERE original.id=json_extract(NEW.input,'$.original_review_step_id') AND original.delivery_id=d.id
+            AND original.kind='review' AND original.status='finished'
+            AND json_extract(original.receipt,'$.report.verdict')='approved') END
+        AND chk.delivery_id=d.id AND snap.delivery_id=d.id AND author.delivery_id=d.id
+        AND chk.kind='check' AND snap.kind='snapshot' AND author.kind='implement'
+        AND chk.status='finished' AND snap.status='finished' AND author.status='finished'
+        AND json_extract(chk.input,'$.candidate_commit')=json_extract(snap.receipt,'$.candidate_commit')
+        AND (NEW.kind='merge_review' OR json_extract(NEW.input,'$.candidate_commit')=json_extract(chk.input,'$.candidate_commit'))
+        AND chk.cycle=NEW.cycle AND snap.cycle=NEW.cycle AND author.cycle=NEW.cycle AND NEW.cycle=d.cycle
+        AND json_extract(author.input,'$.model_profile.model')!=json_extract(routes.profile,'$.model')))
   """
 
   def up do
