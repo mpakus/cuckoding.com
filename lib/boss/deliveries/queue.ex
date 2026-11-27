@@ -68,7 +68,8 @@ defmodule Boss.Deliveries.Queue do
       Boss.Checks.Command.parse_workflow(text),
       reviewer,
       autonomy_version,
-      routing_version
+      routing_version,
+      :new
     )
   end
 
@@ -89,7 +90,8 @@ defmodule Boss.Deliveries.Queue do
              {:ok, batch.check_config, batch.config_hash},
              batch.reviewer,
              batch.autonomy_version,
-             batch.routing_version
+             batch.routing_version,
+             batch
            ) do
         {:ok, request} ->
           Repo.insert!(%AutopilotItem{
@@ -105,7 +107,16 @@ defmodule Boss.Deliveries.Queue do
     end)
   end
 
-  defp admit_request(project, task, command, check, reviewer, autonomy_version, routing_version) do
+  defp admit_request(
+         project,
+         task,
+         command,
+         check,
+         reviewer,
+         autonomy_version,
+         routing_version,
+         policy_source
+       ) do
     with true <-
            valid_id?(project) and valid_id?(task) and
              Boss.Agents.Metadata.review_runner?(reviewer),
@@ -189,19 +200,22 @@ defmodule Boss.Deliveries.Queue do
                  ),
                do: Repo.rollback(:queue_full)
 
-            Repo.insert!(%Request{
-              id: Ecto.UUID.generate(),
-              project_id: project,
-              task_id: task,
-              spec_revision_id: current.spec_revision_id,
-              admitted_version: current.state_version,
-              command_id: command,
-              check_config: config,
-              config_hash: hash,
-              reviewer: reviewer,
-              autonomy_version: autonomy_version,
-              routing_version: routing_version
-            })
+            Boss.Deliveries.PeerReview.insert!(
+              %Request{
+                id: Ecto.UUID.generate(),
+                project_id: project,
+                task_id: task,
+                spec_revision_id: current.spec_revision_id,
+                admitted_version: current.state_version,
+                command_id: command,
+                check_config: config,
+                config_hash: hash,
+                reviewer: reviewer,
+                autonomy_version: autonomy_version,
+                routing_version: routing_version
+              },
+              policy_source
+            )
         end
       end)
       |> broadcast_result()

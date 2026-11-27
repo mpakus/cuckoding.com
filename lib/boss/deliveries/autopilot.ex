@@ -242,17 +242,20 @@ defmodule Boss.Deliveries.Autopilot do
                do: Repo.rollback(:busy)
 
             batch =
-              Repo.insert!(%AutopilotBatch{
-                id: Ecto.UUID.generate(),
-                project_id: project,
-                command_id: command,
-                task_ids: tasks,
-                check_config: config,
-                config_hash: hash,
-                reviewer: reviewer,
-                autonomy_version: intake_autonomy(intake),
-                routing_version: routing_version
-              })
+              Boss.Deliveries.PeerReview.insert!(
+                %AutopilotBatch{
+                  id: Ecto.UUID.generate(),
+                  project_id: project,
+                  command_id: command,
+                  task_ids: tasks,
+                  check_config: config,
+                  config_hash: hash,
+                  reviewer: reviewer,
+                  autonomy_version: intake_autonomy(intake),
+                  routing_version: routing_version
+                },
+                if(intake, do: {Boss.Projects.Intake.Request, intake}, else: :new)
+              )
 
             maybe_insert_loop_config!(batch, opts)
 
@@ -675,17 +678,20 @@ defmodule Boss.Deliveries.Autopilot do
           save(batch, "blocked", reason)
 
           next_batch =
-            Repo.insert!(%AutopilotBatch{
-              id: Ecto.UUID.generate(),
-              project_id: batch.project_id,
-              command_id: Ecto.UUID.generate(),
-              task_ids: candidates,
-              check_config: batch.check_config,
-              config_hash: batch.config_hash,
-              reviewer: batch.reviewer,
-              autonomy_version: batch.autonomy_version,
-              routing_version: batch.routing_version
-            })
+            Boss.Deliveries.PeerReview.insert!(
+              %AutopilotBatch{
+                id: Ecto.UUID.generate(),
+                project_id: batch.project_id,
+                command_id: Ecto.UUID.generate(),
+                task_ids: candidates,
+                check_config: batch.check_config,
+                config_hash: batch.config_hash,
+                reviewer: batch.reviewer,
+                autonomy_version: batch.autonomy_version,
+                routing_version: batch.routing_version
+              },
+              batch
+            )
 
           maybe_insert_loop_config!(next_batch,
             parallel: cfg.parallel_enabled == 1,

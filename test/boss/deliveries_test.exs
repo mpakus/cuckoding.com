@@ -127,6 +127,129 @@ defmodule Boss.DeliveriesTest do
     assert [_] = Projects.list_spec_revisions(c.task.spec_id)
   end
 
+  test "the author cannot review its own implementation or merge candidate", c do
+    {delivery, plan, check} = checked(c)
+
+    author =
+      Enum.find(Deliveries.steps(delivery.id), &(&1.kind == "implement")).input["model_profile"]
+
+    assert author == @catalog["primary"]
+
+    input = review_input(delivery, plan, check)
+
+    forged =
+      Map.merge(input, %{
+        "model_profile" => author,
+        "spec_revision_id" => delivery.spec_revision_id
+      })
+
+    assert {:error, :invalid_step} = Deliveries.begin_step(delivery.id, "review", 1, forged)
+    assert {:error, error} = raw_stage(delivery, "review", forged, 1)
+    assert Exception.message(error) =~ "pinned catalog"
+    review = review(delivery, plan, check)
+    assert review.input["model_profile"] == @catalog["resolver"]
+
+    {:ok, _} = Deliveries.complete(delivery.id, "ready_to_merge")
+
+    {:ok, {:new, delivery}} =
+      Deliveries.admit_integration(c.project.id, delivery.id, Ecto.UUID.generate())
+
+    {merge, merge_check} = merge_checked(delivery, plan, check, review)
+    input = merge_review_input(delivery, plan, merge, merge_check, review)
+
+    assert {:error, error} =
+             raw_stage(delivery, "merge_review", Map.put(input, "model_profile", author), 1)
+
+    assert Exception.message(error) =~ "pinned catalog"
+    assert {:ok, peer} = Deliveries.begin_step(delivery.id, "merge_review", 1, input)
+    assert peer.input["model_profile"] == @catalog["resolver"]
+  end
+
+  test "claiming an earlier queued request and explicitly retrying it retain its original review policy",
+       c do
+    {:ok, config, hash} = Boss.Checks.Command.parse_workflow("true")
+
+    request =
+      Repo.insert!(%Boss.Deliveries.Request{
+        id: Ecto.UUID.generate(),
+        command_id: Ecto.UUID.generate(),
+        project_id: c.project.id,
+        task_id: c.task.id,
+        spec_revision_id: c.task.spec_revision_id,
+        admitted_version: c.task.state_version,
+        reviewer: "codex",
+        autonomy_version: 1,
+        routing_version: 2,
+        check_config: config,
+        config_hash: hash
+      })
+
+    {:ok, {:started, _, original}} = Boss.Deliveries.Queue.claim(request.id)
+    {parent, _, _, review} = rejected(Map.put(c, :claimed_delivery, original))
+    assert review.input["model_profile"] == @catalog["primary"]
+    {:ok, {:new, child}} = Deliveries.admit_retry(c.project.id, parent.id, Ecto.UUID.generate())
+
+    assert Repo.query!("SELECT peer_review_version FROM deliveries WHERE id=?", [child.id]).rows ==
+             [[0]]
+
+    assert {:error, _} =
+             Repo.query("UPDATE deliveries SET peer_review_version=1 WHERE id=?", [child.id])
+  end
+
+  test "new Autopilot items inherit peer review and cannot link to a historical loop", c do
+    alias Boss.Deliveries.{Autopilot, AutopilotBatch, Queue}
+    {:ok, config, hash} = Boss.Checks.Command.parse_workflow("true")
+
+    old =
+      Repo.insert!(%AutopilotBatch{
+        id: Ecto.UUID.generate(),
+        command_id: Ecto.UUID.generate(),
+        project_id: c.project.id,
+        task_ids: [c.task.id],
+        reviewer: "codex",
+        autonomy_version: 1,
+        routing_version: 2,
+        check_config: config,
+        config_hash: hash
+      })
+
+    assert {:ok, _} = Autopilot.cancel(c.project.id, old.id, old.version)
+
+    {:ok, batch} =
+      Autopilot.admit(
+        c.project.id,
+        Ecto.UUID.generate(),
+        [c.task.id],
+        "true",
+        "codex",
+        false,
+        nil, spec_loop: true)
+
+    assert Repo.query!("SELECT peer_review_version FROM autopilots WHERE id=?", [batch.id]).rows ==
+             [[1]]
+
+    assert Repo.query!(
+             "SELECT r.peer_review_version FROM delivery_requests r JOIN autopilot_items i ON i.request_id=r.id WHERE i.autopilot_id=?",
+             [batch.id]
+           ).rows == [[1]]
+
+    for field <- ~w(parent_autopilot_id next_autopilot_id) do
+      assert {:error, e} =
+               Repo.query("UPDATE autopilot_loop_configs SET #{field}=? WHERE autopilot_id=?", [
+                 old.id,
+                 batch.id
+               ])
+
+      assert Exception.message(e) =~ "inherit peer review policy"
+    end
+
+    [request] = Queue.list(c.project.id, c.task.id)
+    assert {:ok, {:started, _, delivery}} = Queue.claim(request.id)
+
+    assert Repo.query!("SELECT peer_review_version FROM deliveries WHERE id=?", [delivery.id]).rows ==
+             [[1]]
+  end
+
   test "explicit review retry pins source and replays before changed readiness", c do
     {parent, plan, check, rejected} = rejected(c)
     # A pool added after the parent completed cannot supply historical model evidence.
@@ -1155,6 +1278,9 @@ defmodule Boss.DeliveriesTest do
             false,
             version
           )
+
+        :error when is_map_key(c, :claimed_delivery) ->
+          {:ok, {:new, c.claimed_delivery}}
 
         :error ->
           Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
