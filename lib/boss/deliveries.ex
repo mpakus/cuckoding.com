@@ -123,12 +123,14 @@ defmodule Boss.Deliveries do
             do: [repair_model | excluded],
             else: excluded
 
-        excluded =
-          Boss.Deliveries.PeerReview.excluded_authors(d, kind, cycle, saved_steps) ++ excluded
-
-        if d.routing_version == 1,
-          do: ModelPolicy.select(preferred, excluded),
-          else: ModelPolicy.select(preferred, excluded, d.model_catalog)
+        if d.routing_version == 1 do
+          ModelPolicy.select(preferred, excluded)
+        else
+          with {:ok, authors} <-
+                 Boss.Deliveries.PeerReview.excluded_authors(d, kind, cycle, saved_steps) do
+            ModelPolicy.select(preferred, authors ++ excluded, d.model_catalog)
+          end
+        end
       end
     end
   end
