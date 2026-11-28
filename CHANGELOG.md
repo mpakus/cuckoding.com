@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-rc.3 — 2026-11-28
+
+First GitHub release candidate for macOS on Apple Silicon. BOSS runs a local dashboard and uses the coding CLIs installed on your Mac.
+
+- Start from one committed Markdown brief. Autopilot creates dependent board cards and a final review of the complete brief. The live Minute Clock trial took all three cards to Done, with eight named project tests available to the final reviewer.
+- Independent Codex reviewers can return a task for diagnosis and a fresh implementation attempt. Each published commit has its own approval and postcheck.
+- The macOS archive includes the BEAM runtime and native guardian. The tag workflow checks the archive against the tested source commit, publishes release notes and includes SHA-256 checksums.
+
 ## 0.1.0-rc.2 — 2026-11-18
 
 Local macOS beta. Use the [release guide](docs/RELEASE.md) to build or launch it.

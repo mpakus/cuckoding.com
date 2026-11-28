@@ -7,7 +7,7 @@ defmodule Boss.MixProject do
   def project do
     [
       app: :boss,
-      version: "0.1.0-rc.2",
+      version: "0.1.0-rc.3",
       releases: [
         boss: [
           include_erts: true,

@@ -1068,3 +1068,7 @@ Audit scope and local reproduction are in [the architecture guide](../docs/ARCHI
 - [x] Carry failed and unclear criteria, evidence and issues into an authorized rework pass. Preserve confirmed external-action stops.
 - [x] Preserve the exact saved check argv and hash when a prerequisite and its dependents enter the next pass.
 - [x] Publish the approved replacement after target drift and use its linked plan for postcheck repair. Verify Stop and drift budgets.
+
+## First GitHub release
+
+- [ ] Publish the versioned macOS candidate from its verified tag commit and compare an independent download with the release checksum. [Release guide](../docs/RELEASE.md#release-from-a-git-tag)

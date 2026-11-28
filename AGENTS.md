@@ -65,7 +65,10 @@
   never force test mode or mutate the running VM environment to repair a project.
 - Release candidates must bundle and verify native library closure, notices and
   build provenance; test the extracted archive with private fresh data. Keep
-  distribution disabled for the local launcher. A local package/smoke is not
+  distribution disabled for the local launcher. GitHub Releases must use the archive from
+  the successful push-to-main workflow at the exact tag commit. Preserve the tag,
+  version, package and SHA-256 binding through publication.
+  A local package/smoke is not
   clean-machine, signing, provider, Linux or remote-CI acceptance.   Never hide
   dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
   Keep the direct Phoenix.HTML requirement at or above 4.4.0 for CVE-2026-117645,

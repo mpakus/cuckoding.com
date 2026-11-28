@@ -1,9 +1,19 @@
 # BOSS macOS beta
 
-`v0.1.0-rc.2` identifies the local beta source. The archive produced by the
-build below is `boss-0.1.0-rc.2.tar.gz`.
+## GitHub release candidates
 
-## Current candidate (0.1.0-rc.2)
+`v0.1.0-rc.3` is the first version prepared for [GitHub Releases](https://github.com/mpakus/cuckoding.com/releases). Use the release page for downloadable files, their signing status and SHA-256 checksums. Task execution and packaging currently target macOS on Apple Silicon.
+
+### Release from a Git tag
+
+1. Update the application version in `mix.exs` and add its section to `CHANGELOG.md`. Push the reviewed commit to `main` and tag that commit with `v` followed by the same version.
+2. The [release workflow](../.github/workflows/release.yml) looks up the successful macOS candidate build for that exact commit. It verifies the archive checksum and packaged version and source commit before preparing the GitHub Release.
+3. For a signed DMG, configure `MACOS_CERTIFICATE_BASE64`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_API_KEY_BASE64`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` in the BOSS repository's Actions secrets. Select the Developer ID Application certificate with `DEVELOPER_ID_APPLICATION` or the existing `APPLE_SIGNING_IDENTITY`. The certificate secret contains the exported signing identity and private key in PKCS#12 format. Supply the certificate and key only through GitHub's secret settings.
+4. The signing job uses a temporary Keychain, signs a copy of the verified archive's contents, checks the signed payload and submits the DMG to Apple. Verify Apple's Accepted result, stapling and Gatekeeper assessment before publishing the signed download. If a submission outcome is uncertain, reconcile the saved ID and original DMG before another upload.
+
+For an explicitly approved **archive-only prerelease**, set the repository Actions variable `BOSS_ARCHIVE_ONLY_TAG` to that single RC tag before starting the release. Its download is an unsigned macOS archive. Remove the variable after publication. The release page identifies the format and signing status.
+
+## Previous local candidate (0.1.0-rc.2)
 
 Clean local `main` commit `e757fa1b9777f65ac51a748828a3431c880badf3` passed the
 local release gates recorded in
@@ -300,6 +310,8 @@ online Gatekeeper lookup alone do not prove a stapled offline delivery works.
 Do not remove quarantine or disable Gatekeeper to pass this gate.
 
 ## Install and run locally
+
+Download the files listed in `SHA256SUMS` from the same release into a fresh directory, then run `shasum -a 256 -c SHA256SUMS`. For a DMG, open the verified image and copy the `boss` folder to a writable location before starting BOSS.
 
 Extract into a new application folder; keep the archive/checksum and avoid
 overwriting a running version. From the extracted directory:

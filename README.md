@@ -18,11 +18,10 @@ worker exits so Autopilot can continue other tasks. The dashboard binds to
 loopback. Coding agents use your installed CLIs and provider accounts, which
 can send data to those services and incur charges.
 
-Task execution is macOS. Linux task execution is not available, and the Linux
-folder picker has not been verified on a desktop. `0.1.0-rc.2` is a local beta
-you build yourself. There is no public installer, notarized download or stable
-release tag. See the [build and installation guide](docs/RELEASE.md) and
-[release notes](CHANGELOG.md).
+BOSS runs coding tasks on macOS. The release target is Apple Silicon.
+Find the macOS candidate and its checksums on [GitHub Releases](https://github.com/mpakus/cuckoding.com/releases).
+See the [installation guide](docs/RELEASE.md#install-and-run-locally) for first launch and the
+[changelog](CHANGELOG.md) for version details.
 
 The running program still uses `Boss.*` modules, `BOSS_DATA_DIR` and `~/.boss`.
 This page uses B\*SS for the product name.
@@ -419,8 +418,8 @@ and delete only that directory after stopping the test application. No existing
 `~/.boss` data is used by tests. `mix test` does not call a live provider. The
 [release guide](docs/RELEASE.md) records the `0.1.0-rc.2` 910-test regression,
 Developer ID signing evidence, and one-task live paid Codex Autopilot measurement
-(`~106s` to verified `Done`); broader multi-task and non-Codex live provider
-acceptance remain separate opt-in gates.
+(`~106s` to verified `Done`). A subsequent [live Codex trial](.worklog/2026-11-27.md#minute-clock-rerun-with-project-test-results)
+delivered all three cards from one Markdown brief. Non-Codex provider acceptance remains open.
 Folder-picker process tests use Python 3 fixtures; they do not open desktop dialogs.
 Linux/Zenity GUI behavior has not yet been verified on a Linux desktop.
 
