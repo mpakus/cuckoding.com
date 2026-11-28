@@ -357,7 +357,7 @@ restore must not silently discard work created after the backup.
 |---|---|
 | Full regression | All application tests pass on the final source/dependency tree (`0.1.0-rc.2` `e757fa1`: 910 passed, 1 Linux-only skipped; rerun after newer source/migration commits). |
 | Package | Actual unpacked startup, unlock/assets, native helper, host-tool PATH handoff and durable restart with bundled runtime; checksum and provenance (`e757fa1` verified). |
-| Dependency audit | Hex and npm audit pass without suppressing findings (`phoenix_html >= 4.4.0`, `bandit 1.14.1`, `ecto 3.14.3`, `plug 1.20.4`). |
+| Dependency audit | Hex and npm audits must pass without suppressing findings. The November 27 lock updates Phoenix to `1.8.17`, LiveView to `1.2.15` and DBConnection to `2.10.3`, retaining the Phoenix.HTML, Bandit, Ecto and Plug fixes. |
 | Clean-machine macOS | Supported architecture/OS acceptance from a stapled quarantined download with user-installed Git and CLI; actual folder chooser and provider workflow (**open**). |
 | Provider | `rc.1` `9596162` passed one packaged Codex smoke (`100.875s`); `rc.2` (`2026-11-15`) passed one live paid Codex `0.166.0` Autopilot task through `Done` (`~106s`). Multi-task/intake and non-Codex paid provider runs remain separate opt-in gates. |
 | Distribution | Apache-2.0 and 45+ third-party notices (`Tailwind-LICENSE`, `Three-LICENSE`, OTP/OpenSSL/Hex) included; local Developer ID signing and signed-payload smoke verified on `rc.2` `e757fa1`. Notarization (`Accepted`), copy-only stapling and Gatekeeper acceptance remain **open** (`BOSS-018e`). |

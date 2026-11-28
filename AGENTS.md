@@ -70,7 +70,9 @@
   dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
   Keep the direct Phoenix.HTML requirement at or above 4.4.0 for CVE-2026-117645,
   Ecto at or above 3.14.3 for CVE-2026-118391, and Plug at or above 1.20.4 for
-  CVE-2026-120287.
+  CVE-2026-120287. Keep Phoenix at or above 1.8.17 and LiveView at or above
+  1.2.14 on their current minor lines. Verify the transitive DBConnection lock
+  resolves to 2.10.3 or later with the release workflow's Hex audit.
   Seed historical migration fixtures against their old schema. Apply independent
   schema additions before calling current contexts without advancing the migration
   under test.

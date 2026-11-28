@@ -68,3 +68,5 @@ rtk proxy asdf exec mix test test/boss/autopilot_native_test.exs --only greenfie
 ```
 
 See the [executable acceptance cases](../test/fixtures/greenfield_brief_check.py) and [native end-to-end test](../test/boss/autopilot_native_test.exs). Live-model quality and deployment require separate evidence.
+
+In the November 27 live Codex trial, one brief produced two dependent implementation cards and a final whole-brief card. The published CLI passed independent checks. The final reviewer twice requested evidence that the project's own tests had run because the command pinned at intake omitted test discovery. The trial deadline stopped that card during rework. When planning a staged project, include the checks needed by the final reviewer in the original command and make their output visible once the corresponding files exist. [Minute Clock trial](../.worklog/2026-11-27.md)
