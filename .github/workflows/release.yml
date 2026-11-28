@@ -1,0 +1,90 @@
+name: Publish BOSS release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: publish-boss-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BOSS_ARCHIVE_ONLY_TAG: ${{ vars.BOSS_ARCHIVE_ONLY_TAG }}
+
+jobs:
+  candidate:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    outputs:
+      run: ${{ steps.source.outputs.run }}
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Find the verified push to main for this tag
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/github_release.py candidate
+
+  publish:
+    needs: candidate
+    runs-on: macos-15
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Verify archive, source version, checksum and tag
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ needs.candidate.outputs.run }}
+          CANDIDATE_SHA: ${{ needs.candidate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          gh run download "$RUN" --name "boss-rc-macOS-ARM64-$CANDIDATE_SHA" --dir "$RUNNER_TEMP/candidate"
+          python3 -B scripts/github_release.py prepare
+      - name: Sign, notarize and verify the macOS DMG
+        if: steps.draft.outputs.mode == 'signed' && steps.draft.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOSS_NOTARY_INTENT_HOOK: ${{ github.workspace }}/scripts/reserve_notarization.sh
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION || secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: bash scripts/ci_macos_distribution.sh "$RUNNER_TEMP/candidate/boss-${GITHUB_REF_NAME#v}.tar.gz" "$RUNNER_TEMP/signed"
+      - name: Publish verified files and download them for checksum verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/github_release.py finish
+      - name: Preserve signed bytes and notarization evidence for reconciliation
+        if: failure() && steps.draft.outputs.mode == 'signed'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: notarization-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/signed/boss-submitted.dmg
+            ${{ runner.temp }}/signed/boss.dmg
+            ${{ runner.temp }}/signed/SIGNING_INFO.json
+            ${{ runner.temp }}/signed/NOTARY_REQUEST.json
+            ${{ runner.temp }}/signed/NOTARIZATION.json
+          if-no-files-found: ignore
+          retention-days: 30
