@@ -53,7 +53,7 @@ class DistributionTest(unittest.TestCase):
             self.assertEqual(calls[-1][1:], ("delete-keychain", str(keychain)))
 
     def test_submission_and_stapling(self):
-        for failure in ("", "reservation", "lost reply", "rejected", "spctl"):
+        for failure in ("", "reservation", "lost reply", "lost receipt", "rejected", "spctl"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
                 output = Path(tmp)
                 (output / "boss.dmg").write_bytes(b"signed")
@@ -63,7 +63,15 @@ class DistributionTest(unittest.TestCase):
                 hook = output / "reserve"
                 def fake_run(*args, **kwargs):
                     if args[0] == str(hook):
-                        calls.append("reserve")
+                        if len(args) == 3:
+                            calls.append("save id")
+                            self.assertEqual(args[2], submission_id)
+                            receipt = json.loads((output / "NOTARIZATION.json").read_text())
+                            self.assertEqual(receipt["submission_id"], submission_id)
+                            if failure == "lost receipt":
+                                raise ValueError("fixture could not persist submission")
+                        else:
+                            calls.append("reserve")
                         self.assertNotIn("MACOS_CERTIFICATE_PASSWORD", kwargs["env"])
                         self.assertEqual(Path(kwargs["env"]["BOSS_SUBMITTED_DMG"]).read_bytes(), b"signed")
                         if failure == "reservation":
@@ -78,6 +86,7 @@ class DistributionTest(unittest.TestCase):
                         if action == "wait":
                             receipt = json.loads((output / "NOTARIZATION.json").read_text())
                             self.assertEqual(receipt["submission_id"], submission_id)
+                            self.assertEqual(calls[-2:], ["save id", "wait"])
                             return json.dumps({"id": submission_id, "status": "Invalid" if failure == "rejected" else "Accepted"})
                     elif args[1:3] == ("stapler", "staple"):
                         self.assertEqual(json.loads((output / "NOTARIZATION.json").read_text())["status"], "Accepted")
@@ -95,6 +104,8 @@ class DistributionTest(unittest.TestCase):
                         release.notarize(output, output / "private.p8", hook)
                 self.assertEqual(calls.count("submit"), 0 if failure == "reservation" else 1)
                 self.assertEqual(calls[:2], ["history", "reserve"])
+                if failure == "lost receipt":
+                    self.assertNotIn("wait", calls)
                 self.assertEqual((output / "boss-submitted.dmg").read_bytes(), b"signed")
                 self.assertEqual(calls.count("staple"), int(failure in ("", "spctl")))
                 self.assertEqual((output / "SHA256SUMS").exists(), not failure)
