@@ -13,6 +13,12 @@
 
 For an explicitly approved **archive-only prerelease**, set the repository Actions variable `BOSS_ARCHIVE_ONLY_TAG` to that single RC tag before starting the release. Its download is an unsigned macOS archive. Remove the variable after publication. The release page identifies the format and signing status.
 
+If a signed release stops, inspect the draft and the failed run:
+
+- An empty draft after a missing-secret error can resume on the same tag after the repository secrets are set. Rerun the failed job.
+- A notarization intent records the hash of the submitted DMG. If the run lost Apple's response, reconcile that digest, the retained DMG and the Apple account history before proceeding.
+- With a saved submission UUID, use `notarytool info` or `wait` for that UUID. Staple a copy of the retained matching DMG only after Apple reports `Accepted`, then validate the ticket, assess it with Gatekeeper and generate checksums of the final bytes. A new run must preserve the original submission.
+
 ## Previous local candidate (0.1.0-rc.2)
 
 Clean local `main` commit `e757fa1b9777f65ac51a748828a3431c880badf3` passed the
