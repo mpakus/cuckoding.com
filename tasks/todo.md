@@ -1050,6 +1050,7 @@ See the [agent detection worklog](../.worklog/2026-11-11.md).
 - [x] Protect newer user edits and frontmatter during specs-mode rework. Verify a changed working file survives a rejected or stale adoption.
 - [x] Verify the original brief at the published SHA when the planner returns a partial or empty plan. A failing whole-brief review blocks completion.
 - [x] Measure one live Codex greenfield run. Two implementation cards reached Done and the published CLI passed independent acceptance. The final card returned for rework twice and was cancelled at the trial deadline. [Run evidence](../.worklog/2026-11-27.md)
+- [x] Rerun the same one-file brief with project test results in the pinned intake check. All three cards reached Done autonomously. The final review covered seven criteria, and its saved check digest matched eight named passing project tests at the published SHA. [Rerun evidence](../.worklog/2026-11-27.md#minute-clock-rerun-with-project-test-results)
 
 Audit scope and local reproduction are in [the architecture guide](../docs/ARCHITECTURE.md) and [the verification log](../.worklog/2026-11-23.md).
 

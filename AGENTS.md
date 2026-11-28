@@ -340,7 +340,10 @@
 - Verify greenfield delivery with exactly one committed Markdown file in a source
   subdirectory, a finite CLI, a trusted executable assertion and a fresh checkout
   of the exact published SHA. Record per-task Done and whole-brief coverage
-  separately. New documentation starts pin a trusted executable check, loop
+  separately. For a staged brief that requires project tests, include discovery
+  results in the pinned command's normal output once those tests are due.
+  Verify the approved review's check ID and output digest at the published SHA.
+  New documentation starts pin a trusted executable check, loop
   choice and pool setting before effects. A final task depends on every generated
   task, even when the plan is empty. Preserve its original revision, full source
   coverage, cumulative diff, independent review and exact-SHA postcheck.
