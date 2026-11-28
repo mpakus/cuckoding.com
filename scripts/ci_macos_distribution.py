@@ -110,6 +110,7 @@ def notarize(output, key, hook):
     receipt.update(submission_id=submission_id, status="submitted")
     save_receipt(output, receipt)
     print(f"Apple submission ID {submission_id}, DMG sha256 {receipt['submitted_sha256']}", flush=True)
+    run(str(hook), str(submitted), submission_id, env=hook_env)
     status = json.loads(run(xcrun, "notarytool", "wait", submission_id, *auth,
                             "--timeout", "30m", "--output-format", "json", timeout=1900))
     if status.get("id", "").lower() != submission_id or status.get("status") != "Accepted":
